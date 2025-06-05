@@ -1,0 +1,53 @@
+<div class="config-section">
+    <h3 class="section-title"><i class="bi bi-broadcast-pin text-success"></i>LoRa Configuration</h3>
+    <div class="form-check form-switch mb-3">
+        <input class="form-check-input" type="checkbox" id="loraEnabled" name="lora_enabled" value="true" checked>
+        <label class="form-check-label" for="loraEnabled">Enable LoRa Configuration</label>
+    </div>
+    <div id="loraConfig">
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label for="loraRegion" class="form-label">LoRa Region</label>
+                <select class="form-select" id="loraRegion" name="lora_region">
+                    <option value="meshtastic_Config_LoRaConfig_RegionCode_US" selected>US</option>
+                    <option value="meshtastic_Config_LoRaConfig_RegionCode_EU_433">EU 433</option>
+                    <option value="meshtastic_Config_LoRaConfig_RegionCode_EU_868">EU 868</option>
+                    <option value="meshtastic_Config_LoRaConfig_RegionCode_CN">CN</option>
+                    <option value="meshtastic_Config_LoRaConfig_RegionCode_JP">JP</option>
+                    <option value="meshtastic_Config_LoRaConfig_RegionCode_ANZ">ANZ</option>
+                    <option value="meshtastic_Config_LoRaConfig_RegionCode_KR">KR</option>
+                    <option value="meshtastic_Config_LoRaConfig_RegionCode_TW">TW</option>
+                    <option value="meshtastic_Config_LoRaConfig_RegionCode_RU">RU</option>
+                    <option value="meshtastic_Config_LoRaConfig_RegionCode_IN">IN</option>
+                    <option value="meshtastic_Config_LoRaConfig_RegionCode_NZ_865">NZ 865</option>
+                    <option value="meshtastic_Config_LoRaConfig_RegionCode_TH">TH</option>
+                    <option value="meshtastic_Config_LoRaConfig_RegionCode_LORA_24">LORA 24</option>
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label for="loraModemPreset" class="form-label">Modem Preset</label>
+                <select class="form-select" id="loraModemPreset" name="lora_modem_preset">
+                    <option value="meshtastic_Config_LoRaConfig_ModemPreset_LONG_FAST" selected>Long Range & Fast</option>
+                    <option value="meshtastic_Config_LoRaConfig_ModemPreset_LONG_SLOW">Long Range & Slow</option>
+                    <option value="meshtastic_Config_LoRaConfig_ModemPreset_VERY_LONG_SLOW">Very Long Range & Slow</option>
+                    <option value="meshtastic_Config_LoRaConfig_ModemPreset_MEDIUM_SLOW">Medium Range & Slow</option>
+                    <option value="meshtastic_Config_LoRaConfig_ModemPreset_MEDIUM_FAST">Medium Range & Fast</option>
+                    <option value="meshtastic_Config_LoRaConfig_ModemPreset_SHORT_SLOW">Short Range & Slow</option>
+                    <option value="meshtastic_Config_LoRaConfig_ModemPreset_SHORT_FAST">Short Range & Fast</option>
+                </select>
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label for="loraChannelNum" class="form-label">Channel Number</label>
+                <input type="number" class="form-control" id="loraChannelNum" name="lora_channel_num" value="31">
+            </div>
+            <div class="col-md-6">
+                <div class="form-check form-switch mt-4">
+                    <input class="form-check-input" type="checkbox" id="loraIgnoreMqtt" name="lora_ignore_mqtt" value="true" checked>
+                    <label class="form-check-label" for="loraIgnoreMqtt">Ignore MQTT (LoRa Only)</label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div> 

@@ -1,0 +1,36 @@
+# Production override for docker-compose.yml
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  mtfwbuilder:
+    environment:
+      - FLASK_ENV=production
+      - FLASK_DEBUG=false
+    restart: always
+    # Remove port exposure - nginx will handle this
+    ports: []
+    networks:
+      - backend
+
+  nginx:
+    image: nginx:alpine
+    container_name: mtfwbuilder-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/logs:/var/log/nginx
+    depends_on:
+      - mtfwbuilder
+    restart: always
+    networks:
+      - backend
+      - frontend
+
+networks:
+  backend:
+    internal: true
+  frontend:
+    external: false 

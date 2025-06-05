@@ -1,0 +1,113 @@
+<div class="config-section">
+    <h3 class="section-title"><i class="bi bi-sliders text-success"></i>Advanced Configuration</h3>
+    
+    <div class="accordion" id="advancedAccordion">
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="adminKeysHeading">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#adminKeysCollapse" aria-expanded="false" aria-controls="adminKeysCollapse">
+                    Admin Keys
+                </button>
+            </h2>
+            <div id="adminKeysCollapse" class="accordion-collapse collapse" aria-labelledby="adminKeysHeading" data-bs-parent="#advancedAccordion">
+                <div class="accordion-body">
+                    <div class="mb-3">
+                        <label for="adminKey0" class="form-label">Admin Key 0</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="adminKey0" name="admin_key_0" placeholder="{ 0xcd, 0xc0, 0xb4, ... }">
+                            <button class="btn btn-outline-secondary generate-psk-btn" type="button" data-target="adminKey0">
+                                <i class="bi bi-key-fill me-1"></i>Generate
+                            </button>
+                        </div>
+                        <div class="form-text text-muted">32-byte key in C-style hex format</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="adminKey1" class="form-label">Admin Key 1</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="adminKey1" name="admin_key_1" placeholder="{}">
+                            <button class="btn btn-outline-secondary generate-psk-btn" type="button" data-target="adminKey1">
+                                <i class="bi bi-key-fill me-1"></i>Generate
+                            </button>
+                        </div>
+                        <div class="form-text text-muted">32-byte key in C-style hex format</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="adminKey2" class="form-label">Admin Key 2</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="adminKey2" name="admin_key_2" placeholder="{}">
+                            <button class="btn btn-outline-secondary generate-psk-btn" type="button" data-target="adminKey2">
+                                <i class="bi bi-key-fill me-1"></i>Generate
+                            </button>
+                        </div>
+                        <div class="form-text text-muted">32-byte key in C-style hex format</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="oemSettingsHeading">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#oemSettingsCollapse" aria-expanded="false" aria-controls="oemSettingsCollapse">
+                    OEM Settings
+                </button>
+            </h2>
+            <div id="oemSettingsCollapse" class="accordion-collapse collapse" aria-labelledby="oemSettingsHeading" data-bs-parent="#advancedAccordion">
+                <div class="accordion-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="oemText" class="form-label">OEM Text</label>
+                            <input type="text" class="form-control" id="oemText" name="oem_text" placeholder="Caterham Car Club">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="oemFontSize" class="form-label">OEM Font Size</label>
+                            <input type="number" class="form-control" id="oemFontSize" name="oem_font_size" value="0">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="oemImageWidth" class="form-label">OEM Image Width</label>
+                            <input type="number" class="form-control" id="oemImageWidth" name="oem_image_width" placeholder="50">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="oemImageHeight" class="form-label">OEM Image Height</label>
+                            <input type="number" class="form-control" id="oemImageHeight" name="oem_image_height" placeholder="28">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="oemImageData" class="form-label">OEM Image Data</label>
+                        <textarea class="form-control" id="oemImageData" name="oem_image_data" rows="4" placeholder="{ 0x00, 0x00, 0xF0, ... }"></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="otherSettingsHeading">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#otherSettingsCollapse" aria-expanded="false" aria-controls="otherSettingsCollapse">
+                    Other Settings
+                </button>
+            </h2>
+            <div id="otherSettingsCollapse" class="accordion-collapse collapse" aria-labelledby="otherSettingsHeading" data-bs-parent="#advancedAccordion">
+                <div class="accordion-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="buttonPin" class="form-label">Button Pin</label>
+                            <input type="text" class="form-control" id="buttonPin" name="button_pin" placeholder="36">
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" id="buttonPinEnabled" name="button_pin_enabled" value="true">
+                                <label class="form-check-label" for="buttonPinEnabled">Enable Button Pin</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="eventMode" class="form-label">Event Mode</label>
+                            <select class="form-select" id="eventMode" name="event_mode">
+                                <option value="0">Disabled</option>
+                                <option value="1" selected>Normal</option>
+                                <option value="2">Enhanced</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div> 

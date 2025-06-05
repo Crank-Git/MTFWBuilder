@@ -1,0 +1,471 @@
+{% extends "includes/base.html" %}
+
+{% block content %}
+<div class="config-section">
+    <h3 class="section-title"><i class="bi bi-cpu-fill"></i>Firmware Builder</h3>
+    
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle-fill me-2"></i>
+        Upload your userPrefs.jsonc file and select a device variant to build custom firmware.
+    </div>
+    
+    <form id="firmwareForm" method="post" action="/build-firmware" enctype="multipart/form-data">
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="configSource" class="form-label">Configuration Source</label>
+                    <select class="form-select mb-3" id="configSource" name="config_source">
+                        <option value="upload">Upload userPrefs.jsonc file</option>
+                        <option value="current" id="useCurrentConfigOption">Use current configuration</option>
+                    </select>
+                    
+                    <div id="uploadConfigSection">
+                        <label for="userPrefs" class="form-label">Upload userPrefs.jsonc</label>
+                        <input class="form-control" type="file" id="userPrefs" name="userPrefs" accept=".jsonc,.json">
+                        <div class="form-text text-muted">The configuration file generated in the previous step</div>
+                    </div>
+                    
+                    <div id="currentConfigSection" style="display: none;">
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle-fill me-2"></i>
+                            Using configuration from the generator
+                        </div>
+                        <div class="form-text text-muted mb-2">The settings you configured in the previous step will be used</div>
+                        
+                        <!-- Add collapsible preview section -->
+                        <div class="mb-3">
+                            <button class="btn btn-sm btn-outline-secondary" type="button" 
+                                    data-bs-toggle="collapse" data-bs-target="#configPreview" 
+                                    aria-expanded="false" aria-controls="configPreview">
+                                <i class="bi bi-eye me-1"></i> View Configuration
+                            </button>
+                            <div class="collapse mt-2" id="configPreview">
+                                <div class="card card-body bg-dark">
+                                    <pre class="text-light mb-0" style="max-height: 300px; overflow-y: auto;" id="configPreviewContent">
+Loading configuration...
+                                    </pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <label for="variant" class="form-label">Device Variant</label>
+                <select class="form-select" id="variant" name="variant">
+                    {% for manufacturer, devices in manufacturers.items() %}
+                        <optgroup label="{{ manufacturer }}">
+                            {% for device in devices %}
+                                <option value="{{ device.id }}">{{ device.name }}</option>
+                            {% endfor %}
+                        </optgroup>
+                    {% endfor %}
+                </select>
+                <div class="form-text text-muted">Select your Meshtastic device model</div>
+            </div>
+        </div>
+        
+        <div class="col-12 mt-3" id="deviceInfoBox" style="display: none;">
+            <div class="alert alert-info">
+                <h5 class="device-name mb-2"><i class="bi bi-info-circle-fill me-2"></i><span id="selectedDeviceName"></span></h5>
+                <p class="device-details" id="deviceDescription"></p>
+            </div>
+        </div>
+        
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="feature-box">
+                    <div class="feature-icon"><i class="bi bi-lightning-fill"></i></div>
+                    <h5>Build Process</h5>
+                    <p>The firmware build process will take a moment. During this time, our server will:</p>
+                    <ol>
+                        <li>Upload your configuration file</li>
+                        <li>Compile the Meshtastic firmware with your settings</li>
+                        <li>Generate a custom UF2 firmware file</li>
+                        <li>Provide the file for download</li>
+                    </ol>
+                    <p class="mb-0"><strong>Note:</strong> The firmware will be built specifically for your selected device.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="d-flex justify-content-between">
+            <a href="/" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-2"></i>Back to Config Generator
+            </a>
+            <div class="d-flex align-items-center">
+                <div class="input-group me-3" style="max-width: 300px;">
+                    <span class="input-group-text" id="firmware-name-label">
+                        <i class="bi bi-file-earmark-binary"></i>
+                    </span>
+                    <input type="text" class="form-control" id="customFilename" name="custom_filename" 
+                           placeholder="Custom filename (optional)" aria-label="Custom filename" 
+                           aria-describedby="firmware-name-label">
+                </div>
+                <div style="width: 2rem; text-align: center; margin-right: 0.75rem;">
+                    <div id="buildLoader" class="loader" style="display: none;"></div>
+                </div>
+                <button type="submit" id="buildButton" class="btn btn-success">
+                    <i class="bi bi-lightning-fill me-2"></i>Build Firmware
+                </button>
+            </div>
+        </div>
+    </form>
+    
+    <div id="buildStatus" class="mt-4" style="display: none;">
+        <h4>Build Status</h4>
+        <div class="progress mb-3">
+            <div id="buildProgress" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+        </div>
+        <pre id="buildLog" class="bg-dark text-light p-3 rounded" style="max-height: 300px; overflow-y: auto;"></pre>
+    </div>
+</div>
+
+<div class="mt-4 text-center text-muted">
+    <p><small>Meshtastic Firmware Builder &copy; 2025</small></p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Check for the "use_current_config" parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const useCurrentConfig = urlParams.get('use_current_config') === 'true';
+    
+    // Check if we have stored configuration
+    const storedConfig = localStorage.getItem('meshtastic_config');
+    const configPreviewContent = document.getElementById('configPreviewContent');
+    
+    // Set up the configuration source dropdown
+    const configSource = document.getElementById('configSource');
+    const uploadSection = document.getElementById('uploadConfigSection');
+    const currentConfigSection = document.getElementById('currentConfigSection');
+    const currentConfigOption = document.getElementById('useCurrentConfigOption');
+    const userPrefsInput = document.getElementById('userPrefs');
+    const firmwareForm = document.getElementById('firmwareForm');
+    
+    // Elements for the build process
+    const buildButton = document.getElementById('buildButton');
+    const buildLoader = document.getElementById('buildLoader');
+    const buildStatus = document.getElementById('buildStatus');
+    const buildProgress = document.getElementById('buildProgress');
+    const buildLog = document.getElementById('buildLog');
+    
+    // Add a hidden input to the form to store the configuration
+    if (storedConfig && firmwareForm) {
+        const hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.name = 'stored_config';
+        hiddenInput.id = 'stored_config';
+        hiddenInput.value = storedConfig;
+        firmwareForm.appendChild(hiddenInput);
+    }
+    
+    // If we have a stored config, enable the option and populate the preview
+    if (storedConfig) {
+        currentConfigOption.disabled = false;
+        
+        // If directed to use current config, select that option
+        if (useCurrentConfig) {
+            configSource.value = 'current';
+            uploadSection.style.display = 'none';
+            currentConfigSection.style.display = 'block';
+            
+            // Show the configuration preview
+            try {
+                const configObj = JSON.parse(storedConfig);
+                
+                // Format the configuration for display
+                let formattedConfig = JSON.stringify(configObj, null, 2);
+                
+                // Highlight important fields
+                formattedConfig = formattedConfig
+                    .replace(/"owner_short_name":/g, '"owner_short_name": <strong class="text-success">')
+                    .replace(/,\n\s+"owner_long_name":/g, '</strong>,\n  "owner_long_name":')
+                    .replace(/"channel_name":/g, '"channel_name": <strong class="text-info">')
+                    .replace(/,\n\s+"position_precision":/g, '</strong>,\n  "position_precision":')
+                    .replace(/"modem_preset":/g, '"modem_preset": <strong class="text-warning">')
+                    .replace(/,\n\s+"channel_num":/g, '</strong>,\n  "channel_num":');
+                
+                // Add the formatted config to the preview
+                configPreviewContent.innerHTML = formattedConfig;
+                
+                // Generate a preview of the actual JSONC that will be created
+                fetch('/preview', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: storedConfig
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        configPreviewContent.innerHTML = `<div class="mb-2"><strong class="text-white">Generated JSONC Configuration:</strong></div>` + 
+                            data.content;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error generating config preview:', error);
+                });
+            } catch (error) {
+                configPreviewContent.textContent = 'Error parsing configuration: ' + error.message;
+            }
+        }
+    } else {
+        // If no stored config, disable the option
+        currentConfigOption.disabled = true;
+        currentConfigOption.textContent = 'Use current configuration (none available)';
+    }
+    
+    // Handle changes to the config source dropdown
+    configSource.addEventListener('change', function() {
+        if (this.value === 'upload') {
+            uploadSection.style.display = 'block';
+            currentConfigSection.style.display = 'none';
+        } else {
+            uploadSection.style.display = 'none';
+            currentConfigSection.style.display = 'block';
+        }
+    });
+    
+    // Function to update the build log
+    function updateBuildLog(message, isHtml = false) {
+        const logEntry = document.createElement('div');
+        if (isHtml) {
+            logEntry.innerHTML = message;
+        } else {
+            logEntry.textContent = message;
+        }
+        buildLog.appendChild(logEntry);
+        buildLog.scrollTop = buildLog.scrollHeight;
+    }
+    
+    // Function to update progress
+    function updateProgress(percent) {
+        buildProgress.style.width = percent + '%';
+        buildProgress.setAttribute('aria-valuenow', percent);
+    }
+    
+    // Function to stage build messages
+    function showBuildStages() {
+        let stageMessages = [
+            'Starting build process...',
+            'Using configuration from generator...',
+            'Compiling Meshtastic core libraries...',
+            'Applying your custom configuration...',
+            'Building firmware components...',
+            'Generating UF2 firmware file...'
+        ];
+        
+        // Calculate timing - spread stages over approximately 8 seconds total
+        const totalStages = stageMessages.length;
+        const timePerStage = 1200; // milliseconds
+        
+        // Show first stage immediately
+        updateBuildLog(stageMessages[0]);
+        updateProgress(5);
+        
+        // Schedule the rest with increasing progress
+        for (let i = 1; i < totalStages; i++) {
+            setTimeout(() => {
+                updateBuildLog(stageMessages[i]);
+                // Progress from 5% to 70% across all stages
+                updateProgress(5 + Math.floor((i / (totalStages - 1)) * 65));
+            }, i * timePerStage);
+        }
+    }
+    
+    // Handle form submission
+    if (firmwareForm) {
+        firmwareForm.addEventListener('submit', function(e) {
+            e.preventDefault(); // Always prevent default form submission
+            
+            // Show build UI
+            buildStatus.style.display = 'block';
+            buildLog.textContent = 'Starting build process...';
+            buildLoader.style.display = 'block';
+            updateProgress(10);
+            buildButton.disabled = true;
+            
+            // Create form data
+            const formData = new FormData(this);
+            
+            // Check if we're using current config or file upload
+            if (configSource.value === 'current' && storedConfig) {
+                // Add the stored config as JSON
+                formData.append('config_json', storedConfig);
+                formData.append('config_source', 'json');
+                updateBuildLog('Using configuration from generator...');
+            } else {
+                // Using file upload
+                if (!userPrefsInput.files[0]) {
+                    updateBuildLog('Error: No configuration file selected');
+                    buildButton.disabled = false;
+                    buildLoader.style.display = 'none';
+                    buildProgress.classList.add('bg-danger');
+                    return;
+                }
+                updateBuildLog('Uploading configuration file...');
+            }
+            
+            // Update the stored_config value right before submission
+            // This ensures we always have the latest config
+            if (configSource.value === 'current') {
+                const storedConfigInput = document.getElementById('stored_config');
+                if (storedConfigInput) {
+                    storedConfigInput.value = localStorage.getItem('meshtastic_config') || '';
+                }
+            }
+            
+            // Send the request
+            fetch('/build-firmware', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    updateProgress(90);
+                    
+                    // Add a success class to the progress bar
+                    buildProgress.classList.remove('progress-bar-animated');
+                    buildProgress.classList.add('bg-success');
+                    
+                    // Hide the loader when build completes
+                    buildLoader.style.display = 'none';
+                    
+                    // Re-enable the build button after a short delay
+                    setTimeout(() => {
+                        buildButton.disabled = false;
+                    }, 1500);
+                    
+                    // Update the build log with a single success message
+                    updateBuildLog('Build completed successfully!');
+                    
+                    // Add download link as a simple text line in the log
+                    updateBuildLog('<a href="' + data.download_url + '" class="text-success" target="_blank"><i class="bi bi-download me-1"></i>Download firmware</a> <small class="text-muted">(download should start automatically)</small>', true);
+                    
+                    // Add a hidden auto-download link
+                    const autoDownloadLink = document.createElement('a');
+                    autoDownloadLink.href = data.download_url;
+                    autoDownloadLink.style.display = 'none';
+                    document.body.appendChild(autoDownloadLink);
+                    autoDownloadLink.click();
+                    setTimeout(() => document.body.removeChild(autoDownloadLink), 1000);
+                    
+                    updateProgress(100);
+                } else {
+                    updateBuildLog('Error: ' + (data.error || 'Unknown error occurred'));
+                    updateBuildLog('Please try again or contact support if the issue persists.');
+                    
+                    buildButton.disabled = false;
+                    buildLoader.style.display = 'none';
+                    buildProgress.classList.add('bg-danger');
+                }
+            })
+            .catch(error => {
+                console.error('Download error:', error);
+                updateBuildLog('Error: ' + error.message);
+                updateBuildLog('The build was successful, but there was an error downloading the firmware.');
+                
+                // Show manual download button with better visibility on error
+                const visibleLink = document.createElement('div');
+                visibleLink.className = 'alert alert-warning d-flex align-items-center justify-content-between';
+                visibleLink.innerHTML = `
+                    <div>
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        <strong>Download didn't start automatically</strong>
+                    </div>
+                    <a href="${data.download_url}" class="btn btn-warning" target="_blank">
+                        <i class="bi bi-download me-2"></i>Download Now
+                    </a>
+                `;
+                buildLog.appendChild(visibleLink);
+                
+                buildButton.disabled = false;
+                buildLoader.style.display = 'none';
+                buildProgress.classList.add('bg-warning');
+            });
+            
+            // Show staged messages while waiting for response
+            showBuildStages();
+        });
+    }
+    
+    // Device information database
+    const deviceInfo = {
+        "tbeam": {
+            description: "A popular ESP32 board with GPS, LoRa, and 18650 battery holder. Good for mobile nodes and base stations.",
+            features: ["GPS", "18650 Battery", "0.96\" OLED (optional)"]
+        },
+        "tbeam-s3-core": {
+            description: "The newest T-Beam variant with ESP32-S3 processor, improved performance and more memory.",
+            features: ["ESP32-S3", "GPS", "18650 Battery", "USB-C"]
+        },
+        "rak4631": {
+            description: "A compact and modular LoRa solution from RAK Wireless based on Nordic nRF52840.",
+            features: ["Modular Design", "Low Power", "Bluetooth 5.0", "Multiple Sensors Available"]
+        },
+        "heltec-v3": {
+            description: "Compact device with built-in OLED display, good for fixed nodes or portable use.",
+            features: ["Integrated Display", "USB-C", "Compact Size", "Built-in Battery"]
+        },
+        "nano-g1": {
+            description: "Ultra-compact Meshtastic node ideal for minimal footprint applications.",
+            features: ["Tiny Size", "Low Power", "Simple Setup"]
+        }
+        // Add more as needed
+    };
+
+    // Update device info when selection changes
+    const variantSelect = document.getElementById('variant');
+    if (variantSelect) {
+        variantSelect.addEventListener('change', function() {
+            const deviceId = this.value;
+            const deviceInfoBox = document.getElementById('deviceInfoBox');
+            const selectedDeviceName = document.getElementById('selectedDeviceName');
+            const deviceDescription = document.getElementById('deviceDescription');
+            const selectedOption = this.options[this.selectedIndex];
+            
+            selectedDeviceName.textContent = selectedOption.text;
+            
+            if (deviceInfo[deviceId]) {
+                deviceDescription.innerHTML = deviceInfo[deviceId].description;
+                if (deviceInfo[deviceId].features) {
+                    deviceDescription.innerHTML += '<p class="mb-0 mt-2"><strong>Features:</strong> ' + 
+                        deviceInfo[deviceId].features.join(', ') + '</p>';
+                }
+                deviceInfoBox.style.display = 'block';
+            } else {
+                deviceDescription.innerHTML = 'Standard Meshtastic-compatible device.';
+                deviceInfoBox.style.display = 'block';
+            }
+        });
+        
+        // Trigger the change event to show initial device info
+        if (variantSelect.value) {
+            variantSelect.dispatchEvent(new Event('change'));
+        }
+    }
+});
+</script>
+
+<style>
+    .loader {
+        width: 1.5rem;
+        height: 1.5rem;
+        border: 3px solid rgba(0, 0, 0, 0.1);
+        border-radius: 50%;
+        border-top-color: #28a745;
+        animation: spin 1s ease-in-out infinite;
+        display: inline-block;
+        vertical-align: middle;
+    }
+    
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %} 

@@ -1,0 +1,77 @@
+<div class="config-section">
+    <h3 class="section-title"><i class="bi bi-wifi text-success"></i>Network Configuration</h3>
+    <div class="form-check form-switch mb-3">
+        <input class="form-check-input" type="checkbox" id="networkEnabled" name="network_enabled" value="true">
+        <label class="form-check-label" for="networkEnabled">Enable Network Configuration</label>
+    </div>
+    <div id="networkConfig" style="display: none;">
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label for="networkProtocols" class="form-label">Enabled Protocols</label>
+                <select class="form-select" id="networkProtocols" name="network_protocols">
+                    <option value="1" selected>UDP</option>
+                    <option value="2">TCP</option>
+                    <option value="3">UDP & TCP</option>
+                </select>
+            </div>
+            <div class="col-md-6">
+                <div class="form-check form-switch mt-4">
+                    <input class="form-check-input" type="checkbox" id="wifiEnabled" name="wifi_enabled" value="true">
+                    <label class="form-check-label" for="wifiEnabled">Enable WiFi</label>
+                </div>
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label for="wifiSsid" class="form-label">WiFi SSID</label>
+                <input type="text" class="form-control" id="wifiSsid" name="wifi_ssid" placeholder="Your WiFi network name">
+            </div>
+            <div class="col-md-6">
+                <label for="wifiPsk" class="form-label">WiFi Password</label>
+                <input type="password" class="form-control" id="wifiPsk" name="wifi_psk" placeholder="Your WiFi password">
+            </div>
+        </div>
+        
+        <h4 class="mt-4 mb-3">MQTT Configuration</h4>
+        <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="mqttEnabled" name="mqtt_enabled" value="true">
+            <label class="form-check-label" for="mqttEnabled">Enable MQTT</label>
+        </div>
+        <div id="mqttConfig" style="display: none;">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="mqttAddress" class="form-label">MQTT Server</label>
+                    <input type="text" class="form-control" id="mqttAddress" name="mqtt_address" placeholder="mqtt.meshtastic.org">
+                </div>
+                <div class="col-md-6">
+                    <label for="mqttRootTopic" class="form-label">MQTT Root Topic</label>
+                    <input type="text" class="form-control" id="mqttRootTopic" name="mqtt_root_topic" placeholder="event/REPLACEME">
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="mqttUsername" class="form-label">MQTT Username</label>
+                    <input type="text" class="form-control" id="mqttUsername" name="mqtt_username" placeholder="meshdev">
+                </div>
+                <div class="col-md-6">
+                    <label for="mqttPassword" class="form-label">MQTT Password</label>
+                    <input type="password" class="form-control" id="mqttPassword" name="mqtt_password" placeholder="Password">
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="mqttEncryptionEnabled" name="mqtt_encryption_enabled" value="true" checked>
+                        <label class="form-check-label" for="mqttEncryptionEnabled">Enable MQTT Encryption</label>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="mqttTlsEnabled" name="mqtt_tls_enabled" value="true">
+                        <label class="form-check-label" for="mqttTlsEnabled">Enable MQTT TLS</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div> 

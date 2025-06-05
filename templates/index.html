@@ -1,0 +1,220 @@
+{% extends "includes/base.html" %}
+
+{% block content %}
+<form id="configForm">
+    {% include "includes/basic_info.html" %}
+    {% include "includes/channel_config.html" %}
+    {% include "includes/lora_config.html" %}
+    {% include "includes/gps_config.html" %}
+    {% include "includes/network_config.html" %}
+    {% include "includes/advanced_config.html" %}
+    
+    <div class="config-section">
+        <h3 class="section-title"><i class="bi bi-file-earmark-code-fill text-success"></i>Generate Configuration</h3>
+        
+        <div class="mb-4">
+            <label for="preview-container" class="form-label">Preview</label>
+            <div id="preview-container" class="mb-3">
+                <!-- JSON preview will be displayed here -->
+                <em>Click "Preview" to see your configuration</em>
+            </div>
+        </div>
+        
+        <div class="d-flex justify-content-between mt-3">
+            <button type="button" class="btn btn-outline-secondary" id="previewBtn">
+                <i class="bi bi-eye me-2"></i>Preview
+            </button>
+            <div>
+                <button type="button" class="btn btn-success me-2" id="proceedToBuilderBtn">
+                    <i class="bi bi-cpu-fill me-2"></i>Proceed to Firmware Builder
+                </button>
+                <button type="button" class="btn btn-success" id="downloadBtn">
+                    <i class="bi bi-download me-2"></i>Download userPrefs.jsonc
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Move the "Ready to build firmware" section to be hidden, we'll use the button instead -->
+    <div id="proceedToBuilderSection" class="d-none">
+        <p class="text-center mb-3">Ready to build firmware with your configuration?</p>
+        <div class="text-center">
+            <a href="/firmware-builder" class="btn btn-outline-success">
+                <i class="bi bi-cpu-fill me-2"></i>Proceed to Firmware Builder
+            </a>
+        </div>
+    </div>
+</form>
+
+<div class="mt-4 text-center text-muted">
+    <p><small>Meshtastic Configuration Generator &copy; 2025</small></p>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, setting up enhanced event handlers');
+    
+    // Enhanced form data collection function
+    function getFormData() {
+        const formData = {};
+        
+        // Use querySelectorAll to get all named form elements
+        const elements = document.querySelectorAll('[name]');
+        
+        elements.forEach(element => {
+            const name = element.name;
+            let value;
+            
+            if (element.type === 'checkbox') {
+                // For checkboxes, we want the string "true" or "false"
+                value = element.checked ? "true" : "false";
+            } else if (element.type === 'radio') {
+                // Only get the value if the radio button is checked
+                if (element.checked) {
+                    value = element.value;
+                } else {
+                    return; // Skip unchecked radio buttons
+                }
+            } else {
+                // For all other input types (text, number, select, etc.)
+                value = element.value;
+            }
+            
+            // Only add to form data if there's a value (or it's a checkbox)
+            if (value !== '' || element.type === 'checkbox') {
+                formData[name] = value;
+            }
+        });
+        
+        console.log('Enhanced form data collected:', formData);
+        return formData;
+    }
+    
+    // Generate PSK functionality
+    function generatePSK() {
+        const bytes = new Uint8Array(32);
+        crypto.getRandomValues(bytes);
+        const hexBytes = Array.from(bytes).map(b => `0x${b.toString(16).padStart(2, '0').toUpperCase()}`);
+        return `{ ${hexBytes.join(', ')} }`;
+    }
+    
+    // Add event listeners for PSK generation buttons
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('generate-psk-btn') || 
+            e.target.closest('.generate-psk-btn')) {
+            
+            const button = e.target.classList.contains('generate-psk-btn') ? 
+                          e.target : e.target.closest('.generate-psk-btn');
+            const targetId = button.getAttribute('data-target');
+            const targetInput = document.getElementById(targetId);
+            
+            if (targetInput) {
+                targetInput.value = generatePSK();
+                console.log(`Generated PSK for ${targetId}`);
+            }
+        }
+    });
+    
+    // Get button elements
+    const previewBtn = document.getElementById('previewBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const proceedToBuilderBtn = document.getElementById('proceedToBuilderBtn');
+    const previewContainer = document.getElementById('preview-container');
+    
+    // Preview button handler
+    if (previewBtn) {
+        previewBtn.addEventListener('click', function(e) {
+            console.log('Enhanced preview button clicked');
+            e.preventDefault();
+            
+            // Show loading state
+            previewContainer.innerHTML = '<div class="alert alert-info">Loading preview...</div>';
+            
+            // Get form data with enhanced collection
+            const formData = getFormData();
+            formData.preview_only = true;
+            
+            // Send request to preview endpoint
+            fetch('/preview', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Enhanced preview response:', data);
+                if (data.success) {
+                    // Show content in preview container
+                    previewContainer.innerHTML = '<pre class="bg-dark text-light p-3 rounded">' + 
+                        data.content + '</pre>';
+                } else {
+                    previewContainer.innerHTML = '<div class="alert alert-danger">' + 
+                        (data.error || 'Error generating preview') + '</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Enhanced preview error:', error);
+                previewContainer.innerHTML = '<div class="alert alert-danger">Error: ' + error.message + '</div>';
+            });
+        });
+    }
+    
+    // Download button handler
+    if (downloadBtn) {
+        downloadBtn.addEventListener('click', function(e) {
+            console.log('Enhanced download button clicked');
+            e.preventDefault();
+            
+            // Get form data with enhanced collection
+            const formData = getFormData();
+            
+            // Create and submit a hidden form
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/download';
+            form.style.display = 'none';
+            
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'config';
+            input.value = JSON.stringify(formData);
+            
+            form.appendChild(input);
+            document.body.appendChild(form);
+            console.log('Submitting enhanced download form');
+            form.submit();
+            
+            // Remove the form after submission
+            setTimeout(() => {
+                document.body.removeChild(form);
+            }, 100);
+        });
+    }
+    
+    // Proceed to Firmware Builder button handler
+    if (proceedToBuilderBtn) {
+        proceedToBuilderBtn.addEventListener('click', function(e) {
+            console.log('Enhanced proceed to builder button clicked');
+            e.preventDefault();
+            
+            // Get form data with enhanced collection
+            const formData = getFormData();
+            
+            // Store the current configuration in localStorage
+            try {
+                localStorage.setItem('meshtastic_config', JSON.stringify(formData));
+                console.log('Enhanced config saved to localStorage');
+                
+                // Redirect to the firmware builder
+                window.location.href = '/firmware-builder?use_current_config=true';
+            } catch (error) {
+                console.error('Enhanced error storing config:', error);
+                alert('Error saving configuration. Please try again.');
+            }
+        });
+    }
+});
+</script>
+{% endblock %} 

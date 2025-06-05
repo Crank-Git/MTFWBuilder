@@ -1,0 +1,186 @@
+<div class="config-section">
+    <h3 class="section-title"><i class="bi bi-broadcast text-success"></i>Channel Configuration</h3>
+    <div class="mb-3">
+        <label for="channelsToWrite" class="form-label">Number of Channels</label>
+        <select class="form-select" id="channelsToWrite" name="channels_to_write">
+            <option value="0">None</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3" selected>3</option>
+        </select>
+    </div>
+    
+    <div id="channelTabs" class="mb-4">
+        <ul class="nav nav-tabs" id="channelTabsList" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="channel-0-tab" data-bs-toggle="tab" data-bs-target="#channel-0-content" type="button" role="tab" aria-controls="channel-0-content" aria-selected="true">Channel 1</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="channel-1-tab" data-bs-toggle="tab" data-bs-target="#channel-1-content" type="button" role="tab" aria-controls="channel-1-content" aria-selected="false">Channel 2</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="channel-2-tab" data-bs-toggle="tab" data-bs-target="#channel-2-content" type="button" role="tab" aria-controls="channel-2-content" aria-selected="false">Channel 3</button>
+            </li>
+        </ul>
+        <div class="tab-content" id="channelTabsContent">
+            <!-- Channel 0 -->
+            <div class="tab-pane fade show active" id="channel-0-content" role="tabpanel" aria-labelledby="channel-0-tab">
+                <div class="channel-tab">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="channel0Name" class="form-label">Channel Name</label>
+                            <input type="text" class="form-control" id="channel0Name" name="channel_0[name]" placeholder="Primary">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="channel0Precision" class="form-label">Position Precision</label>
+                            <select class="form-select" id="channel0Precision" name="channel_0[precision]">
+                                <option value="13">13 - Default (~100ft accuracy)</option>
+                                <option value="14" selected>14 - Enhanced (~50ft accuracy)</option>
+                                <option value="15">15 - High (~25ft accuracy)</option>
+                                <option value="16">16 - Very High (~12ft accuracy)</option>
+                                <option value="17">17 - Precise (~6ft accuracy)</option>
+                                <option value="18">18 - Very Precise (~3ft accuracy)</option>
+                                <option value="19">19 - Ultra Precise (~1.5ft accuracy)</option>
+                                <option value="20">20 - Maximum (~9in accuracy)</option>
+                                <option value="32">32 - FULL PRECISION (~2.3ft accuracy)</option>
+                            </select>
+                            <div class="form-text text-muted">Higher precision uses more bandwidth</div>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <label for="channel0PSK" class="form-label">Pre-Shared Key (PSK)</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="channel0PSK" name="channel_0[psk]" placeholder="{ 0x38, 0x4b, 0xbc, ... }">
+                                <button class="btn btn-outline-secondary generate-psk-btn" type="button" data-target="channel0PSK">
+                                    <i class="bi bi-key-fill me-1"></i>Generate
+                                </button>
+                            </div>
+                            <div class="form-text text-muted">32-byte key in C-style hex format</div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="channel0Uplink" name="channel_0[uplink_enabled]" value="true" checked>
+                                <label class="form-check-label" for="channel0Uplink">Uplink Enabled</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="channel0Downlink" name="channel_0[downlink_enabled]" value="true">
+                                <label class="form-check-label" for="channel0Downlink">Downlink Enabled</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Channel 1 -->
+            <div class="tab-pane fade" id="channel-1-content" role="tabpanel" aria-labelledby="channel-1-tab">
+                <div class="channel-tab">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="channel1Name" class="form-label">Channel Name</label>
+                            <input type="text" class="form-control" id="channel1Name" name="channel_1[name]" placeholder="NodeChat">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="channel1Precision" class="form-label">Position Precision</label>
+                            <select class="form-select" id="channel1Precision" name="channel_1[precision]">
+                                <option value="13">13 - Default (~100ft accuracy)</option>
+                                <option value="14" selected>14 - Enhanced (~50ft accuracy)</option>
+                                <option value="15">15 - High (~25ft accuracy)</option>
+                                <option value="16">16 - Very High (~12ft accuracy)</option>
+                                <option value="17">17 - Precise (~6ft accuracy)</option>
+                                <option value="18">18 - Very Precise (~3ft accuracy)</option>
+                                <option value="19">19 - Ultra Precise (~1.5ft accuracy)</option>
+                                <option value="20">20 - Maximum (~9in accuracy)</option>
+                                <option value="32">32 - FULL PRECISION (~2.3ft accuracy)</option>
+                            </select>
+                            <div class="form-text text-muted">Higher precision uses more bandwidth</div>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <label for="channel1PSK" class="form-label">Pre-Shared Key (PSK)</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="channel1PSK" name="channel_1[psk]" placeholder="{ 0x38, 0x4b, 0xbc, ... }">
+                                <button class="btn btn-outline-secondary generate-psk-btn" type="button" data-target="channel1PSK">
+                                    <i class="bi bi-key-fill me-1"></i>Generate
+                                </button>
+                            </div>
+                            <div class="form-text text-muted">32-byte key in C-style hex format</div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="channel1Uplink" name="channel_1[uplink_enabled]" value="true">
+                                <label class="form-check-label" for="channel1Uplink">Uplink Enabled</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="channel1Downlink" name="channel_1[downlink_enabled]" value="true">
+                                <label class="form-check-label" for="channel1Downlink">Downlink Enabled</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Channel 2 -->
+            <div class="tab-pane fade" id="channel-2-content" role="tabpanel" aria-labelledby="channel-2-tab">
+                <div class="channel-tab">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="channel2Name" class="form-label">Channel Name</label>
+                            <input type="text" class="form-control" id="channel2Name" name="channel_2[name]" placeholder="YardSale">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="channel2Precision" class="form-label">Position Precision</label>
+                            <select class="form-select" id="channel2Precision" name="channel_2[precision]">
+                                <option value="13">13 - Default (~100ft accuracy)</option>
+                                <option value="14" selected>14 - Enhanced (~50ft accuracy)</option>
+                                <option value="15">15 - High (~25ft accuracy)</option>
+                                <option value="16">16 - Very High (~12ft accuracy)</option>
+                                <option value="17">17 - Precise (~6ft accuracy)</option>
+                                <option value="18">18 - Very Precise (~3ft accuracy)</option>
+                                <option value="19">19 - Ultra Precise (~1.5ft accuracy)</option>
+                                <option value="20">20 - Maximum (~9in accuracy)</option>
+                                <option value="32">32 - FULL PRECISION (~2.3ft accuracy)</option>
+                            </select>
+                            <div class="form-text text-muted">Higher precision uses more bandwidth</div>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <label for="channel2PSK" class="form-label">Pre-Shared Key (PSK)</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="channel2PSK" name="channel_2[psk]" placeholder="{ 0x38, 0x4b, 0xbc, ... }">
+                                <button class="btn btn-outline-secondary generate-psk-btn" type="button" data-target="channel2PSK">
+                                    <i class="bi bi-key-fill me-1"></i>Generate
+                                </button>
+                            </div>
+                            <div class="form-text text-muted">32-byte key in C-style hex format</div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="channel2Uplink" name="channel_2[uplink_enabled]" value="true">
+                                <label class="form-check-label" for="channel2Uplink">Uplink Enabled</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="channel2Downlink" name="channel_2[downlink_enabled]" value="true">
+                                <label class="form-check-label" for="channel2Downlink">Downlink Enabled</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div> 

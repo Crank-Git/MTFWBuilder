@@ -1,0 +1,56 @@
+<div class="config-section">
+    <h3 class="section-title"><i class="bi bi-geo-alt-fill text-success"></i>GPS Configuration</h3>
+    <div class="form-check form-switch mb-3">
+        <input class="form-check-input" type="checkbox" id="gpsEnabled" name="gps_enabled" value="true" checked>
+        <label class="form-check-label" for="gpsEnabled">Enable GPS Configuration</label>
+    </div>
+    <div id="gpsConfig">
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label for="gpsMode" class="form-label">GPS Mode</label>
+                <select class="form-select" id="gpsMode" name="gps_mode">
+                    <option value="meshtastic_Config_PositionConfig_GpsMode_ENABLED" selected>Enabled</option>
+                    <option value="meshtastic_Config_PositionConfig_GpsMode_DISABLED">Disabled</option>
+                    <option value="meshtastic_Config_PositionConfig_GpsMode_MOBILE">Mobile</option>
+                    <option value="meshtastic_Config_PositionConfig_GpsMode_STATIONARY">Stationary</option>
+                </select>
+            </div>
+            <div class="col-md-6">
+                <div class="form-check form-switch mt-4">
+                    <input class="form-check-input" type="checkbox" id="fixedPositionEnabled" name="fixed_position" value="true">
+                    <label class="form-check-label" for="fixedPositionEnabled">Use Fixed Position</label>
+                </div>
+            </div>
+        </div>
+        <div id="fixedPositionFields" style="display: none;">
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label for="fixedLat" class="form-label">Latitude</label>
+                    <input type="text" class="form-control" id="fixedLat" name="fixed_lat" placeholder="48.85873920">
+                </div>
+                <div class="col-md-4">
+                    <label for="fixedLon" class="form-label">Longitude</label>
+                    <input type="text" class="form-control" id="fixedLon" name="fixed_lon" placeholder="2.294508368">
+                </div>
+                <div class="col-md-4">
+                    <label for="fixedAlt" class="form-label">Altitude</label>
+                    <input type="text" class="form-control" id="fixedAlt" name="fixed_alt" placeholder="0">
+                </div>
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label for="gpsUpdateInterval" class="form-label">GPS Update Interval (seconds)</label>
+                <input type="number" class="form-control" id="gpsUpdateInterval" name="gps_update_interval" value="600">
+            </div>
+            <div class="col-md-6">
+                <label for="positionBroadcastInterval" class="form-label">Position Broadcast Interval (seconds)</label>
+                <input type="number" class="form-control" id="positionBroadcastInterval" name="position_broadcast_interval" value="1800">
+            </div>
+        </div>
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="smartPositionEnabled" name="smart_position_enabled" value="true">
+            <label class="form-check-label" for="smartPositionEnabled">Enable Smart Position</label>
+        </div>
+    </div>
+</div> 
