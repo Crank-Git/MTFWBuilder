@@ -30,14 +30,6 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# PyInstaller
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
 # Unit test / coverage reports
 htmlcov/
 .tox/
@@ -79,57 +71,20 @@ flask_session/
 .env.production
 
 # ===========================================
-# PlatformIO & Firmware
-# ===========================================
-
-# PlatformIO build files
-.pio/
-.pioenvs/
-.piolibdeps/
-
-# Firmware files
-*.uf2
-*.bin
-*.hex
-*.elf
-
-# Firmware source directory (downloaded)
-firmware/
-
-# Build artifacts
-*.o
-*.a
-*.map
-
-# ===========================================
 # Project Specific
 # ===========================================
 
 # Application logs
 *.log
 app.log
-firmware_updater.log
 
 # Configuration files
-ReferenceConf.jsonc
 userPrefs.jsonc
 
-# Version tracking
-firmware_version.txt
-
-# Temporary build directories
+# Temporary directories
 tmp/
 temp/
 .cache/
-firmware_temp/
-downloads/
-meshtastic_config/
-
-# Build outputs
-build_*/
-
-# Uploaded files
-uploads/
 
 # ===========================================
 # IDEs and Editors
@@ -209,37 +164,11 @@ $RECYCLE.BIN/
 *.key
 *.pem
 secrets.json
-config.json
-
-# Admin credentials
-admin_keys.txt
 
 # Database files
 *.sqlite
 *.db
 *.sqlite3
-
-# ===========================================
-# Documentation & Media
-# ===========================================
-
-# Generated documentation
-docs/_build/
-docs/build/
-site/
-
-# Large media files
-*.mp4
-*.avi
-*.mov
-*.mkv
-*.jpg
-*.jpeg
-*.png
-*.gif
-*.bmp
-*.tiff
-*.svg
 
 # ===========================================
 # Backup & Archive Files
@@ -255,10 +184,4 @@ site/
 *.tar.gz
 *.tar.bz2
 *.7z
-*.rar
-
-# Docker and Environment Files
-.env
-.env.local
-.env.production
-docker-compose.override.yml 
+*.rar 

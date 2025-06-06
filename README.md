@@ -1,38 +1,11 @@
-# Meshtastic Configuration Generator
+# Meshtastic Configuration Generator (UserPrefs Only)
 
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Flask](https://img.shields.io/badge/flask-2.0+-green.svg)](https://flask.palletsprojects.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
-![MTFWBuilder Interface](image/mtfw.png)
-
-A modern, user-friendly web interface for generating Meshtastic device configurations and building custom firmware. This tool streamlines the process of creating `userPrefs.jsonc` files and compiling them directly into UF2 firmware images to apply to meshtastic devices in DFU mode.
-
-## 📚 Table of Contents
-
-- [🚀 Features](#-features)
-  - [Configuration Generator](#configuration-generator)
-  - [Firmware Builder](#firmware-builder)
-  - [Administration](#administration)
-- [📋 Requirements](#-requirements)
-- [🛠️ Installation](#️-installation)
-  - [Quick Start](#quick-start)
-  - [Admin Configuration](#admin-configuration)
-  - [Docker Installation](#docker-installation)
-- [🎯 Usage](#-usage)
-  - [Generating Configuration Files](#generating-configuration-files)
-  - [Building Custom Firmware](#building-custom-firmware)
-  - [Admin Functions](#admin-functions)
-  - [Flashing Firmware](#flashing-firmware)
-- [🏗️ Architecture](#️-architecture)
-- [🧪 Development](#-development)
-- [🐛 Troubleshooting](#-troubleshooting)
-- [🤝 Contributing](#-contributing)
-- [📄 License](#-license)
-- [🙏 Acknowledgments](#-acknowledgments)
-- [📊 Project Status](#-project-status)
-- [🔗 Related Projects](#-related-projects)
+A lightweight, user-friendly web interface for generating Meshtastic device configurations. This version focuses solely on creating `userPrefs.jsonc` files for manual flashing or use with other firmware builders.
 
 ## 🚀 Features
 
@@ -44,30 +17,18 @@ A modern, user-friendly web interface for generating Meshtastic device configura
   - LoRa radio settings (region, modem preset, channel selection)
   - GPS configuration with smart positioning
   - Network settings (WiFi, MQTT)
+  - Device role configuration
   - Advanced device settings
 - **Real-time Preview**: See your configuration in JSONC format before generating
 - **Secure PSK Generation**: Cryptographically secure pre-shared key generation
 - **Timezone Auto-detection**: Automatically detects and sets your local timezone
-
-### Firmware Builder
-- **Direct Firmware Compilation**: Build custom firmware with your configuration baked in
-- **40+ Device Variants Supported**: Including T-Beam, Heltec, RAK, and many more
-- **Custom Firmware Naming**: Option to provide custom filenames for your builds
-- **Optimized Build Process**: Multi-threaded compilation for faster builds
-- **Progress Tracking**: Real-time build status and error reporting
-
-### Administration
-- **Firmware Management**: Built-in firmware update system
-- **System Monitoring**: View firmware versions and system status
-- **Build Management**: Admin dashboard for managing builds and system maintenance
+- **Lightweight**: No firmware building, PlatformIO, or admin overhead
 
 ## 📋 Requirements
 
 - Python 3.8 or higher
-- PlatformIO (for firmware building - installed automatically)
-- Git (for firmware updates)
-- 4GB+ RAM (recommended for firmware compilation)
-- 10GB+ disk space (for firmware source and builds)
+- 512MB+ RAM 
+- 100MB+ disk space
 
 ## 🛠️ Installation
 
@@ -77,6 +38,7 @@ A modern, user-friendly web interface for generating Meshtastic device configura
    ```bash
    git clone https://github.com/Crank-Git/MTFWBuilder.git
    cd MTFWBuilder
+   git checkout userprefs-only
    ```
 
 2. **Create virtual environment**
@@ -97,110 +59,7 @@ A modern, user-friendly web interface for generating Meshtastic device configura
 
 5. **Open your browser** and navigate to `http://localhost:5000`
 
-### Admin Configuration
-
-For admin functions (firmware updates, cleanup), create a `config.json` file:
-
-```bash
-# Copy the example config
-cp config.json.example config.json
-
-# Edit with your secure admin password
-nano config.json
-```
-
-Example `config.json`:
-```json
-{
-  "admin_password": "your_secure_admin_password_here"
-}
-```
-
-**Note**: If no `config.json` exists, the default password `meshtastic` will be used.
-
-### Docker Installation
-
-For the easiest deployment experience, use Docker:
-
-**Prerequisites:**
-- Docker and Docker Compose installed
-- 4GB+ RAM available for the container
-- 10GB+ disk space for firmware builds
-
-**Quick Start:**
-```bash
-# Clone the repository
-git clone https://github.com/Crank-Git/MTFWBuilder.git
-cd MTFWBuilder
-
-# Start with Docker Compose
-docker compose up -d
-
-# Or use the deployment script
-./docker-deploy.sh start
-```
-
-**Using the Deployment Script:**
-```bash
-# Build the image
-./docker-deploy.sh build
-
-# Start the container
-./docker-deploy.sh start
-
-# View logs
-./docker-deploy.sh logs
-
-# Stop the container
-./docker-deploy.sh stop
-
-# Update and rebuild
-./docker-deploy.sh update
-
-# Clean up old build files
-./docker-deploy.sh cleanup
-
-# View all available commands
-./docker-deploy.sh help
-```
-
-**Manual Docker Commands:**
-```bash
-# Build the image
-docker build -t mtfwbuilder .
-
-# Run the container
-docker run -d \
-  --name mtfwbuilder \
-  -p 5000:5000 \
-  -v mtfwbuilder_firmware:/app/firmware \
-  -v mtfwbuilder_builds:/app/.pio \
-  mtfwbuilder
-
-# View logs
-docker logs -f mtfwbuilder
-```
-
-**Environment Configuration:**
-```bash
-# Copy the example environment file
-cp docker.env.example .env
-
-# Edit configuration (optional)
-nano .env
-
-# Copy the admin config example
-cp config.json.example config.json
-
-# Edit admin password (recommended)
-nano config.json
-```
-
-The application will be available at `http://localhost:5000`
-
 ## 🎯 Usage
-
-#### REMEMBER TO DOWNLOAD THE FIRMWARE ON THE ADMIN PAGE UTILIZING YOUR ADMIN PASSWORD IN CONFIG.JSON
 
 ### Generating Configuration Files
 
@@ -209,57 +68,31 @@ The application will be available at `http://localhost:5000`
 3. **LoRa Settings**: Configure your radio parameters for your region
 4. **GPS Configuration**: Set up position reporting and smart positioning
 5. **Network Settings**: Configure WiFi and MQTT if needed
-6. **Preview & Download**: Review your configuration and download the `userPrefs.jsonc` file
+6. **Device Role**: Select your device's role in the mesh network
+7. **Preview & Download**: Review your configuration and download the `userPrefs.jsonc` file
 
-### Building Custom Firmware
+### Using Your Configuration
 
-1. **Generate Configuration**: Create your configuration using the generator above
-2. **Select Device**: Choose your specific Meshtastic device variant
-3. **Build Firmware**: Click "Build Firmware" and wait for compilation
-4. **Download**: Get your custom firmware file ready to flash
+The generated `userPrefs.jsonc` file can be used with:
 
-### Admin Functions
-
-Access the admin panel at `http://localhost:5000/admin` for system management:
-
-1. **Firmware Updates**: Download and update the Meshtastic firmware source code
-   - Click "Update Firmware" to get the latest firmware from GitHub
-   - Required before building firmware for the first time
-   - Updates include new device support and bug fixes
-
-2. **System Cleanup**: Manually clean up old build files to free disk space
-   - View current system status and firmware version
-   - Trigger manual cleanup of temporary build directories
-
-**Note**: Admin functions require the admin password configured in `config.json`
-
-### Flashing Firmware
-
-The generated firmware is in UF2 format for easy flashing:
-
-1. **Put your device in DFU mode** (usually by double-pressing the reset button)
-2. **Drag and drop** the `.uf2` file to the device when it appears as a USB drive
-3. **Device will reboot** automatically with your custom configuration
-
-NOTE: You may need to download the `nrf_erase_sd7_3.uf2` from the webflasher below and erase your device before reflashing.
-
-Alternatively, use the [Meshtastic Web Flasher](https://flasher.meshtastic.org/) for a guided flashing experience.
+1. **Meshtastic Web Flasher**: Upload to [flasher.meshtastic.org](https://flasher.meshtastic.org/)
+2. **Meshtastic CLI**: Use with `meshtastic --set-config userPrefs.jsonc`
+3. **Manual Firmware Building**: Include in your own PlatformIO builds
+4. **Other Tools**: Any tool that accepts Meshtastic configuration files
 
 ## 🏗️ Architecture
 
 ```
-MTFWBuilder/
-├── app.py                 # Main Flask application
-├── requirements.txt       # Python dependencies
+MTFWBuilder-UserPrefs/
+├── app.py                 # Lightweight Flask application
+├── requirements.txt       # Minimal Python dependencies
 ├── static/               # CSS, JavaScript, and assets
 │   ├── css/             # Stylesheets
 │   └── js/              # JavaScript modules
 ├── templates/           # Jinja2 HTML templates
 │   └── includes/        # Reusable template components
-├── utils/               # Utility modules
-│   ├── jsonc_generator.py    # Configuration file generator
-│   └── firmware_updater.py   # Firmware management
-└── firmware/            # Meshtastic firmware source (auto-downloaded)
+└── utils/               # Utility modules
+    └── jsonc_generator.py    # Configuration file generator
 ```
 
 ## 🧪 Development
@@ -275,51 +108,20 @@ MTFWBuilder/
 
 ### Common Issues
 
-**Build Fails with "PlatformIO not found"**
-- PlatformIO is installed automatically with the requirements
-- If issues persist, try: `pip install platformio`
+**Configuration not generating**
+- Verify all required fields are filled
+- Check that PSK format is correct (32-byte hex array)
+- Try the preview function to debug issues
 
-**Firmware download fails**
-- Check disk space (builds require ~2GB temporarily)
-- Ensure PlatformIO dependencies are installed
-- Try a different device variant
+**JavaScript errors**
+- Ensure browser supports modern JavaScript features
+- Check browser console for specific error messages
+- Try clearing browser cache
 
-**Configuration not applying**
-- Verify JSON syntax in preview
-- Check that all required fields are filled
-- Ensure PSK format is correct (32-byte hex array)
-
-**Device not recognized for flashing**
-- Make sure device is in DFU/bootloader mode
-- Try a different USB cable or port
-- Check device-specific flashing instructions
-
-**Disk space issues**
-- Build files are automatically cleaned up after download (5 second delay)
-- Old build directories are removed after 1 hour automatically
-- Periodic cleanup runs every 30 minutes
-- Manual cleanup: `./docker-deploy.sh cleanup` or use admin panel
-- Check volume usage: `docker volume ls`
-
-**Security: userPrefs cleanup**
-- userPrefs.jsonc files contain sensitive PSK (encryption keys)
-- Automatically removed after successful firmware build
-- Cleaned up on build errors and during periodic maintenance
-- Manual cleanup removes any leftover userPrefs files
-- Files are never left on disk longer than necessary
-
-**Security: UF2 firmware cleanup**
-- UF2 firmware files contain compiled PSK data from userPrefs
-- Original UF2 files are automatically deleted after copying to secure build directory
-- Prevents PSK leakage between different user builds
-- All variant UF2 files cleaned up during maintenance
-- Ensures no sensitive data persists in PlatformIO build cache
-
-**Admin functions not working**
-- Check that `config.json` exists with your admin password
-- Default password is `meshtastic` if no config file exists
-- Admin functions: firmware updates, manual cleanup
-- Test with: `curl -X POST -d "admin_key=your_password" http://localhost:5000/cleanup`
+**File download issues**
+- Check browser download settings
+- Ensure popup blockers aren't interfering
+- Try different browsers if issues persist
 
 ### Getting Help
 
@@ -334,7 +136,7 @@ We welcome contributions! Here's how you can help:
 ### Types of Contributions
 
 - 🐛 **Bug Reports**: Help us identify and fix issues
-- 💡 **Feature Requests**: Suggest new functionality
+- 💡 **Feature Requests**: Suggest new configuration options
 - 📖 **Documentation**: Improve our docs and examples
 - 🔧 **Code Contributions**: Submit bug fixes and new features
 - 🎨 **UI/UX Improvements**: Make the interface even better
@@ -384,22 +186,22 @@ SOFTWARE.
 
 - [Meshtastic Project](https://meshtastic.org/) for the amazing mesh networking platform
 - [Bootstrap](https://getbootstrap.com/) for the beautiful UI components
-- [PlatformIO](https://platformio.org/) for the firmware build system
 - All contributors who help make this project better
 
 ## 📊 Project Status
 
-- ✅ Configuration Generation
-- ✅ Firmware Building  
-- ✅ Multi-device Support
-- ✅ Web Interface
-- ✅ Docker Support
+- ✅ UserPrefs Configuration Generation
+- ✅ Real-time Preview
+- ✅ Secure PSK Generation  
+- ✅ Lightweight Web Interface
+- ✅ Multi-browser Support
 
 ## 🔗 Related Projects
 
 - [Meshtastic](https://github.com/meshtastic/Meshtastic-device) - The main Meshtastic firmware
 - [Meshtastic Web](https://github.com/meshtastic/web) - Official web interface
 - [Meshtastic Python](https://github.com/meshtastic/Meshtastic-python) - Python API
+- [MTFWBuilder (Full Version)](https://github.com/Crank-Git/MTFWBuilder/tree/main) - Complete version with firmware building
 
 ---
 

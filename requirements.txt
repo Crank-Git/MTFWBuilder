@@ -14,19 +14,8 @@ requests==2.31.0
 pathlib==1.0.1
 python-dateutil==2.8.2
 
-# PlatformIO for firmware building (required)
-platformio==6.1.11
-
 # JSON handling and utilities
 jsonschema==4.19.1
 
-# Development and testing dependencies (optional)
-# Uncomment for development setup
-# pytest==7.4.2
-# pytest-cov==4.1.0
-# black==23.7.0
-# flake8==6.0.0
-# isort==5.12.0
-
-# Production WSGI server (optional)
+# Production WSGI server (optional, uncomment for production)
 # gunicorn==21.2.0 

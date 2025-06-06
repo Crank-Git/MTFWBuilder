@@ -25,23 +25,10 @@
                 <i class="bi bi-eye me-2"></i>Preview
             </button>
             <div>
-                <button type="button" class="btn btn-success me-2" id="proceedToBuilderBtn">
-                    <i class="bi bi-cpu-fill me-2"></i>Proceed to Firmware Builder
-                </button>
                 <button type="button" class="btn btn-success" id="downloadBtn">
                     <i class="bi bi-download me-2"></i>Download userPrefs.jsonc
                 </button>
             </div>
-        </div>
-    </div>
-
-    <!-- Move the "Ready to build firmware" section to be hidden, we'll use the button instead -->
-    <div id="proceedToBuilderSection" class="d-none">
-        <p class="text-center mb-3">Ready to build firmware with your configuration?</p>
-        <div class="text-center">
-            <a href="/firmware-builder" class="btn btn-outline-success">
-                <i class="bi bi-cpu-fill me-2"></i>Proceed to Firmware Builder
-            </a>
         </div>
     </div>
 </form>
@@ -118,7 +105,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Get button elements
     const previewBtn = document.getElementById('previewBtn');
     const downloadBtn = document.getElementById('downloadBtn');
-    const proceedToBuilderBtn = document.getElementById('proceedToBuilderBtn');
     const previewContainer = document.getElementById('preview-container');
     
     // Preview button handler
@@ -190,29 +176,6 @@ document.addEventListener('DOMContentLoaded', function() {
             setTimeout(() => {
                 document.body.removeChild(form);
             }, 100);
-        });
-    }
-    
-    // Proceed to Firmware Builder button handler
-    if (proceedToBuilderBtn) {
-        proceedToBuilderBtn.addEventListener('click', function(e) {
-            console.log('Enhanced proceed to builder button clicked');
-            e.preventDefault();
-            
-            // Get form data with enhanced collection
-            const formData = getFormData();
-            
-            // Store the current configuration in localStorage
-            try {
-                localStorage.setItem('meshtastic_config', JSON.stringify(formData));
-                console.log('Enhanced config saved to localStorage');
-                
-                // Redirect to the firmware builder
-                window.location.href = '/firmware-builder?use_current_config=true';
-            } catch (error) {
-                console.error('Enhanced error storing config:', error);
-                alert('Error saving configuration. Please try again.');
-            }
         });
     }
 });
