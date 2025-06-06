@@ -7,7 +7,7 @@
 
 ![MTFWBuilder Interface](image/mtfw.png)
 
-A modern, user-friendly web interface for generating Meshtastic device configurations and building custom firmware. This tool streamlines the process of creating `userPrefs.jsonc` files and compiling them directly into UF2 firmware images to apply to meshtastic devices in DFU mode.
+A modern, user-friendly web interface for generating Meshtastic device configurations and building custom firmware. This tool streamlines the process of creating `userPrefs.jsonc` files and compiling them directly into firmware images (.bin for ESP32 devices, .uf2 for nRF52/RP2040 devices) with automatic format detection based on your device type.
 
 ## 📚 Table of Contents
 
@@ -51,10 +51,11 @@ A modern, user-friendly web interface for generating Meshtastic device configura
 
 ### Firmware Builder
 - **Direct Firmware Compilation**: Build custom firmware with your configuration baked in
-- **40+ Device Variants Supported**: Including T-Beam, Heltec, RAK, and many more
+- **70+ Device Variants Supported**: ESP32 (T-Beam, Heltec, M5Stack), nRF52 (RAK4631, T-Echo), RP2040 (RPi Pico)
+- **Smart Format Detection**: Automatically generates .bin files for ESP32 or .uf2 files for nRF52/RP2040 devices
 - **Custom Firmware Naming**: Option to provide custom filenames for your builds
 - **Optimized Build Process**: Multi-threaded compilation for faster builds
-- **Progress Tracking**: Real-time build status and error reporting
+- **Progress Tracking**: Real-time build status and error reporting with format-specific messages
 
 ### Administration
 - **Firmware Management**: Built-in firmware update system
@@ -235,15 +236,22 @@ Access the admin panel at `http://localhost:5000/admin` for system management:
 
 ### Flashing Firmware
 
-The generated firmware is in UF2 format for easy flashing:
+The firmware format depends on your device type:
 
+**For ESP32 devices (.bin files):**
+1. **Use esptool or Meshtastic Web Flasher** for .bin files
+2. **Connect via USB** and put device in flash mode (hold BOOT button while pressing RESET)
+3. **Flash using esptool**: `esptool.py write_flash 0x10000 firmware.bin`
+4. **Or use [Meshtastic Web Flasher](https://flasher.meshtastic.org/)** for guided flashing
+
+**For nRF52/RP2040 devices (.uf2 files):**
 1. **Put your device in DFU mode** (usually by double-pressing the reset button)
 2. **Drag and drop** the `.uf2` file to the device when it appears as a USB drive
 3. **Device will reboot** automatically with your custom configuration
 
-NOTE: You may need to download the `nrf_erase_sd7_3.uf2` from the webflasher below and erase your device before reflashing.
+**Note**: For nRF52 devices, you may need to download the `nrf_erase_sd7_3.uf2` from the webflasher and erase your device before reflashing.
 
-Alternatively, use the [Meshtastic Web Flasher](https://flasher.meshtastic.org/) for a guided flashing experience.
+**Universal Option**: Use the [Meshtastic Web Flasher](https://flasher.meshtastic.org/) for a guided flashing experience with any device type.
 
 ## 🏗️ Architecture
 
@@ -308,11 +316,11 @@ MTFWBuilder/
 - Manual cleanup removes any leftover userPrefs files
 - Files are never left on disk longer than necessary
 
-**Security: UF2 firmware cleanup**
-- UF2 firmware files contain compiled PSK data from userPrefs
-- Original UF2 files are automatically deleted after copying to secure build directory
+**Security: Firmware file cleanup**
+- Firmware files (.bin/.uf2) contain compiled PSK data from userPrefs
+- Original firmware files are automatically deleted after copying to secure build directory
 - Prevents PSK leakage between different user builds
-- All variant UF2 files cleaned up during maintenance
+- All variant firmware files cleaned up during maintenance
 - Ensures no sensitive data persists in PlatformIO build cache
 
 **Admin functions not working**
