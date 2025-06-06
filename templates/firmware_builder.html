@@ -81,10 +81,10 @@ Loading configuration...
                     <ol>
                         <li>Upload your configuration file</li>
                         <li>Compile the Meshtastic firmware with your settings</li>
-                        <li>Generate a custom UF2 firmware file</li>
+                        <li>Generate a custom firmware file (.bin for ESP32 devices, .uf2 for nRF52/RP2040 devices)</li>
                         <li>Provide the file for download</li>
                     </ol>
-                    <p class="mb-0"><strong>Note:</strong> The firmware will be built specifically for your selected device.</p>
+                    <p class="mb-0"><strong>Note:</strong> The firmware will be built specifically for your selected device with the correct format.</p>
                 </div>
             </div>
         </div>
@@ -250,13 +250,27 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Function to stage build messages
     function showBuildStages() {
+        // Get the selected variant to determine firmware format
+        const selectedVariant = document.getElementById('variant').value;
+        
+        // Determine firmware format based on variant
+        const nrf52Variants = ['rak4631', 't-echo', 'seeed_xiao_nrf52840_kit'];
+        const rp2040Variants = ['rak11310', 'rpipico', 'rpipicow', 'rpipico2', 'rpipico2w', 'feather_rp2040_rfm95', 'rp2040-lora', 'senselora_rp2040'];
+        
+        let firmwareFormat = 'BIN';
+        if (nrf52Variants.some(variant => selectedVariant.includes(variant)) || 
+            rp2040Variants.some(variant => selectedVariant.includes(variant)) ||
+            selectedVariant === 'tracker-t1000-e') {
+            firmwareFormat = 'UF2';
+        }
+        
         let stageMessages = [
             'Starting build process...',
             'Using configuration from generator...',
             'Compiling Meshtastic core libraries...',
             'Applying your custom configuration...',
             'Building firmware components...',
-            'Generating UF2 firmware file...'
+            `Generating ${firmwareFormat} firmware file...`
         ];
         
         // Calculate timing - spread stages over approximately 8 seconds total

@@ -193,7 +193,41 @@ def firmware_builder() -> str:
         {"id": "meshtastic-diy-v1_1", "name": "Meshtastic DIY v1.1", "manufacturer": "DIY"},
         
         # Custom & Private Label Devices
-        {"id": "tbeam-s3", "name": "T-Beam S3", "manufacturer": "Custom"}
+        {"id": "tbeam-s3", "name": "T-Beam S3", "manufacturer": "Custom"},
+        
+        # Additional ESP32 Devices
+        {"id": "ai-c3", "name": "AI-C3", "manufacturer": "ESP32"},
+        {"id": "canaryone", "name": "CanaryOne", "manufacturer": "ESP32"},
+        {"id": "chatter2", "name": "Chatter2", "manufacturer": "ESP32"},
+        {"id": "dreamcatcher", "name": "Dreamcatcher", "manufacturer": "ESP32"},
+        {"id": "feather_diy", "name": "Feather DIY", "manufacturer": "ESP32"},
+        {"id": "m5stack-core", "name": "M5Stack Core", "manufacturer": "M5Stack"},
+        {"id": "m5stack-cores3", "name": "M5Stack CoreS3", "manufacturer": "M5Stack"},
+        {"id": "m5stack-coreink", "name": "M5Stack CoreInk", "manufacturer": "M5Stack"},
+        {"id": "m5stack-stamp-c3", "name": "M5Stack Stamp C3", "manufacturer": "M5Stack"},
+        {"id": "nugget-s2-lora", "name": "Nugget S2 LoRa", "manufacturer": "ESP32"},
+        {"id": "nugget-s3-lora", "name": "Nugget S3 LoRa", "manufacturer": "ESP32"},
+        {"id": "seeed-sensecap-indicator", "name": "Seeed SenseCAP Indicator", "manufacturer": "Seeed"},
+        {"id": "seeed_xiao_s3", "name": "Seeed XIAO ESP32S3", "manufacturer": "Seeed"},
+        {"id": "t-watch-s3", "name": "LILYGO® T-Watch S3", "manufacturer": "LILYGO"},
+        {"id": "unphone", "name": "unPhone", "manufacturer": "ESP32"},
+        {"id": "wiphone", "name": "WiPhone", "manufacturer": "ESP32"},
+        {"id": "wio-e5", "name": "Wio-E5", "manufacturer": "Seeed"},
+        {"id": "wio-tracker-wm1110", "name": "Wio Tracker WM1110", "manufacturer": "Seeed"},
+        
+        # Additional nRF52 Devices  
+        {"id": "rak4631_eink", "name": "RAK4631 with E-Ink", "manufacturer": "RAK"},
+        {"id": "rak4631_eink_onrxtx", "name": "RAK4631 E-Ink OnRxTx", "manufacturer": "RAK"},
+        {"id": "seeed_xiao_nrf52840_kit", "name": "Seeed XIAO nRF52840", "manufacturer": "Seeed"},
+        
+        # RP2040 Devices
+        {"id": "rpipico", "name": "Raspberry Pi Pico", "manufacturer": "Raspberry Pi"},
+        {"id": "rpipicow", "name": "Raspberry Pi Pico W", "manufacturer": "Raspberry Pi"},
+        {"id": "rpipico2", "name": "Raspberry Pi Pico 2", "manufacturer": "Raspberry Pi"},
+        {"id": "rpipico2w", "name": "Raspberry Pi Pico 2 W", "manufacturer": "Raspberry Pi"},
+        {"id": "feather_rp2040_rfm95", "name": "Feather RP2040 RFM95", "manufacturer": "Adafruit"},
+        {"id": "rp2040-lora", "name": "RP2040 LoRa", "manufacturer": "RP2040"},
+        {"id": "senselora_rp2040", "name": "SenseLoRa RP2040", "manufacturer": "RP2040"}
     ]
     
     # Group variants by manufacturer for the template
@@ -491,36 +525,40 @@ def build_firmware_with_pio(variant, prefs_path, build_dir, fast_build=False):
         # Time file discovery and copying
         post_build_start = time.time()
         
+        # Determine the correct firmware format for this variant
+        firmware_format = get_firmware_format(variant)
+        firmware_filename = f'firmware.{firmware_format}'
+        
         # Find the built firmware file - check both RAM disk and default locations
         firmware_path = None
         
         # First check if we used a RAM disk build
         if temp_build_dir and os.path.exists(temp_build_dir):
-            ram_firmware_path = os.path.join(temp_build_dir, variant, 'firmware.uf2')
+            ram_firmware_path = os.path.join(temp_build_dir, variant, firmware_filename)
             if os.path.exists(ram_firmware_path):
                 firmware_path = ram_firmware_path
-                print(f"Found firmware in RAM disk: {firmware_path}")
+                print(f"Found {firmware_format.upper()} firmware in RAM disk: {firmware_path}")
         
         # Fallback to default location
         if not firmware_path:
-            default_firmware_path = os.path.join(firmware_dir, '.pio', 'build', variant, 'firmware.uf2')
+            default_firmware_path = os.path.join(firmware_dir, '.pio', 'build', variant, firmware_filename)
             if os.path.exists(default_firmware_path):
                 firmware_path = default_firmware_path
-                print(f"Found firmware in default location: {firmware_path}")
+                print(f"Found {firmware_format.upper()} firmware in default location: {firmware_path}")
         
         if not firmware_path:
             return {
                 'success': False,
-                'error': "Build completed but firmware file not found in any location"
+                'error': f"Build completed but {firmware_filename} file not found in any location"
             }
             
-        print(f"Using firmware file: {firmware_path}")
+        print(f"Using {firmware_format.upper()} firmware file: {firmware_path}")
         
         # IMPORTANT: Copy firmware to build directory BEFORE cleanup
         # The original firmware_path will be cleaned up to prevent PSK leakage
-        dest_firmware_path = os.path.join(build_dir, 'firmware.uf2')
+        dest_firmware_path = os.path.join(build_dir, firmware_filename)
         shutil.copy(firmware_path, dest_firmware_path)
-        print(f"Copied firmware to secure build directory: {dest_firmware_path}")
+        print(f"Copied {firmware_format.upper()} firmware to secure build directory: {dest_firmware_path}")
         
         timing['post_build'] = time.time() - post_build_start
         
@@ -541,10 +579,10 @@ def build_firmware_with_pio(variant, prefs_path, build_dir, fast_build=False):
                 os.remove(root_prefs_path)
                 print(f"Cleaned up userPrefs from firmware root")
                 
-            # CRITICAL: Remove the UF2 file containing PSK data to prevent leakage
+            # CRITICAL: Remove the firmware file containing PSK data to prevent leakage
             if os.path.exists(firmware_path):
                 os.remove(firmware_path)
-                print(f"Cleaned up UF2 file with PSK data: {firmware_path}")
+                print(f"Cleaned up {firmware_format.upper()} firmware file with PSK data: {firmware_path}")
                 
             # Also clean up RAM disk build directory if it was used
             if temp_build_dir and os.path.exists(temp_build_dir):
@@ -590,16 +628,18 @@ def build_firmware_with_pio(variant, prefs_path, build_dir, fast_build=False):
                 os.remove(root_prefs_path)
                 print(f"Cleaned up userPrefs from firmware root (error case)")
                 
-            # Also clean up any UF2 files that might contain PSK data
+            # Also clean up any firmware files that might contain PSK data
             pio_build_dir = os.path.join(firmware_dir, '.pio', 'build')
             if os.path.exists(pio_build_dir):
                 for variant_dir in os.listdir(pio_build_dir):
                     variant_path = os.path.join(pio_build_dir, variant_dir)
                     if os.path.isdir(variant_path):
-                        uf2_path = os.path.join(variant_path, 'firmware.uf2')
-                        if os.path.exists(uf2_path):
-                            os.remove(uf2_path)
-                            print(f"Cleaned up UF2 file from {variant_dir} (error case)")
+                        # Clean up both .bin and .uf2 files
+                        for ext in ['bin', 'uf2']:
+                            firmware_file = os.path.join(variant_path, f'firmware.{ext}')
+                            if os.path.exists(firmware_file):
+                                os.remove(firmware_file)
+                                print(f"Cleaned up firmware.{ext} file from {variant_dir} (error case)")
             
             # Clean up RAM disk build directory if it was used
             if 'temp_build_dir' in locals() and temp_build_dir and os.path.exists(temp_build_dir):
@@ -667,26 +707,30 @@ def download_firmware(build_id):
     try:
         # Build path to the firmware file
         build_dir = os.path.join(TEMP_DIR, build_id)
-        firmware_path = os.path.join(build_dir, 'firmware.uf2')
+        
+        variant = request.args.get('variant', 'unknown')
+        custom_filename = request.args.get('filename', '')
+        
+        # Determine the correct firmware format for this variant
+        firmware_format = get_firmware_format(variant)
+        firmware_filename = f'firmware.{firmware_format}'
+        firmware_path = os.path.join(build_dir, firmware_filename)
         
         # Check if this is an actual build and the firmware exists
         if not os.path.isdir(build_dir) or not os.path.isfile(firmware_path):
             return jsonify({'success': False, 'error': 'Firmware not found'}), 404
         
-        variant = request.args.get('variant', 'unknown')
-        custom_filename = request.args.get('filename', '')
-        
         # Sanitize custom filename if provided
         if custom_filename:
-            # Remove any unsafe characters and ensure it ends with .uf2
+            # Remove any unsafe characters and ensure it ends with the correct extension
             import re
             custom_filename = re.sub(r'[^\w\-\.]', '_', custom_filename)
-            if not custom_filename.lower().endswith('.uf2'):
-                custom_filename += '.uf2'
+            if not custom_filename.lower().endswith(f'.{firmware_format}'):
+                custom_filename += f'.{firmware_format}'
             download_name = custom_filename
         else:
             # Use default naming convention
-            download_name = f'meshtastic_{variant}_firmware.uf2'
+            download_name = f'meshtastic_{variant}_firmware.{firmware_format}'
         
         # Set cache control headers
         response = send_file(
@@ -791,6 +835,75 @@ def cleanup_uf2_files():
     except Exception as e:
         print(f"Error during cleanup_uf2_files: {e}")
 
+def get_firmware_format(variant):
+    """
+    Determine the firmware file format (.bin or .uf2) based on the device variant.
+    
+    Args:
+        variant (str): The device variant name
+        
+    Returns:
+        str: Either 'bin' for ESP32 devices or 'uf2' for nRF52/RP2040 devices
+    """
+    # nRF52-based devices (use .uf2)
+    nrf52_variants = [
+        'rak4631', 'rak4631_eink', 'rak4631_eink_onrxtx', 'rak4631_eth_gw', 'rak4631_dbg',
+        't-echo', 't-echo-inkhud',
+        'seeed_xiao_nrf52840_kit',
+        'makerpython_nrf52840_sx1280_eink', 'makerpython_nrf52840_sx1280_oled',
+        'makerpython_nrf52840_eink', 'makerpython_nrf52840_oled',
+        'pca10059_diy_eink'
+    ]
+    
+    # RP2040-based devices (use .uf2)
+    rp2040_variants = [
+        'rak11310',
+        'rpipico', 'rpipicow', 'rpipico2', 'rpipico2w', 'pico', 'pico2', 'pico2w', 'picow',
+        'rpipico-slowclock', 'pico_slowclock',
+        'feather_rp2040_rfm95',
+        'nibble_rp2040', 'nibble-rp2040',
+        'senselora_rp2040',
+        'rp2040-lora'
+    ]
+    
+    # Check for exact matches first
+    if variant in nrf52_variants or variant in rp2040_variants:
+        return 'uf2'
+    
+    # Check for partial matches (variants that start with known prefixes)
+    uf2_prefixes = ['rak4631', 't-echo', 'rpipico', 'pico', 'rp2040']
+    for prefix in uf2_prefixes:
+        if variant.startswith(prefix):
+            return 'uf2'
+    
+    # Special case: tracker-t1000-e uses UF2
+    if variant == 'tracker-t1000-e':
+        return 'uf2'
+    
+    # Default to .bin for ESP32 devices
+    return 'bin'
+
+def cleanup_firmware_files(variant):
+    """Clean up firmware files of both formats containing sensitive PSK data"""
+    try:
+        firmware_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'firmware')
+        pio_build_dir = os.path.join(firmware_dir, '.pio', 'build')
+        
+        if not os.path.exists(pio_build_dir):
+            return
+            
+        variant_path = os.path.join(pio_build_dir, variant)
+        if os.path.isdir(variant_path):
+            # Clean up both .bin and .uf2 files
+            for ext in ['bin', 'uf2']:
+                firmware_file = os.path.join(variant_path, f'firmware.{ext}')
+                if os.path.exists(firmware_file):
+                    os.remove(firmware_file)
+                    print(f"Cleaned up firmware.{ext} file from {variant}")
+                    
+    except Exception as e:
+        print(f"Error during cleanup_firmware_files: {e}")
+
 def full_cleanup():
     """Run all cleanup functions"""
     cleanup_old_builds()
@@ -832,7 +945,7 @@ def manual_cleanup():
         
         return jsonify({
             'success': True,
-            'message': f'Cleanup complete. Removed {cleaned_count} old build directories and any leftover userPrefs/UF2 files with PSK data.',
+            'message': f'Cleanup complete. Removed {cleaned_count} old build directories and any leftover userPrefs/firmware files with PSK data.',
             'builds_before': build_dirs_before,
             'builds_after': build_dirs_after
         })
