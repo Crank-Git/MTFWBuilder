@@ -53,6 +53,9 @@ A modern, user-friendly web interface for generating Meshtastic device configura
 - **Direct Firmware Compilation**: Build custom firmware with your configuration baked in
 - **70+ Device Variants Supported**: ESP32 (T-Beam, Heltec, M5Stack), nRF52 (RAK4631, T-Echo), RP2040 (RPi Pico)
 - **Smart Format Detection**: Automatically generates .bin files for ESP32 or .uf2 files for nRF52/RP2040 devices
+- **Factory Binary Support**: ESP32 devices get both firmware.bin and firmware.factory.bin (recommended)
+- **Configuration Verification**: Real-time preview and validation of uploaded configurations
+- **Build Debugging**: Detailed build logs showing extracted configuration values
 - **Custom Firmware Naming**: Option to provide custom filenames for your builds
 - **Optimized Build Process**: Multi-threaded compilation for faster builds
 - **Progress Tracking**: Real-time build status and error reporting with format-specific messages
@@ -239,9 +242,23 @@ Access the admin panel at `http://localhost:5000/admin` for system management:
 The firmware format depends on your device type:
 
 **For ESP32 devices (.bin files):**
-1. **Use esptool or Meshtastic Web Flasher** for .bin files
+
+⚠️ **IMPORTANT**: ESP32 devices receive **two firmware files**:
+- `firmware.bin` - Application only (2.0MB)
+- `firmware.factory.bin` - Complete image with bootloader and partition table (2.1MB)
+
+**For best results, always use the `.factory.bin` file** as it includes everything needed for a complete flash.
+
+1. **Download the firmware** - The system automatically provides the factory binary for ESP32 devices
 2. **Connect via USB** and put device in flash mode (hold BOOT button while pressing RESET)
-3. **Flash using esptool**: `esptool.py write_flash 0x10000 firmware.bin`
+3. **Flash using esptool** (recommended):
+   ```bash
+   # For factory binary (recommended - includes bootloader)
+   esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmware.factory.bin
+   
+   # For application only (if factory binary doesn't work)
+   esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x10000 firmware.bin
+   ```
 4. **Or use [Meshtastic Web Flasher](https://flasher.meshtastic.org/)** for guided flashing
 
 **For nRF52/RP2040 devices (.uf2 files):**
@@ -297,6 +314,19 @@ MTFWBuilder/
 - Check that all required fields are filled
 - Ensure PSK format is correct (32-byte hex array)
 
+**Configuration not taking effect after flashing (ESP32 devices)**
+- ⚠️ **Most common cause**: Using `firmware.bin` instead of `firmware.factory.bin`
+- **Solution**: Always use the factory binary for ESP32 devices (T-Beam, Heltec, M5Stack, etc.)
+- **Why**: Factory binary includes bootloader and partition table needed for configuration to work
+- **Flash command**: `esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmware.factory.bin`
+- **If still not working**: Try a full erase first: `esptool.py --chip esp32 --port /dev/ttyUSB0 erase_flash`
+
+**Build verification and debugging**
+- Use the **Preview** function to verify your configuration before building
+- Check build logs for configuration validation (shows detected owner, channel, region, etc.)
+- Look for ✓ indicators showing configuration fields were found
+- Build system shows extracted values: 📱 Owner, 📡 Channel, 🌍 Region, 🔧 Role, 📶 Modem
+
 **Device not recognized for flashing**
 - Make sure device is in DFU/bootloader mode
 - Try a different USB cable or port
@@ -318,6 +348,7 @@ MTFWBuilder/
 
 **Security: Firmware file cleanup**
 - Firmware files (.bin/.uf2) contain compiled PSK data from userPrefs
+- **ESP32 devices**: Both `firmware.bin` and `firmware.factory.bin` are cleaned up after download
 - Original firmware files are automatically deleted after copying to secure build directory
 - Prevents PSK leakage between different user builds
 - All variant firmware files cleaned up during maintenance
