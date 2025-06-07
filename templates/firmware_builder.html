@@ -21,8 +21,30 @@
                     
                     <div id="uploadConfigSection">
                         <label for="userPrefs" class="form-label">Upload userPrefs.jsonc</label>
-                        <input class="form-control" type="file" id="userPrefs" name="userPrefs" accept=".jsonc,.json">
-                        <div class="form-text text-muted">The configuration file generated in the previous step</div>
+                        <input class="form-control mb-2" type="file" id="userPrefs" name="userPrefs" accept=".jsonc,.json">
+                        <div class="form-text text-muted mb-2">The configuration file generated in the previous step</div>
+                        
+                        <!-- Preview button for uploaded files -->
+                        <button type="button" class="btn btn-sm btn-outline-info" id="previewUploadedBtn" style="display: none;">
+                            <i class="bi bi-eye me-1"></i> Preview Uploaded Configuration
+                        </button>
+                        
+                        <!-- Preview section for uploaded files -->
+                        <div id="uploadedConfigPreview" class="mt-3" style="display: none;">
+                            <div class="card">
+                                <div class="card-header bg-info text-white">
+                                    <h6 class="mb-0"><i class="bi bi-file-earmark-text me-2"></i>Configuration Preview</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="uploadedConfigInfo" class="mb-3"></div>
+                                    <div class="card card-body bg-dark">
+                                        <pre class="text-light mb-0" style="max-height: 300px; overflow-y: auto;" id="uploadedConfigContent">
+Loading configuration...
+                                        </pre>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     
                     <div id="currentConfigSection" style="display: none;">
@@ -228,6 +250,80 @@ document.addEventListener('DOMContentLoaded', function() {
             uploadSection.style.display = 'none';
             currentConfigSection.style.display = 'block';
         }
+    });
+    
+    // Handle file upload and preview functionality
+    const previewUploadedBtn = document.getElementById('previewUploadedBtn');
+    const uploadedConfigPreview = document.getElementById('uploadedConfigPreview');
+    const uploadedConfigInfo = document.getElementById('uploadedConfigInfo');
+    const uploadedConfigContent = document.getElementById('uploadedConfigContent');
+    
+    // Show preview button when file is selected
+    userPrefsInput.addEventListener('change', function() {
+        if (this.files && this.files[0]) {
+            previewUploadedBtn.style.display = 'inline-block';
+            uploadedConfigPreview.style.display = 'none'; // Hide preview until button is clicked
+        } else {
+            previewUploadedBtn.style.display = 'none';
+            uploadedConfigPreview.style.display = 'none';
+        }
+    });
+    
+    // Handle preview button click
+    previewUploadedBtn.addEventListener('click', function() {
+        const file = userPrefsInput.files[0];
+        if (!file) {
+            alert('Please select a file first');
+            return;
+        }
+        
+        // Show preview section
+        uploadedConfigPreview.style.display = 'block';
+        uploadedConfigContent.textContent = 'Loading configuration...';
+        uploadedConfigInfo.innerHTML = '<div class="spinner-border spinner-border-sm me-2" role="status"></div>Analyzing configuration...';
+        
+        // Create form data and send to preview endpoint
+        const formData = new FormData();
+        formData.append('userPrefs', file);
+        
+        fetch('/preview-userprefs', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Show configuration info
+                const checks = data.checks;
+                let infoHtml = `<div class="row">
+                    <div class="col-md-6">
+                        <strong>File:</strong> ${data.filename}<br>
+                        <strong>Lines:</strong> ${data.line_count} configuration entries
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Configuration Check:</strong><br>
+                        <small>
+                            ${checks.owner_name ? '<span class="text-success">✓ Owner name</span>' : '<span class="text-warning">⚠ No owner name</span>'}<br>
+                            ${checks.channel_name ? '<span class="text-success">✓ Channel name</span>' : '<span class="text-warning">⚠ No channel name</span>'}<br>
+                            ${checks.channel_psk ? '<span class="text-success">✓ Channel PSK</span>' : '<span class="text-warning">⚠ No channel PSK</span>'}<br>
+                            ${checks.region ? '<span class="text-success">✓ LoRa region</span>' : '<span class="text-warning">⚠ No LoRa region</span>'}<br>
+                            ${checks.device_role ? '<span class="text-success">✓ Device role</span>' : '<span class="text-warning">⚠ No device role</span>'}
+                        </small>
+                    </div>
+                </div>`;
+                
+                uploadedConfigInfo.innerHTML = infoHtml;
+                uploadedConfigContent.textContent = data.content;
+            } else {
+                uploadedConfigInfo.innerHTML = `<div class="text-danger">Error: ${data.error}</div>`;
+                uploadedConfigContent.textContent = 'Failed to load configuration';
+            }
+        })
+        .catch(error => {
+            console.error('Error previewing configuration:', error);
+            uploadedConfigInfo.innerHTML = `<div class="text-danger">Error: ${error.message}</div>`;
+            uploadedConfigContent.textContent = 'Failed to load configuration';
+        });
     });
     
     // Function to update the build log

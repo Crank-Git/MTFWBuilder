@@ -18,6 +18,7 @@ import subprocess
 from utils.firmware_updater import update_firmware
 import json
 from typing import Dict, Any, Tuple, Optional
+import re
 
 app = Flask(__name__)
 
@@ -124,6 +125,53 @@ def download():
         response.headers["Content-Disposition"] = "attachment; filename=userPrefs.jsonc"
         response.headers["Content-Type"] = "application/json"
         return response
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/preview-userprefs', methods=['POST'])
+def preview_userprefs():
+    """
+    Preview an uploaded userPrefs.jsonc file content.
+    
+    Returns:
+        JSON response with file content or error message
+    """
+    try:
+        # Check if a userPrefs file was uploaded
+        if 'userPrefs' not in request.files:
+            return jsonify({'success': False, 'error': 'No userPrefs file uploaded'})
+            
+        user_prefs_file = request.files['userPrefs']
+        
+        if user_prefs_file.filename == '':
+            return jsonify({'success': False, 'error': 'No file selected'})
+        
+        # Read the file content
+        file_content = user_prefs_file.read().decode('utf-8')
+        
+        # Reset file pointer for potential future use
+        user_prefs_file.seek(0)
+        
+        # Parse and validate the content
+        config_lines = [line.strip() for line in file_content.split('\n') if line.strip() and not line.strip().startswith('//')]
+        
+        # Check for key configuration items
+        checks = {
+            'owner_name': 'USERPREFS_OWNER_SHORT_NAME' in file_content or 'USERPREFS_CONFIG_OWNER_SHORT_NAME' in file_content,
+            'channel_name': 'USERPREFS_CHANNEL_0_NAME' in file_content,
+            'channel_psk': 'USERPREFS_CHANNEL_0_PSK' in file_content,
+            'region': 'USERPREFS_CONFIG_LORA_REGION' in file_content,
+            'device_role': 'USERPREFS_CONFIG_DEVICE_ROLE' in file_content
+        }
+        
+        return jsonify({
+            'success': True,
+            'content': file_content,
+            'line_count': len(config_lines),
+            'checks': checks,
+            'filename': user_prefs_file.filename
+        })
+        
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
@@ -305,6 +353,65 @@ def build_firmware():
                 
             # Save the uploaded file
             user_prefs_file.save(prefs_path)
+            print(f"Uploaded userPrefs file saved to {prefs_path}")
+        
+        # Verify and log the configuration content for debugging
+        try:
+            with open(prefs_path, 'r') as f:
+                config_content = f.read()
+                print(f"Configuration file content (first 500 chars):")
+                print(config_content[:500])
+                print("..." if len(config_content) > 500 else "")
+                
+                # Count configuration entries
+                config_lines = [line.strip() for line in config_content.split('\n') if line.strip() and not line.strip().startswith('//')]
+                print(f"Configuration has {len(config_lines)} non-comment lines")
+                
+                # Check for key configuration items
+                if 'USERPREFS_OWNER_SHORT_NAME' in config_content or 'USERPREFS_CONFIG_OWNER_SHORT_NAME' in config_content:
+                    print("✓ Owner short name found in config")
+                if 'USERPREFS_CHANNEL_0_NAME' in config_content:
+                    print("✓ Channel 0 name found in config")
+                if 'USERPREFS_CHANNEL_0_PSK' in config_content:
+                    print("✓ Channel 0 PSK found in config")
+                    
+        except Exception as e:
+            print(f"Warning: Could not verify configuration content: {e}")
+        
+        # Extract and display key configuration values for debugging
+        try:
+            with open(prefs_path, 'r') as f:
+                config_content = f.read()
+                
+                # Extract key values using regex
+                
+                # Extract owner name
+                owner_match = re.search(r'"USERPREFS_(?:CONFIG_)?OWNER_SHORT_NAME":\s*"([^"]*)"', config_content)
+                if owner_match:
+                    print(f"📱 Owner: {owner_match.group(1)}")
+                
+                # Extract channel name
+                channel_match = re.search(r'"USERPREFS_CHANNEL_0_NAME":\s*"([^"]*)"', config_content)
+                if channel_match:
+                    print(f"📡 Channel: {channel_match.group(1)}")
+                
+                # Extract region
+                region_match = re.search(r'"USERPREFS_CONFIG_LORA_REGION":\s*"([^"]*)"', config_content)
+                if region_match:
+                    print(f"🌍 Region: {region_match.group(1)}")
+                
+                # Extract device role
+                role_match = re.search(r'"USERPREFS_CONFIG_DEVICE_ROLE":\s*"([^"]*)"', config_content)
+                if role_match:
+                    print(f"🔧 Role: {role_match.group(1)}")
+                
+                # Extract modem preset
+                modem_match = re.search(r'"USERPREFS_(?:CONFIG_LORA_MODEM_PRESET|LORACONFIG_MODEM_PRESET)":\s*"([^"]*)"', config_content)
+                if modem_match:
+                    print(f"📶 Modem: {modem_match.group(1)}")
+                    
+        except Exception as e:
+            print(f"Warning: Could not extract configuration values: {e}")
         
         # Now build the firmware with PlatformIO
         print(f"Starting firmware build for variant {variant}")
@@ -560,6 +667,38 @@ def build_firmware_with_pio(variant, prefs_path, build_dir, fast_build=False):
         shutil.copy(firmware_path, dest_firmware_path)
         print(f"Copied {firmware_format.upper()} firmware to secure build directory: {dest_firmware_path}")
         
+        # For ESP32 devices, also copy the factory.bin file if it exists
+        if firmware_format == 'bin':  # ESP32 devices
+            factory_filename = 'firmware.factory.bin'
+            factory_path = None
+            
+            # Check for factory binary in RAM disk
+            if temp_build_dir and os.path.exists(temp_build_dir):
+                ram_factory_path = os.path.join(temp_build_dir, variant, factory_filename)
+                if os.path.exists(ram_factory_path):
+                    factory_path = ram_factory_path
+                    print(f"Found factory firmware in RAM disk: {factory_path}")
+            
+            # Fallback to default location
+            if not factory_path:
+                default_factory_path = os.path.join(firmware_dir, '.pio', 'build', variant, factory_filename)
+                if os.path.exists(default_factory_path):
+                    factory_path = default_factory_path
+                    print(f"Found factory firmware in default location: {factory_path}")
+            
+            # Copy factory binary if found
+            if factory_path:
+                dest_factory_path = os.path.join(build_dir, factory_filename)
+                shutil.copy(factory_path, dest_factory_path)
+                print(f"Copied factory firmware to secure build directory: {dest_factory_path}")
+                
+                # Clean up the factory binary containing PSK data
+                if os.path.exists(factory_path):
+                    os.remove(factory_path)
+                    print(f"Cleaned up factory firmware file with PSK data: {factory_path}")
+            else:
+                print("Warning: Factory firmware not found - this may cause flashing issues on ESP32 devices")
+                
         timing['post_build'] = time.time() - post_build_start
         
         # Time cleanup operations
@@ -719,18 +858,35 @@ def download_firmware(build_id):
         # Check if this is an actual build and the firmware exists
         if not os.path.isdir(build_dir) or not os.path.isfile(firmware_path):
             return jsonify({'success': False, 'error': 'Firmware not found'}), 404
+            
+        print(f"Using {firmware_format.upper()} firmware file: {firmware_path}")
+        
+        # For ESP32 devices, check if factory.bin exists and prefer it
+        if firmware_format == 'bin':
+            factory_path = os.path.join(build_dir, 'firmware.factory.bin')
+            if os.path.exists(factory_path):
+                # Use factory.bin for ESP32 devices as it includes bootloader and partition table
+                firmware_path = factory_path
+                firmware_filename = 'firmware.factory.bin'
+                print(f"Using factory firmware for ESP32 device: {firmware_path}")
         
         # Sanitize custom filename if provided
         if custom_filename:
             # Remove any unsafe characters and ensure it ends with the correct extension
-            import re
             custom_filename = re.sub(r'[^\w\-\.]', '_', custom_filename)
-            if not custom_filename.lower().endswith(f'.{firmware_format}'):
+            if firmware_format == 'bin' and firmware_filename == 'firmware.factory.bin':
+                # For factory binaries, ensure the filename reflects this
+                if not custom_filename.lower().endswith('.factory.bin'):
+                    custom_filename = custom_filename.replace('.bin', '') + '.factory.bin'
+            elif not custom_filename.lower().endswith(f'.{firmware_format}'):
                 custom_filename += f'.{firmware_format}'
             download_name = custom_filename
         else:
             # Use default naming convention
-            download_name = f'meshtastic_{variant}_firmware.{firmware_format}'
+            if firmware_filename == 'firmware.factory.bin':
+                download_name = f'meshtastic_{variant}_firmware.factory.bin'
+            else:
+                download_name = f'meshtastic_{variant}_firmware.{firmware_format}'
         
         # Set cache control headers
         response = send_file(

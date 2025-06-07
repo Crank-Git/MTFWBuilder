@@ -52,7 +52,7 @@ def generate_jsonc(config_data: Dict[str, Any]) -> str:
     # Basic device and owner information
     if 'device_name' in config_data and config_data['device_name']:
         output['USERPREFS_CONFIG_DEVICE_NAME'] = config_data['device_name']
-        
+    
     if 'owner_short_name' in config_data and config_data['owner_short_name']:
         output['USERPREFS_CONFIG_OWNER_SHORT_NAME'] = config_data['owner_short_name']
         
@@ -66,7 +66,7 @@ def generate_jsonc(config_data: Dict[str, Any]) -> str:
     # Bluetooth PIN configuration
     if 'bluetooth_fixed_pin' in config_data and config_data['bluetooth_fixed_pin']:
         output['USERPREFS_FIXED_BLUETOOTH'] = config_data['bluetooth_fixed_pin']
-
+    
     # Process channel information - handle multiple channels with nested field names
     channel_count = int(channels_to_write)
     for i in range(channel_count):
@@ -147,7 +147,7 @@ def _process_channel_psk(psk_value: str, output: Dict[str, str], channel_index: 
             # Convert hex string to byte array format for the config
             psk_bytes = [f"0x{psk_hex[i:i+2]}" for i in range(0, len(psk_hex), 2)]
             output[f'USERPREFS_CHANNEL_{channel_index}_PSK'] = "{ " + ", ".join(psk_bytes) + " }"
-
+    
 def _process_lora_config(config_data: Dict[str, Any], output: Dict[str, str]) -> None:
     """Process LoRa radio configuration settings."""
     if config_data.get('lora_enabled') == "true":
@@ -158,16 +158,16 @@ def _process_lora_config(config_data: Dict[str, Any], output: Dict[str, str]) ->
                 output['USERPREFS_CONFIG_LORA_REGION'] = region
             else:
                 output['USERPREFS_CONFIG_LORA_REGION'] = f"meshtastic_Config_LoRaConfig_RegionCode_{region}"
-        
+    
         if 'lora_modem_preset' in config_data:
             output['USERPREFS_LORACONFIG_MODEM_PRESET'] = config_data['lora_modem_preset']
-        
+    
         if 'lora_channel_num' in config_data:
             output['USERPREFS_LORACONFIG_CHANNEL_NUM'] = config_data['lora_channel_num']
-        
+    
         if 'lora_ignore_mqtt' in config_data:
             output['USERPREFS_CONFIG_LORA_IGNORE_MQTT'] = "true" if config_data['lora_ignore_mqtt'] == "true" else "false"
-
+    
 def _process_gps_config(config_data: Dict[str, Any], output: Dict[str, str]) -> None:
     """Process GPS and positioning configuration settings."""
     if config_data.get('gps_enabled') == "true":
