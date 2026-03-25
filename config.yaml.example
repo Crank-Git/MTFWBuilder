@@ -1,0 +1,18 @@
+# MTFWBuilder Configuration
+# Copy to config.yaml and edit as needed.
+# Passwords are auto-hashed on first startup if provided in plaintext.
+
+# Admin password (will be auto-hashed to bcrypt on first run)
+admin_password: "your_secure_admin_password_here"
+
+# Secret key for session signing (auto-generated on migration from config.json)
+# Generate one: python -c "import os; print(os.urandom(32).hex())"
+secret_key: "change-me-in-production"
+
+# Build settings
+# max_queue_size: 5
+# build_timeout_seconds: 900
+
+# Logging
+# log_level: INFO
+# log_json: false
