@@ -76,6 +76,13 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # Routers
+    from mtfwbuilder.routers.config_generator import router as config_router
+    from mtfwbuilder.routers.pages import router as pages_router
+
+    app.include_router(config_router)
+    app.include_router(pages_router)
+
     # Static files and templates
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     static_dir = os.path.join(base_dir, "static")
