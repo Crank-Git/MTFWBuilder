@@ -85,10 +85,12 @@ def create_app() -> FastAPI:
     # Routers
     from mtfwbuilder.routers.config_generator import router as config_router
     from mtfwbuilder.routers.firmware_builder import router as firmware_router
+    from mtfwbuilder.routers.admin import router as admin_router
     from mtfwbuilder.routers.pages import router as pages_router
 
     app.include_router(config_router)
     app.include_router(firmware_router)
+    app.include_router(admin_router)
     app.include_router(pages_router)
 
     # Static files and templates
