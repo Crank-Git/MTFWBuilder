@@ -1,257 +1,844 @@
 # Meshtastic Device Variants Registry
 # This is the single source of truth for supported devices.
-# Architecture determines firmware format: esp32 → .bin, nrf52/rp2040 → .uf2
+# Architecture determines firmware format: esp32 → .bin, nrf52/rp2040 → .uf2, stm32 → .bin
 #
 # To add a new variant:
 #   1. Add an entry below with a valid PlatformIO environment name as the id
 #   2. Verify the id matches `pio run --list-targets` in the firmware source
-#   3. Set architecture to esp32, nrf52, or rp2040
+#   3. Set architecture to esp32, nrf52, rp2040, or stm32
+#   4. Set pio_platform to the exact PlatformIO platform subdirectory
+
+# --- Adafruit ---
+
+- id: feather_diy
+  name: "Adafruit Feather DIY"
+  manufacturer: Adafruit
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: feather_rp2040_rfm95
+  name: "Adafruit Feather RP2040 RFM95"
+  manufacturer: Adafruit
+  architecture: rp2040
+  pio_platform: rp2040
+
+# --- BananaPi ---
+
+- id: bpi_picow_esp32_s3
+  name: "BananaPi BPI-PicoW ESP32-S3"
+  manufacturer: BananaPi
+  architecture: esp32
+  pio_platform: esp32s3
+
+# --- CDEBYTE ---
+
+- id: CDEBYTE_E77-MBL
+  name: "CDEBYTE E77-MBL"
+  manufacturer: CDEBYTE
+  architecture: stm32
+  pio_platform: stm32
+
+- id: CDEBYTE_EoRa-Hub
+  name: "CDEBYTE EoRa-Hub"
+  manufacturer: CDEBYTE
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: CDEBYTE_EoRa-S3
+  name: "CDEBYTE EoRa-S3"
+  manufacturer: CDEBYTE
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: EBYTE_ESP32-S3
+  name: "EBYTE ESP32-S3"
+  manufacturer: CDEBYTE
+  architecture: esp32
+  pio_platform: esp32s3
+
+# --- CanaryOne ---
+
+- id: canaryone
+  name: "CanaryOne"
+  manufacturer: CanaryOne
+  architecture: nrf52
+  pio_platform: nrf52840
+
+# --- Chatter ---
+
+- id: chatter2
+  name: "Chatter 2"
+  manufacturer: Chatter
+  architecture: esp32
+  pio_platform: esp32
+
+# --- Community ---
+
+- id: Dongle_nRF52840-pca10059-v1
+  name: "Nordic nRF52840 Dongle (PCA10059)"
+  manufacturer: Community
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: ME25LS01-4Y10TD
+  name: "ME25LS01-4Y10TD"
+  manufacturer: Community
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: ME25LS01-4Y10TD_e-ink
+  name: "ME25LS01-4Y10TD E-Ink"
+  manufacturer: Community
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: MS24SF1
+  name: "MS24SF1"
+  manufacturer: Community
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: esp32-s3-pico
+  name: "ESP32-S3 Pico"
+  manufacturer: Community
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: mesh-tab
+  name: "Mesh Tab"
+  manufacturer: Community
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: meshlink
+  name: "MeshLink"
+  manufacturer: Community
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: meshtiny
+  name: "MeshTiny"
+  manufacturer: Community
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: r1-neo
+  name: "R1 Neo"
+  manufacturer: Community
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: rp2040-lora
+  name: "RP2040 LoRa"
+  manufacturer: Community
+  architecture: rp2040
+  pio_platform: rp2040
+
+- id: senselora_rp2040
+  name: "SenseLoRa RP2040"
+  manufacturer: Community
+  architecture: rp2040
+  pio_platform: rp2040
+
+# --- DLS ---
+
+- id: dls_Minimesh_Lite
+  name: "DLS Minimesh Lite"
+  manufacturer: DLS
+  architecture: nrf52
+  pio_platform: nrf52840
+
+# --- ESP32 ---
+
+- id: ai-c3
+  name: "AI-C3"
+  manufacturer: ESP32
+  architecture: esp32
+  pio_platform: esp32c3
+
+- id: dreamcatcher
+  name: "Dreamcatcher"
+  manufacturer: ESP32
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: mini-epaper-s3
+  name: "Mini ePaper S3"
+  manufacturer: ESP32
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: nugget_s2_lora
+  name: "Nugget S2 LoRa"
+  manufacturer: ESP32
+  architecture: esp32
+  pio_platform: esp32s2
+
+- id: nugget_s3_lora
+  name: "Nugget S3 LoRa"
+  manufacturer: ESP32
+  architecture: esp32
+  pio_platform: esp32s3
+
+# --- Elecrow ---
+
+- id: ELECROW-ThinkNode-M1
+  name: "Elecrow ThinkNode M1"
+  manufacturer: Elecrow
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: ELECROW-ThinkNode-M2
+  name: "Elecrow ThinkNode M2"
+  manufacturer: Elecrow
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: ELECROW-ThinkNode-M3
+  name: "Elecrow ThinkNode M3"
+  manufacturer: Elecrow
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: ELECROW-ThinkNode-M4
+  name: "Elecrow ThinkNode M4"
+  manufacturer: Elecrow
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: ELECROW-ThinkNode-M5
+  name: "Elecrow ThinkNode M5"
+  manufacturer: Elecrow
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: ELECROW-ThinkNode-M6
+  name: "Elecrow ThinkNode M6"
+  manufacturer: Elecrow
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: crowpanel-esp32s3-5-epaper
+  name: "Elecrow CrowPanel ESP32-S3 5\" ePaper"
+  manufacturer: Elecrow
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: elecrow_panel
+  name: "Elecrow Panel"
+  manufacturer: Elecrow
+  architecture: esp32
+  pio_platform: esp32s3
+
+# --- ElectronicCats ---
+
+- id: ec_catsniffer
+  name: "ElectronicCats CatSniffer"
+  manufacturer: ElectronicCats
+  architecture: rp2040
+  pio_platform: rp2040
+
+# --- ExpressLRS ---
+
+- id: betafpv_2400_tx_micro
+  name: "BetaFPV 2400 TX Micro"
+  manufacturer: ExpressLRS
+  architecture: esp32
+  pio_platform: esp32
+
+- id: betafpv_900_tx_nano
+  name: "BetaFPV 900 TX Nano"
+  manufacturer: ExpressLRS
+  architecture: esp32
+  pio_platform: esp32
+
+- id: radiomaster_900_bandit
+  name: "RadioMaster 900 Bandit"
+  manufacturer: ExpressLRS
+  architecture: esp32
+  pio_platform: esp32
+
+- id: radiomaster_900_bandit_micro
+  name: "RadioMaster 900 Bandit Micro"
+  manufacturer: ExpressLRS
+  architecture: esp32
+  pio_platform: esp32
+
+- id: radiomaster_900_bandit_nano
+  name: "RadioMaster 900 Bandit Nano"
+  manufacturer: ExpressLRS
+  architecture: esp32
+  pio_platform: esp32
+
+# --- GAT ---
+
+- id: gat562_mesh_trial_tracker
+  name: "GAT562 Mesh Trial Tracker"
+  manufacturer: GAT
+  architecture: nrf52
+  pio_platform: nrf52840
+
+# --- Hackaday ---
+
+- id: hackaday-communicator
+  name: "Hackaday Communicator"
+  manufacturer: Hackaday
+  architecture: esp32
+  pio_platform: esp32s3
+
+# --- HackerBoxes ---
+
+- id: hackerboxes_esp32_io
+  name: "HackerBoxes ESP32 I/O"
+  manufacturer: HackerBoxes
+  architecture: esp32
+  pio_platform: esp32
+
+- id: hackerboxes_esp32c3_oled
+  name: "HackerBoxes ESP32-C3 OLED"
+  manufacturer: HackerBoxes
+  architecture: esp32
+  pio_platform: esp32c3
+
+# --- Heltec ---
+
+- id: heltec_capsule_sensor_v3
+  name: "Heltec Capsule Sensor v3"
+  manufacturer: Heltec
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: heltec_esp32c3
+  name: "Heltec ESP32-C3"
+  manufacturer: Heltec
+  architecture: esp32
+  pio_platform: esp32c3
+
+- id: heltec_hru_3601
+  name: "Heltec HRU-3601"
+  manufacturer: Heltec
+  architecture: esp32
+  pio_platform: esp32c3
+
+- id: heltec_mesh_node_t096
+  name: "Heltec Mesh Node T096"
+  manufacturer: Heltec
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: heltec_mesh_node_t114
+  name: "Heltec Mesh Node T114"
+  manufacturer: Heltec
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: heltec_mesh_node_t114-inkhud
+  name: "Heltec Mesh Node T114 InkHUD"
+  manufacturer: Heltec
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: heltec_mesh_pocket
+  name: "Heltec Mesh Pocket"
+  manufacturer: Heltec
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: heltec_mesh_solar
+  name: "Heltec Mesh Solar"
+  manufacturer: Heltec
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: heltec_sensor_hub
+  name: "Heltec Sensor Hub"
+  manufacturer: Heltec
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: heltec_v1
+  name: "Heltec V1"
+  manufacturer: Heltec
+  architecture: esp32
+  pio_platform: esp32
+
+- id: heltec_v2
+  name: "Heltec V2"
+  manufacturer: Heltec
+  architecture: esp32
+  pio_platform: esp32
+
+- id: heltec_v2.1
+  name: "Heltec V2.1"
+  manufacturer: Heltec
+  architecture: esp32
+  pio_platform: esp32
+
+- id: heltec_v3
+  name: "Heltec V3"
+  manufacturer: Heltec
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: heltec_v4
+  name: "Heltec V4"
+  manufacturer: Heltec
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: heltec_vision_master_e213
+  name: "Heltec Vision Master E213"
+  manufacturer: Heltec
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: heltec_vision_master_e290
+  name: "Heltec Vision Master E290"
+  manufacturer: Heltec
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: heltec_vision_master_t190
+  name: "Heltec Vision Master T190"
+  manufacturer: Heltec
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: heltec_wireless_bridge
+  name: "Heltec Wireless Bridge"
+  manufacturer: Heltec
+  architecture: esp32
+  pio_platform: esp32
+
+- id: heltec_wireless_paper
+  name: "Heltec Wireless Paper"
+  manufacturer: Heltec
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: heltec_wireless_paper_v1
+  name: "Heltec Wireless Paper v1"
+  manufacturer: Heltec
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: heltec_wireless_tracker
+  name: "Heltec Wireless Tracker"
+  manufacturer: Heltec
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: heltec_wireless_tracker_V1_0
+  name: "Heltec Wireless Tracker V1.0"
+  manufacturer: Heltec
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: heltec_wireless_tracker_v2
+  name: "Heltec Wireless Tracker v2"
+  manufacturer: Heltec
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: heltec_wsl_v2.1
+  name: "Heltec Wireless Stick Lite V2.1"
+  manufacturer: Heltec
+  architecture: esp32
+  pio_platform: esp32
+
+- id: heltec_wsl_v3
+  name: "Heltec Wireless Stick Lite V3"
+  manufacturer: Heltec
+  architecture: esp32
+  pio_platform: esp32s3
+
+# --- Icarus ---
+
+- id: icarus
+  name: "Icarus"
+  manufacturer: Icarus
+  architecture: esp32
+  pio_platform: esp32s3
 
 # --- LILYGO ---
 
-- id: tbeam
-  name: "LILYGO T-Beam"
+- id: t-beam-1w
+  name: "LILYGO T-Beam 1W"
   manufacturer: LILYGO
   architecture: esp32
-
-- id: tbeam-s3-core
-  name: "LILYGO T-Beam S3 Core"
-  manufacturer: LILYGO
-  architecture: esp32
-
-- id: tbeam0_7
-  name: "LILYGO T-Beam v0.7"
-  manufacturer: LILYGO
-  architecture: esp32
-
-- id: t-echo
-  name: "LILYGO T-Echo"
-  manufacturer: LILYGO
-  architecture: nrf52
-
-- id: t-echo-inkhud
-  name: "LILYGO T-Echo InkHUD"
-  manufacturer: LILYGO
-  architecture: nrf52
+  pio_platform: esp32s3
 
 - id: t-deck
   name: "LILYGO T-Deck"
   manufacturer: LILYGO
   architecture: esp32
+  pio_platform: esp32s3
 
-- id: t-deck-tft
-  name: "LILYGO T-Deck TFT"
+- id: t-deck-pro
+  name: "LILYGO T-Deck Pro"
   manufacturer: LILYGO
   architecture: esp32
+  pio_platform: esp32s3
 
-- id: tlora-v1
-  name: "LILYGO TLORA v1"
+- id: t-echo
+  name: "LILYGO T-Echo"
+  manufacturer: LILYGO
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: t-echo-lite
+  name: "LILYGO T-Echo Lite"
+  manufacturer: LILYGO
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: t-echo-plus
+  name: "LILYGO T-Echo Plus"
+  manufacturer: LILYGO
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: t-eth-elite
+  name: "LILYGO T-ETH Elite"
   manufacturer: LILYGO
   architecture: esp32
-
-- id: tlora_v1_3
-  name: "LILYGO TLORA v1.3"
-  manufacturer: LILYGO
-  architecture: esp32
-
-- id: tlora-v2
-  name: "LILYGO TLORA v2"
-  manufacturer: LILYGO
-  architecture: esp32
-
-- id: tlora-v2-1-1_6
-  name: "LILYGO TLORA v2.1-1.6"
-  manufacturer: LILYGO
-  architecture: esp32
-
-- id: tlora-v2-1-1_8
-  name: "LILYGO TLORA v2.1-1.8"
-  manufacturer: LILYGO
-  architecture: esp32
-
-- id: tlora-t3s3-v1
-  name: "LILYGO TLORA T3S3 v1"
-  manufacturer: LILYGO
-  architecture: esp32
-
-- id: tlora-t3s3-epaper
-  name: "LILYGO TLORA T3S3 ePaper"
-  manufacturer: LILYGO
-  architecture: esp32
+  pio_platform: esp32s3
 
 - id: t-watch-s3
   name: "LILYGO T-Watch S3"
   manufacturer: LILYGO
   architecture: esp32
+  pio_platform: esp32s3
 
-# --- Heltec ---
-
-- id: heltec-v1
-  name: "Heltec Wireless Stick v1"
-  manufacturer: Heltec
+- id: t5s3_epaper
+  name: "LILYGO T5-S3 ePaper"
+  manufacturer: LILYGO
   architecture: esp32
+  pio_platform: esp32s3
 
-- id: heltec-v2_0
-  name: "Heltec Wireless Stick v2.0"
-  manufacturer: Heltec
+- id: tbeam
+  name: "LILYGO T-Beam"
+  manufacturer: LILYGO
   architecture: esp32
+  pio_platform: esp32
 
-- id: heltec-v2_1
-  name: "Heltec Wireless Stick v2.1"
-  manufacturer: Heltec
+- id: tbeam-s3-core
+  name: "LILYGO T-Beam S3 Core"
+  manufacturer: LILYGO
   architecture: esp32
+  pio_platform: esp32s3
 
-- id: heltec-v3
-  name: "Heltec Wireless Stick v3"
-  manufacturer: Heltec
+- id: tbeam_v07
+  name: "LILYGO T-Beam v0.7"
+  manufacturer: LILYGO
   architecture: esp32
+  pio_platform: esp32
 
-- id: heltec-wireless-paper
-  name: "Heltec Wireless Paper"
-  manufacturer: Heltec
+- id: tlora-pager
+  name: "LILYGO T-LoRa Pager"
+  manufacturer: LILYGO
   architecture: esp32
+  pio_platform: esp32s3
 
-- id: heltec-wireless-tracker
-  name: "Heltec Wireless Tracker"
-  manufacturer: Heltec
+- id: tlora_c6
+  name: "LILYGO T-LoRa C6"
+  manufacturer: LILYGO
   architecture: esp32
+  pio_platform: esp32c6
 
-# --- RAK Wireless ---
-
-- id: rak4631
-  name: "RAK WisBlock RAK4631"
-  manufacturer: RAK
-  architecture: nrf52
-
-- id: rak4631_eink
-  name: "RAK4631 with E-Ink"
-  manufacturer: RAK
-  architecture: nrf52
-
-- id: rak4631_eink_onrxtx
-  name: "RAK4631 E-Ink OnRxTx"
-  manufacturer: RAK
-  architecture: nrf52
-
-- id: rak11200
-  name: "RAK WisBlock RAK11200"
-  manufacturer: RAK
+- id: tlora_t3s3_epaper
+  name: "LILYGO T-LoRa T3S3 ePaper"
+  manufacturer: LILYGO
   architecture: esp32
+  pio_platform: esp32s3
 
-- id: rak11310
-  name: "RAK WisBlock RAK11310"
-  manufacturer: RAK
-  architecture: rp2040
-
-# --- Meshtastic ---
-
-- id: nano-g1
-  name: "Nano G1"
-  manufacturer: Meshtastic
+- id: tlora_t3s3_v1
+  name: "LILYGO T-LoRa T3S3 v1"
+  manufacturer: LILYGO
   architecture: esp32
+  pio_platform: esp32s3
 
-- id: nano-g1-explorer
-  name: "Nano G1 Explorer Edition"
-  manufacturer: Meshtastic
+- id: tlora_v1
+  name: "LILYGO T-LoRa v1"
+  manufacturer: LILYGO
   architecture: esp32
+  pio_platform: esp32
 
-- id: nano-g2-ultra
-  name: "Nano G2 Ultra"
-  manufacturer: Meshtastic
+- id: tlora_v1_3
+  name: "LILYGO T-LoRa v1.3"
+  manufacturer: LILYGO
   architecture: esp32
+  pio_platform: esp32
 
-- id: tracker-t1000-e
-  name: "Tracker T1000E"
-  manufacturer: Meshtastic
-  architecture: nrf52
-
-- id: picomputer-s3
-  name: "Pi Computer S3"
-  manufacturer: Meshtastic
+- id: tlora_v2
+  name: "LILYGO T-LoRa v2"
+  manufacturer: LILYGO
   architecture: esp32
+  pio_platform: esp32
 
-- id: station-g1
-  name: "Meshtastic Station G1"
-  manufacturer: Meshtastic
+- id: tlora_v2_1_16
+  name: "LILYGO T-LoRa v2.1-1.6"
+  manufacturer: LILYGO
   architecture: esp32
+  pio_platform: esp32
 
-- id: station-g2
-  name: "Meshtastic Station G2"
-  manufacturer: Meshtastic
+- id: tlora_v2_1_16_tcxo
+  name: "LILYGO T-LoRa v2.1-1.6 TCXO"
+  manufacturer: LILYGO
   architecture: esp32
+  pio_platform: esp32
 
-- id: meshtastic-diy-v1
-  name: "Meshtastic DIY v1"
-  manufacturer: DIY
+- id: tlora_v2_1_18
+  name: "LILYGO T-LoRa v2.1-1.8"
+  manufacturer: LILYGO
   architecture: esp32
+  pio_platform: esp32
 
-- id: meshtastic-diy-v1_1
-  name: "Meshtastic DIY v1.1"
-  manufacturer: DIY
+- id: tlora_v3_3_0_tcxo
+  name: "LILYGO T-LoRa v3.3.0 TCXO"
+  manufacturer: LILYGO
   architecture: esp32
+  pio_platform: esp32
 
-# --- Custom ---
-
-- id: tbeam-s3
-  name: "T-Beam S3"
-  manufacturer: Custom
+- id: trackerd
+  name: "LILYGO Tracker-D"
+  manufacturer: LILYGO
   architecture: esp32
+  pio_platform: esp32
 
-# --- Espressif ---
-
-- id: ESP32-S3-Pico
-  name: "ESP32-S3-Pico"
-  manufacturer: Espressif
+- id: tracksenger
+  name: "LILYGO TrackSenger"
+  manufacturer: LILYGO
   architecture: esp32
+  pio_platform: esp32s3
+
+# --- Link32 ---
+
+- id: link32_s3_v1
+  name: "Link32 S3 v1"
+  manufacturer: Link32
+  architecture: esp32
+  pio_platform: esp32s3
 
 # --- M5Stack ---
-
-- id: m5stack-core
-  name: "M5Stack Core"
-  manufacturer: M5Stack
-  architecture: esp32
-
-- id: m5stack-cores3
-  name: "M5Stack CoreS3"
-  manufacturer: M5Stack
-  architecture: esp32
-
-- id: m5stack-coreink
-  name: "M5Stack CoreInk"
-  manufacturer: M5Stack
-  architecture: esp32
 
 - id: m5stack-stamp-c3
   name: "M5Stack Stamp C3"
   manufacturer: M5Stack
   architecture: esp32
+  pio_platform: esp32c3
 
-# --- Seeed ---
-
-- id: seeed-sensecap-indicator
-  name: "Seeed SenseCAP Indicator"
-  manufacturer: Seeed
+- id: m5stack_cardputer_adv
+  name: "M5Stack Cardputer Advanced"
+  manufacturer: M5Stack
   architecture: esp32
+  pio_platform: esp32s3
 
-- id: seeed_xiao_s3
-  name: "Seeed XIAO ESP32S3"
-  manufacturer: Seeed
+- id: m5stack_core
+  name: "M5Stack Core"
+  manufacturer: M5Stack
   architecture: esp32
+  pio_platform: esp32
 
-- id: seeed_xiao_nrf52840_kit
-  name: "Seeed XIAO nRF52840"
-  manufacturer: Seeed
+- id: m5stack_coreink
+  name: "M5Stack CoreInk"
+  manufacturer: M5Stack
+  architecture: esp32
+  pio_platform: esp32
+
+- id: m5stack_cores3
+  name: "M5Stack CoreS3"
+  manufacturer: M5Stack
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: m5stack_unitc6l
+  name: "M5Stack Unit C6L"
+  manufacturer: M5Stack
+  architecture: esp32
+  pio_platform: esp32c6
+
+# --- MakePython ---
+
+- id: MakePython_nRF52840_eink
+  name: "MakePython nRF52840 E-Ink"
+  manufacturer: MakePython
   architecture: nrf52
+  pio_platform: nrf52840
 
-- id: wio-e5
-  name: "Wio-E5"
-  manufacturer: Seeed
-  architecture: esp32
-
-- id: wio-tracker-wm1110
-  name: "Wio Tracker WM1110"
-  manufacturer: Seeed
+- id: MakePython_nRF52840_oled
+  name: "MakePython nRF52840 OLED"
+  manufacturer: MakePython
   architecture: nrf52
+  pio_platform: nrf52840
+
+# --- Meshtastic ---
+
+- id: nano-g1
+  name: "Meshtastic Nano G1"
+  manufacturer: Meshtastic
+  architecture: esp32
+  pio_platform: esp32
+
+- id: nano-g1-explorer
+  name: "Meshtastic Nano G1 Explorer"
+  manufacturer: Meshtastic
+  architecture: esp32
+  pio_platform: esp32
+
+- id: nano-g2-ultra
+  name: "Meshtastic Nano G2 Ultra"
+  manufacturer: Meshtastic
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: picomputer-s3
+  name: "Meshtastic Pi Computer S3"
+  manufacturer: Meshtastic
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: station-g1
+  name: "Meshtastic Station G1"
+  manufacturer: Meshtastic
+  architecture: esp32
+  pio_platform: esp32
+
+- id: station-g2
+  name: "Meshtastic Station G2"
+  manufacturer: Meshtastic
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: tracker-t1000-e
+  name: "Meshtastic Tracker T1000-E"
+  manufacturer: Meshtastic
+  architecture: nrf52
+  pio_platform: nrf52840
+
+# --- Milesight ---
+
+- id: milesight_gs301
+  name: "Milesight GS301"
+  manufacturer: Milesight
+  architecture: stm32
+  pio_platform: stm32
+
+# --- MonteOps ---
+
+- id: monteops_hw1
+  name: "MonteOps HW1"
+  manufacturer: MonteOps
+  architecture: nrf52
+  pio_platform: nrf52840
+
+# --- Muzi ---
+
+- id: muzi_base
+  name: "Muzi Base"
+  manufacturer: Muzi
+  architecture: nrf52
+  pio_platform: nrf52840
+
+# --- Nibble ---
+
+- id: nibble_esp32
+  name: "Nibble ESP32-S3"
+  manufacturer: Nibble
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: nibble_rp2040
+  name: "Nibble RP2040"
+  manufacturer: Nibble
+  architecture: rp2040
+  pio_platform: rp2040
+
+# --- RAK ---
+
+- id: rak11200
+  name: "RAK WisBlock RAK11200"
+  manufacturer: RAK
+  architecture: esp32
+  pio_platform: esp32
+
+- id: rak11310
+  name: "RAK WisBlock RAK11310"
+  manufacturer: RAK
+  architecture: rp2040
+  pio_platform: rp2040
+
+- id: rak2560
+  name: "RAK WisBlock RAK2560"
+  manufacturer: RAK
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: rak3172
+  name: "RAK WisBlock RAK3172"
+  manufacturer: RAK
+  architecture: stm32
+  pio_platform: stm32
+
+- id: rak3312
+  name: "RAK WisBlock RAK3312"
+  manufacturer: RAK
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: rak3401_1watt
+  name: "RAK WisBlock RAK3401 1-Watt"
+  manufacturer: RAK
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: rak4631
+  name: "RAK WisBlock RAK4631"
+  manufacturer: RAK
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: rak4631_epaper
+  name: "RAK WisBlock RAK4631 ePaper"
+  manufacturer: RAK
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: rak4631_epaper_onrxtx
+  name: "RAK WisBlock RAK4631 ePaper OnRxTx"
+  manufacturer: RAK
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: rak4631_eth_gw
+  name: "RAK WisBlock RAK4631 Ethernet Gateway"
+  manufacturer: RAK
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: rak4631_nomadstar_meteor_pro
+  name: "RAK WisBlock RAK4631 NomadStar Meteor Pro"
+  manufacturer: RAK
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: rak_wismesh_tap_v2
+  name: "RAK WisMesh Tap v2"
+  manufacturer: RAK
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: rak_wismeshtag
+  name: "RAK WisMesh Tag"
+  manufacturer: RAK
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: rak_wismeshtap
+  name: "RAK WisMesh Tap"
+  manufacturer: RAK
+  architecture: nrf52
+  pio_platform: nrf52840
 
 # --- Raspberry Pi ---
 
@@ -259,84 +846,130 @@
   name: "Raspberry Pi Pico"
   manufacturer: Raspberry Pi
   architecture: rp2040
+  pio_platform: rp2040
 
-- id: rpipicow
-  name: "Raspberry Pi Pico W"
+- id: rpipico-slowclock
+  name: "Raspberry Pi Pico (Slow Clock)"
   manufacturer: Raspberry Pi
   architecture: rp2040
+  pio_platform: rp2040
 
 - id: rpipico2
   name: "Raspberry Pi Pico 2"
   manufacturer: Raspberry Pi
   architecture: rp2040
+  pio_platform: rp2350
 
 - id: rpipico2w
   name: "Raspberry Pi Pico 2 W"
   manufacturer: Raspberry Pi
   architecture: rp2040
+  pio_platform: rp2350
 
-# --- Adafruit ---
-
-- id: feather_rp2040_rfm95
-  name: "Feather RP2040 RFM95"
-  manufacturer: Adafruit
+- id: rpipicow
+  name: "Raspberry Pi Pico W"
+  manufacturer: Raspberry Pi
   architecture: rp2040
+  pio_platform: rp2040
 
-# --- Other ESP32 ---
+# --- Russell ---
 
-- id: ai-c3
-  name: "AI-C3"
-  manufacturer: ESP32
+- id: russell
+  name: "Russell"
+  manufacturer: Russell
+  architecture: stm32
+  pio_platform: stm32
+
+# --- Seeed ---
+
+- id: seeed-sensecap-indicator
+  name: "Seeed SenseCAP Indicator"
+  manufacturer: Seeed
   architecture: esp32
+  pio_platform: esp32s3
 
-- id: canaryone
-  name: "CanaryOne"
-  manufacturer: ESP32
-  architecture: esp32
+- id: seeed_solar_node
+  name: "Seeed Solar Node"
+  manufacturer: Seeed
+  architecture: nrf52
+  pio_platform: nrf52840
 
-- id: chatter2
-  name: "Chatter2"
-  manufacturer: ESP32
-  architecture: esp32
+- id: seeed_wio_tracker_L1
+  name: "Seeed Wio Tracker L1"
+  manufacturer: Seeed
+  architecture: nrf52
+  pio_platform: nrf52840
 
-- id: dreamcatcher
-  name: "Dreamcatcher"
-  manufacturer: ESP32
-  architecture: esp32
+- id: seeed_wio_tracker_L1_eink
+  name: "Seeed Wio Tracker L1 E-Ink"
+  manufacturer: Seeed
+  architecture: nrf52
+  pio_platform: nrf52840
 
-- id: feather_diy
-  name: "Feather DIY"
-  manufacturer: ESP32
-  architecture: esp32
+- id: seeed_xiao_nrf52840_kit
+  name: "Seeed XIAO nRF52840"
+  manufacturer: Seeed
+  architecture: nrf52
+  pio_platform: nrf52840
 
-- id: nugget-s2-lora
-  name: "Nugget S2 LoRa"
-  manufacturer: ESP32
+- id: seeed_xiao_s3
+  name: "Seeed XIAO ESP32-S3"
+  manufacturer: Seeed
   architecture: esp32
+  pio_platform: esp32s3
 
-- id: nugget-s3-lora
-  name: "Nugget S3 LoRa"
-  manufacturer: ESP32
-  architecture: esp32
+- id: wio-e5
+  name: "Seeed Wio-E5"
+  manufacturer: Seeed
+  architecture: stm32
+  pio_platform: stm32
 
-- id: unphone
-  name: "unPhone"
-  manufacturer: ESP32
-  architecture: esp32
+- id: wio-sdk-wm1110
+  name: "Seeed Wio SDK WM1110"
+  manufacturer: Seeed
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: wio-t1000-s
+  name: "Seeed Wio T1000-S"
+  manufacturer: Seeed
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: wio-tracker-wm1110
+  name: "Seeed Wio Tracker WM1110"
+  manufacturer: Seeed
+  architecture: nrf52
+  pio_platform: nrf52840
+
+# --- TWC ---
+
+- id: TWC_mesh_v4
+  name: "TWC Mesh v4"
+  manufacturer: TWC
+  architecture: nrf52
+  pio_platform: nrf52840
+
+# --- WiPhone ---
 
 - id: wiphone
   name: "WiPhone"
-  manufacturer: ESP32
+  manufacturer: WiPhone
   architecture: esp32
+  pio_platform: esp32
 
-# --- Other RP2040 ---
+# --- iLabs ---
 
-- id: rp2040-lora
-  name: "RP2040 LoRa"
-  manufacturer: RP2040
+- id: challenger_2040_lora
+  name: "iLabs Challenger 2040 LoRa"
+  manufacturer: iLabs
   architecture: rp2040
+  pio_platform: rp2040
 
-- id: senselora_rp2040
-  name: "SenseLoRa RP2040"
-  manufacturer: RP2040
-  architecture: rp2040
+# --- unPhone ---
+
+- id: unphone
+  name: "unPhone"
+  manufacturer: unPhone
+  architecture: esp32
+  pio_platform: esp32s3

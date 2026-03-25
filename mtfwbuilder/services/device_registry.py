@@ -10,6 +10,7 @@ FIRMWARE_FORMATS = {
     "esp32": "bin",
     "nrf52": "uf2",
     "rp2040": "uf2",
+    "stm32": "bin",
 }
 
 
@@ -21,6 +22,7 @@ class DeviceVariant:
     name: str
     manufacturer: str
     architecture: str
+    pio_platform: str = ""
 
     @property
     def firmware_format(self) -> str:
@@ -69,6 +71,7 @@ class DeviceRegistry:
                 name=entry["name"],
                 manufacturer=entry["manufacturer"],
                 architecture=arch,
+                pio_platform=entry.get("pio_platform", ""),
             )
             self._variants[vid] = variant
 

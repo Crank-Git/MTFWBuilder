@@ -26,7 +26,7 @@ class TestDeviceRegistryLoad:
     def test_all_architectures_valid(self, variants_path):
         """Every variant must have a recognized architecture."""
         registry = DeviceRegistry(variants_path)
-        valid = {"esp32", "nrf52", "rp2040"}
+        valid = {"esp32", "nrf52", "rp2040", "stm32"}
         for v in registry.all_variants:
             assert v.architecture in valid, f"{v.id} has unknown architecture: {v.architecture}"
 
