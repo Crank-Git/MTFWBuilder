@@ -1,7 +1,6 @@
-# Use Python 3.11 slim as base image for smaller size
-FROM python:3.11-slim
+# Multi-stage build for smaller production image
+FROM python:3.11-slim AS base
 
-# Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV DEBIAN_FRONTEND=noninteractive
@@ -19,10 +18,9 @@ RUN apt-get update && apt-get install -y \
     udev \
     && rm -rf /var/lib/apt/lists/*
 
-# Create app directory
 WORKDIR /app
 
-# Create non-root user for security
+# Create non-root user
 RUN useradd --create-home --shell /bin/bash app && \
     chown -R app:app /app
 USER app
@@ -32,15 +30,10 @@ ENV VIRTUAL_ENV=/app/venv
 RUN python -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-# Copy requirements first for better caching
-COPY --chown=app:app requirements.txt .
-
-# Install Python dependencies
+# Install dependencies first (better layer caching)
+COPY --chown=app:app pyproject.toml .
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
-
-# Install PlatformIO
-RUN pip install --no-cache-dir platformio
+    pip install --no-cache-dir .
 
 # Copy application code
 COPY --chown=app:app . .
@@ -48,12 +41,10 @@ COPY --chown=app:app . .
 # Create necessary directories
 RUN mkdir -p /app/firmware /app/temp /app/logs
 
-# Expose port
 EXPOSE 5000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=30s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:5000/ || exit 1
 
-# Run the application
-CMD ["python", "app.py"] 
+# Run with uvicorn (production ASGI server)
+CMD ["uvicorn", "mtfwbuilder.main:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "1"]

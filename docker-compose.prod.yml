@@ -4,10 +4,10 @@
 services:
   mtfwbuilder:
     environment:
-      - FLASK_ENV=production
-      - FLASK_DEBUG=false
+      - MTFW_LOG_LEVEL=WARNING
+      - MTFW_LOG_JSON=true
     restart: always
-    # Remove port exposure - nginx will handle this
+    # Remove port exposure — nginx handles this
     ports: []
     networks:
       - backend
@@ -33,4 +33,4 @@ networks:
   backend:
     internal: true
   frontend:
-    external: false 
+    external: false
