@@ -82,6 +82,13 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # Static files and templates — MUST be set up before routers that use templates
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    static_dir = os.path.join(base_dir, "static")
+    template_dir = os.path.join(base_dir, "templates")
+
+    app.state.templates = Jinja2Templates(directory=template_dir)
+
     # Rate limiting
     from slowapi import _rate_limit_exceeded_handler
     from slowapi.errors import RateLimitExceeded
@@ -101,15 +108,10 @@ def create_app() -> FastAPI:
     app.include_router(admin_router)
     app.include_router(pages_router)
 
-    # Static files and templates
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    static_dir = os.path.join(base_dir, "static")
-    template_dir = os.path.join(base_dir, "templates")
-
+    # Static files mount AFTER routers — Starlette matches routes in order,
+    # and /static must not shadow API routes, but url_for('static') still works
     if os.path.isdir(static_dir):
         app.mount("/static", StaticFiles(directory=static_dir), name="static")
-
-    app.state.templates = Jinja2Templates(directory=template_dir)
 
     return app
 
