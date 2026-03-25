@@ -55,9 +55,9 @@ Dockerfile
 docker-compose.yml
 .dockerignore
 
-# Documentation
-README.md
+# Documentation (except README.md — needed by pyproject.toml for hatchling)
 *.md
+!README.md
 
 # Configuration files that shouldn't be in image
 config.json
