@@ -30,13 +30,10 @@ ENV VIRTUAL_ENV=/app/venv
 RUN python -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-# Install dependencies first (better layer caching)
-COPY --chown=app:app pyproject.toml README.md .
+# Copy everything and install (hatchling needs the package directory present)
+COPY --chown=app:app . .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir .
-
-# Copy application code
-COPY --chown=app:app . .
 
 # Create necessary directories
 RUN mkdir -p /app/firmware /app/temp /app/logs
