@@ -31,7 +31,7 @@ RUN python -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # Install dependencies first (better layer caching)
-COPY --chown=app:app pyproject.toml .
+COPY --chown=app:app pyproject.toml README.md .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir .
 
