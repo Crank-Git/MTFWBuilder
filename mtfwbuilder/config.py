@@ -33,7 +33,7 @@ class Settings(BaseSettings):
 
     # Auth
     admin_password_hash: str = ""
-    secret_key: str = "change-me-in-production"
+    secret_key: str = "change-me-in-production"  # Auto-generated on config.json migration; override in config.yaml for fresh installs
     session_max_age: int = 3600  # 1 hour
 
     # Rate limiting
