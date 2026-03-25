@@ -42,6 +42,9 @@ class TestProgressParsing:
     def test_compiling_detected(self):
         assert _parse_progress("Compiling .pio/build/tbeam/src/main.cpp.o") == "compiling"
 
+    def test_building_pio_detected(self):
+        assert _parse_progress("Building .pio/build/tbeam/src/main.cpp.o") == "compiling"
+
     def test_linking_detected(self):
         assert _parse_progress("Linking .pio/build/tbeam/firmware.elf") == "linking"
 
@@ -51,12 +54,24 @@ class TestProgressParsing:
     def test_success_detected(self):
         assert _parse_progress("========================= [SUCCESS] =========================") == "complete"
 
+    def test_success_no_false_positive(self):
+        """'Successfully installed' should NOT trigger complete."""
+        assert _parse_progress("Successfully installed toolchain") is None
+
     def test_error_detected(self):
-        assert _parse_progress("src/main.cpp:42: error: undefined reference") == "failed"
+        assert _parse_progress("error: undefined reference to 'foo'") == "failed"
+
+    def test_failed_banner_detected(self):
+        assert _parse_progress("========================= [FAILED] =========================") == "failed"
 
     def test_warning_not_error(self):
         """Warnings should not trigger 'failed' status."""
         assert _parse_progress("warning: unused variable 'x'") is None
+
+    def test_error_in_filename_not_failed(self):
+        """A filename containing 'error' should not trigger failed — it's a compiling line."""
+        result = _parse_progress("Compiling .pio/build/tbeam/src/error_handler.cpp.o")
+        assert result != "failed"  # Should be "compiling", not "failed"
 
     def test_unrelated_line_returns_none(self):
         assert _parse_progress("Installing ESP32 platform") is None

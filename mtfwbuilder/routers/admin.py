@@ -46,6 +46,7 @@ async def admin_login(request: Request):
         max_age=settings.session_max_age,
         httponly=True,
         samesite="lax",
+        secure=not settings.debug,
     )
     logger.info("Admin login successful")
     return response

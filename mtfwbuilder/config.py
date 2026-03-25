@@ -96,6 +96,22 @@ def load_settings() -> Settings:
     # Default password if nothing configured
     if not overrides.get("admin_password_hash"):
         overrides["admin_password_hash"] = _hash_password("meshtastic")
+        import logging
+        logging.getLogger("mtfwbuilder").warning(
+            "SECURITY: Using default admin password 'meshtastic'. "
+            "Set admin_password in config.yaml for production use."
+        )
+
+    # Auto-generate secret key if still default
+    if overrides.get("secret_key", "change-me-in-production") == "change-me-in-production":
+        import os as _os
+        generated_key = _os.urandom(32).hex()
+        overrides["secret_key"] = generated_key
+        # Persist if we have a config path
+        if config_path.exists() or not old_config_path.exists():
+            overrides_copy = dict(overrides)
+            with open(config_path, "w") as f:
+                yaml.dump(overrides_copy, f, default_flow_style=False)
 
     return Settings(**overrides)
 

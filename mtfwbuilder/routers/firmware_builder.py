@@ -53,6 +53,8 @@ async def start_build(request: Request):
             raise HTTPException(status_code=400, detail="No userPrefs file uploaded")
         if hasattr(upload, "read"):
             raw = await upload.read()
+            if len(raw) > 65536:  # 64KB max, same as preview-userprefs
+                raise HTTPException(status_code=400, detail="File too large (max 64KB)")
             config_content = raw.decode("utf-8")
         else:
             config_content = str(upload)
@@ -123,7 +125,9 @@ async def download_firmware(build_id: str, request: Request, variant: str = "unk
     settings = request.app.state.settings
     registry = request.app.state.device_registry
 
-    build_dir = settings.temp_dir / build_id
+    build_dir = (settings.temp_dir / build_id).resolve()
+    if not str(build_dir).startswith(str(settings.temp_dir.resolve())):
+        raise HTTPException(status_code=400, detail="Invalid build ID")
     if not build_dir.is_dir():
         raise HTTPException(status_code=404, detail="Build not found or expired")
 

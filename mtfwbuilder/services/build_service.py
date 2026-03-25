@@ -145,18 +145,24 @@ async def _run_pio_build(ctx: BuildContext):
         env=env,
     )
 
-    last_status = ""
-    async for raw_line in process.stdout:
-        line = raw_line.decode("utf-8", errors="replace").rstrip()
-        ctx.build_log.append(line)
+    try:
+        last_status = ""
+        async for raw_line in process.stdout:
+            line = raw_line.decode("utf-8", errors="replace").rstrip()
+            ctx.build_log.append(line)
 
-        # Detect progress milestones
-        status = _parse_progress(line)
-        if status and status != last_status:
-            last_status = status
-            yield BuildProgress(status=status, message=line[:200])
+            # Detect progress milestones
+            status = _parse_progress(line)
+            if status and status != last_status:
+                last_status = status
+                yield BuildProgress(status=status, message=line[:200])
 
-    exit_code = await process.wait()
+        exit_code = await process.wait()
+    except (asyncio.CancelledError, GeneratorExit):
+        # Kill subprocess on timeout or client disconnect
+        process.kill()
+        await process.wait()
+        raise
 
     if exit_code != 0:
         error_lines = [l for l in ctx.build_log[-20:] if "error" in l.lower()]
@@ -172,15 +178,15 @@ async def _run_pio_build(ctx: BuildContext):
 def _parse_progress(line: str) -> str | None:
     """Parse a PlatformIO output line for progress milestones."""
     lower = line.lower()
-    if "compiling" in lower or "building" in lower:
+    if "compiling" in lower or "building .pio" in lower:
         return "compiling"
-    if "linking" in lower:
+    if "linking .pio" in lower:
         return "linking"
     if "checking size" in lower or "building firmware image" in lower:
         return "packaging"
-    if "success" in lower:
+    if "[success]" in lower:
         return "complete"
-    if "error" in lower and "warning" not in lower:
+    if "[failed]" in lower or (lower.strip().startswith("error") and ":" in lower):
         return "failed"
     return None
 
