@@ -1,0 +1,130 @@
+<!-- SSE-powered build progress component.
+     Include inside firmware_builder.html. Activated by JS after build starts. -->
+
+<div id="buildProgressContainer" style="display: none;" aria-live="polite">
+    <div class="card mt-4">
+        <div class="card-header" id="buildProgressHeader">
+            <h5 class="mb-0">
+                <i class="bi bi-hammer me-2" id="buildStatusIcon"></i>
+                <span id="buildStatusText">Preparing build...</span>
+            </h5>
+        </div>
+        <div class="card-body">
+            <!-- Progress bar -->
+            <div class="progress mb-3" style="height: 24px;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated"
+                     id="buildProgressBar" role="progressbar"
+                     style="width: 10%;" aria-valuenow="10" aria-valuemin="0" aria-valuemax="100">
+                </div>
+            </div>
+
+            <!-- Status message -->
+            <p class="text-muted mb-0" id="buildMessage">Starting build...</p>
+
+            <!-- Download button (hidden until build complete) -->
+            <div id="buildDownloadSection" style="display: none;" class="mt-3">
+                <a id="buildDownloadBtn" href="#" class="btn btn-success btn-lg">
+                    <i class="bi bi-download me-2"></i>Download Firmware
+                </a>
+            </div>
+
+            <!-- Error section (hidden until build fails) -->
+            <div id="buildErrorSection" style="display: none;" class="mt-3">
+                <div class="alert alert-danger" id="buildErrorMessage"></div>
+                <details class="mt-2">
+                    <summary class="text-muted">Build log</summary>
+                    <pre class="mt-2 p-3 bg-dark text-light rounded" style="max-height: 400px; overflow-y: auto;"
+                         id="buildLogContent"></pre>
+                </details>
+                <button type="button" class="btn btn-outline-warning mt-2" id="buildRetryBtn">
+                    <i class="bi bi-arrow-clockwise me-2"></i>Try Again
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// SSE build progress handler — the only custom JS (htmx handles everything else)
+function startBuildProgress(buildId) {
+    const container = document.getElementById('buildProgressContainer');
+    const header = document.getElementById('buildProgressHeader');
+    const icon = document.getElementById('buildStatusIcon');
+    const statusText = document.getElementById('buildStatusText');
+    const progressBar = document.getElementById('buildProgressBar');
+    const message = document.getElementById('buildMessage');
+    const downloadSection = document.getElementById('buildDownloadSection');
+    const downloadBtn = document.getElementById('buildDownloadBtn');
+    const errorSection = document.getElementById('buildErrorSection');
+    const errorMessage = document.getElementById('buildErrorMessage');
+    const logContent = document.getElementById('buildLogContent');
+    const retryBtn = document.getElementById('buildRetryBtn');
+
+    container.style.display = 'block';
+    errorSection.style.display = 'none';
+    downloadSection.style.display = 'none';
+
+    const source = new EventSource('/api/v1/build-progress/' + buildId);
+
+    const statusConfig = {
+        queued:    { icon: 'bi-hourglass-split', text: 'Queued', progress: 10, headerClass: 'bg-secondary text-white' },
+        compiling: { icon: 'bi-hammer',          text: 'Compiling', progress: 40, headerClass: 'bg-primary text-white' },
+        linking:   { icon: 'bi-link-45deg',      text: 'Linking', progress: 70, headerClass: 'bg-primary text-white' },
+        packaging: { icon: 'bi-box-seam',        text: 'Packaging', progress: 85, headerClass: 'bg-info text-white' },
+        complete:  { icon: 'bi-check-circle-fill',text: 'Complete!', progress: 100, headerClass: 'bg-success text-white' },
+        failed:    { icon: 'bi-x-circle-fill',   text: 'Failed', progress: 100, headerClass: 'bg-danger text-white' },
+    };
+
+    source.addEventListener('status', function(e) {
+        const data = JSON.parse(e.data);
+        const config = statusConfig[data.status] || statusConfig.compiling;
+
+        icon.className = 'bi ' + config.icon + ' me-2';
+        statusText.textContent = config.text;
+        progressBar.style.width = config.progress + '%';
+        progressBar.setAttribute('aria-valuenow', config.progress);
+        header.className = 'card-header ' + config.headerClass;
+
+        if (data.message) {
+            message.textContent = data.message;
+        }
+
+        if (data.status === 'complete') {
+            progressBar.classList.remove('progress-bar-animated');
+            downloadSection.style.display = 'block';
+            downloadBtn.href = data.download_url;
+            source.close();
+        }
+
+        if (data.status === 'failed') {
+            progressBar.classList.remove('progress-bar-animated');
+            progressBar.classList.add('bg-danger');
+            errorSection.style.display = 'block';
+            errorMessage.textContent = data.error || 'Build failed. See build log for details.';
+            source.close();
+        }
+    });
+
+    source.addEventListener('log', function(e) {
+        const data = JSON.parse(e.data);
+        if (data.log) {
+            logContent.textContent = data.log;
+        }
+    });
+
+    source.onerror = function() {
+        source.close();
+        if (downloadSection.style.display === 'none' && errorSection.style.display === 'none') {
+            errorSection.style.display = 'block';
+            errorMessage.textContent = 'Connection to build server lost.';
+        }
+    };
+
+    // Retry button preserves form state
+    retryBtn.addEventListener('click', function() {
+        container.style.display = 'none';
+        document.getElementById('buildFirmwareBtn').disabled = false;
+        document.getElementById('buildFirmwareBtn').innerHTML = '<i class="bi bi-cpu-fill me-2"></i>Build Firmware';
+    });
+}
+</script>
