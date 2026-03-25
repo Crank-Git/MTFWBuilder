@@ -82,6 +82,14 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # Rate limiting
+    from slowapi import _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
+    from mtfwbuilder.rate_limit import limiter
+
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
     # Routers
     from mtfwbuilder.routers.config_generator import router as config_router
     from mtfwbuilder.routers.firmware_builder import router as firmware_router

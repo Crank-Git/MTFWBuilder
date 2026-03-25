@@ -5,13 +5,13 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
-
 from mtfwbuilder.auth import (
     SESSION_COOKIE,
     create_session_token,
     require_admin,
     verify_password,
 )
+from mtfwbuilder.rate_limit import limiter
 from mtfwbuilder.services.cleanup_service import cleanup_old_builds
 from mtfwbuilder.services.firmware_updater import get_firmware_version, update_firmware
 
@@ -28,6 +28,7 @@ async def admin_page(request: Request):
 
 
 @router.post("/admin/login")
+@limiter.limit("10/minute")
 async def admin_login(request: Request):
     """Authenticate admin and set session cookie."""
     settings = request.app.state.settings

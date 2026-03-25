@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from sse_starlette.sse import EventSourceResponse
 
 from mtfwbuilder.models import BuildStatus
+from mtfwbuilder.rate_limit import limiter
 from mtfwbuilder.services import build_service
 from mtfwbuilder.services.cleanup_service import cleanup_build_directory
 from mtfwbuilder.services.jsonc_generator import generate_jsonc
@@ -19,6 +20,7 @@ router = APIRouter(prefix="/api/v1", tags=["firmware"])
 
 
 @router.post("/build-firmware")
+@limiter.limit("5/minute")
 async def start_build(request: Request):
     """Start a firmware build. Returns build_id for SSE progress tracking."""
     settings = request.app.state.settings
@@ -68,9 +70,18 @@ async def start_build(request: Request):
         settings=settings,
     )
 
-    # Store build context for SSE endpoint
+    # Store build context for SSE endpoint with timestamp for TTL cleanup
     if not hasattr(request.app.state, "active_builds"):
         request.app.state.active_builds = {}
+
+    # TTL cleanup: remove entries older than 30 minutes
+    import time as _time
+    now = _time.time()
+    stale = [k for k, v in request.app.state.active_builds.items() if now - getattr(v, "_created_at", 0) > 1800]
+    for k in stale:
+        request.app.state.active_builds.pop(k, None)
+
+    ctx._created_at = now
     request.app.state.active_builds[build_id] = ctx
 
     return {

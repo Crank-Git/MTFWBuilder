@@ -81,6 +81,11 @@ def update_firmware(settings: Settings) -> bool:
         logger.info("Extracting firmware source...")
         with zipfile.ZipFile(zip_path, "r") as zf:
             top_dir = zf.namelist()[0].split("/")[0]
+            # Validate zip entries to prevent zip-slip attacks
+            for entry in zf.namelist():
+                target = os.path.realpath(os.path.join(temp_dir, entry))
+                if not target.startswith(os.path.realpath(temp_dir)):
+                    raise ValueError(f"Zip entry would escape target directory: {entry}")
             zf.extractall(temp_dir)
 
         extracted_dir = os.path.join(temp_dir, top_dir)
