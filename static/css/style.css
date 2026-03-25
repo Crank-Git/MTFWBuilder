@@ -460,4 +460,87 @@ body {
 
 [data-bs-theme="dark"] .text-success {
     color: var(--green-accent-light) !important;
-} 
+}
+
+/* ============================================
+   Responsive breakpoints (Phase 5)
+   ============================================ */
+
+/* Tablet (768-992px): stack form sections */
+@media (max-width: 992px) {
+    .config-section .row > [class*="col-md"] {
+        margin-bottom: 1rem;
+    }
+    .app-header {
+        flex-direction: column;
+        text-align: center;
+        gap: 1rem;
+    }
+}
+
+/* Mobile (<768px): single column, larger touch targets */
+@media (max-width: 768px) {
+    body {
+        padding-top: 10px;
+        padding-bottom: 30px;
+    }
+    .container {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+    .config-section {
+        padding: 15px;
+        margin-bottom: 15px;
+    }
+    .app-title {
+        font-size: 1.3rem;
+    }
+    /* Touch targets: minimum 44px */
+    .btn {
+        min-height: 44px;
+        min-width: 44px;
+    }
+    .form-control, .form-select {
+        min-height: 44px;
+        font-size: 16px; /* Prevents iOS zoom on focus */
+    }
+    /* Sticky build progress on mobile */
+    #buildProgressContainer .card {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+    }
+}
+
+/* ============================================
+   Accessibility (Phase 5)
+   ============================================ */
+
+/* Focus indicators for keyboard navigation */
+:focus-visible {
+    outline: 2px solid var(--green-accent);
+    outline-offset: 2px;
+}
+
+/* Ensure sufficient contrast for form labels in dark mode */
+[data-bs-theme="dark"] .form-label {
+    color: #d0d0d0;
+}
+
+/* Screen reader only class */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Build progress animation */
+.progress-bar-animated {
+    animation: progress-bar-stripes 1s linear infinite;
+}

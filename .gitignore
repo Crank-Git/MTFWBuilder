@@ -213,6 +213,7 @@ config.json
 
 # Admin credentials
 admin_keys.txt
+config.yaml
 
 # Database files
 *.sqlite
@@ -261,4 +262,8 @@ site/
 .env
 .env.local
 .env.production
-docker-compose.override.yml 
+docker-compose.override.yml
+
+# oh-my-claudecode state
+.omc/ 
+.gstack/
