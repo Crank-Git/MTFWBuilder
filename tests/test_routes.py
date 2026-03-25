@@ -9,12 +9,19 @@ from mtfwbuilder.main import create_app
 
 
 @pytest.fixture
-def app():
-    return create_app()
+async def client():
+    app = create_app()
+    # Manually set up app state that lifespan would provide
+    from mtfwbuilder.config import load_settings
+    from mtfwbuilder.services.device_registry import DeviceRegistry
+    from mtfwbuilder.services.build_service import init_build_system
 
+    settings = load_settings()
+    app.state.settings = settings
+    app.state.device_registry = DeviceRegistry(settings.devices_file)
+    init_build_system(settings)
+    app.state.active_builds = {}
 
-@pytest.fixture
-async def client(app):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c

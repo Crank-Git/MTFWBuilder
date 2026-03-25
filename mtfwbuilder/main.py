@@ -62,6 +62,12 @@ async def lifespan(app: FastAPI):
     app.state.device_registry = registry
     logger.info(f"Loaded {registry.count} device variants")
 
+    # Initialize build system
+    from mtfwbuilder.services.build_service import init_build_system
+
+    init_build_system(settings)
+    logger.info("Build system initialized (serialized, 1 concurrent build)")
+
     yield
 
     logger.info("Shutting down MTFWBuilder")
@@ -78,9 +84,11 @@ def create_app() -> FastAPI:
 
     # Routers
     from mtfwbuilder.routers.config_generator import router as config_router
+    from mtfwbuilder.routers.firmware_builder import router as firmware_router
     from mtfwbuilder.routers.pages import router as pages_router
 
     app.include_router(config_router)
+    app.include_router(firmware_router)
     app.include_router(pages_router)
 
     # Static files and templates
