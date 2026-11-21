@@ -1,7 +1,7 @@
 <div class="config-section">
     <h3 class="section-title"><i class="bi bi-calendar-event-fill text-success"></i>Event</h3>
     <div class="row mb-3">
-        <div class="col-md-4" data-userprefs-key="USERPREFS_EVENT_MODE">
+        <fieldset class="col-md-4" data-userprefs-key="USERPREFS_EVENT_MODE"{{ key_attrs("USERPREFS_EVENT_MODE") }}>
             <label for="eventMode" class="form-label">Event Mode</label>
             <select class="form-select" id="eventMode" name="event_mode">
                 <option value="0" selected>Disabled</option>
@@ -10,14 +10,14 @@
             </select>
             <div id="error-event_mode" class="field-error invalid-feedback d-block"></div>
             <div class="form-text text-muted"><code class="small">USERPREFS_EVENT_MODE</code></div>
-        </div>
-        <div class="col-md-4" data-userprefs-key="USERPREFS_EVENT_MODE_HOP_LIMIT">
+        </fieldset>
+        <fieldset class="col-md-4" data-userprefs-key="USERPREFS_EVENT_MODE_HOP_LIMIT"{{ key_attrs("USERPREFS_EVENT_MODE_HOP_LIMIT") }}>
             <label for="eventModeHopLimit" class="form-label">Event Hop Limit</label>
             <input type="number" class="form-control" id="eventModeHopLimit" name="event_mode_hop_limit" min="0" max="7" placeholder="Firmware default">
             <div id="error-event_mode_hop_limit" class="field-error invalid-feedback d-block"></div>
             <div class="form-text text-muted">The hop limit in event mode, 0 to 7. The firmware reads it only when event mode is on. <code class="small">USERPREFS_EVENT_MODE_HOP_LIMIT</code></div>
-        </div>
-        <div class="col-md-4" data-userprefs-key="USERPREFS_BLOCK_POSITION_ON_EVENT_CHANNEL">
+        </fieldset>
+        <fieldset class="col-md-4" data-userprefs-key="USERPREFS_BLOCK_POSITION_ON_EVENT_CHANNEL"{{ key_attrs("USERPREFS_BLOCK_POSITION_ON_EVENT_CHANNEL") }}>
             <div class="form-check form-switch">
                 <input type="hidden" name="event_block_position" value="false">
                 <input class="form-check-input" type="checkbox" id="eventBlockPosition" name="event_block_position" value="true">
@@ -25,6 +25,6 @@
             </div>
             <div id="error-event_block_position" class="field-error invalid-feedback d-block"></div>
             <div class="form-text text-muted">Send no position on the channel with the channel 0 PSK, and discard each position that arrives on it. Needs a channel 0 PSK of 16 or 32 bytes, or the firmware build fails. <code class="small">USERPREFS_BLOCK_POSITION_ON_EVENT_CHANNEL</code></div>
-        </div>
+        </fieldset>
     </div>
 </div>

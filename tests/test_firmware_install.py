@@ -30,6 +30,7 @@ from mtfwbuilder.services.firmware_updater import (
     extract_zipball,
     install_events,
 )
+from mtfwbuilder.services.userprefs_keys import SCAN_FILE
 from tests.conftest import sign_in_admin
 
 STABLE = "v2.7.26.54e0d8d"
@@ -181,8 +182,26 @@ async def test_install_writes_a_ready_record_with_the_path_and_the_disk_size(app
 
     assert row["path"] == str(settings.firmware_dir / STABLE)
     assert row["status"] == "ready"
-    assert row["size_bytes"] == len("[platformio]\n") + len("int main() {}\n") + len("fake\n")
+    # The size counts the scan file that the install writes.
+    scan_size = (settings.firmware_dir / STABLE / SCAN_FILE).stat().st_size
+    assert row["size_bytes"] == len("[platformio]\n") + len("int main() {}\n") + len("fake\n") + scan_size
     assert row["installed_at"]
+
+
+@pytest.mark.usefixtures("installs")
+async def test_install_stores_the_userprefs_keys_that_the_firmware_source_reads(app, admin, settings, downloads):
+    downloads.body = _zip_bytes(
+        {
+            "top/platformio.ini": "[platformio]\n",
+            "top/userPrefs.jsonc": '{\n  // "USERPREFS_EVENT_MODE": "1",\n}\n',
+            "top/src/mesh/NodeDB.cpp": "#ifdef USERPREFS_MESH_BEACON_MESSAGE\n#endif\n",
+        }
+    )
+
+    await _install(admin, app, {"channel": "stable"})
+
+    scan = json.loads((settings.firmware_dir / STABLE / SCAN_FILE).read_text())
+    assert scan["keys"] == ["USERPREFS_EVENT_MODE", "USERPREFS_MESH_BEACON_MESSAGE"]
 
 
 @pytest.mark.usefixtures("installs")

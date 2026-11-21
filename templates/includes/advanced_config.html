@@ -11,34 +11,34 @@
             <div id="oemSettingsCollapse" class="accordion-collapse collapse" aria-labelledby="oemSettingsHeading" data-bs-parent="#advancedAccordion">
                 <div class="accordion-body">
                     <div class="row mb-3">
-                        <div class="col-md-6">
+                        <fieldset class="col-md-6" data-userprefs-key="USERPREFS_OEM_TEXT"{{ key_attrs("USERPREFS_OEM_TEXT") }}>
                             <label for="oemText" class="form-label">OEM Text</label>
                             <input type="text" class="form-control" id="oemText" name="oem_text" placeholder="Caterham Car Club">
                             <div id="error-oem_text" class="field-error invalid-feedback d-block"></div>
-                        </div>
-                        <div class="col-md-6">
+                        </fieldset>
+                        <fieldset class="col-md-6" data-userprefs-key="USERPREFS_OEM_FONT_SIZE"{{ key_attrs("USERPREFS_OEM_FONT_SIZE") }}>
                             <label for="oemFontSize" class="form-label">OEM Font Size</label>
                             <input type="number" class="form-control" id="oemFontSize" name="oem_font_size" value="0">
                             <div id="error-oem_font_size" class="field-error invalid-feedback d-block"></div>
-                        </div>
+                        </fieldset>
                     </div>
                     <div class="row mb-3">
-                        <div class="col-md-6">
+                        <fieldset class="col-md-6" data-userprefs-key="USERPREFS_OEM_IMAGE_WIDTH"{{ key_attrs("USERPREFS_OEM_IMAGE_WIDTH") }}>
                             <label for="oemImageWidth" class="form-label">OEM Image Width</label>
                             <input type="number" class="form-control" id="oemImageWidth" name="oem_image_width" placeholder="50">
                             <div id="error-oem_image_width" class="field-error invalid-feedback d-block"></div>
-                        </div>
-                        <div class="col-md-6">
+                        </fieldset>
+                        <fieldset class="col-md-6" data-userprefs-key="USERPREFS_OEM_IMAGE_HEIGHT"{{ key_attrs("USERPREFS_OEM_IMAGE_HEIGHT") }}>
                             <label for="oemImageHeight" class="form-label">OEM Image Height</label>
                             <input type="number" class="form-control" id="oemImageHeight" name="oem_image_height" placeholder="28">
                             <div id="error-oem_image_height" class="field-error invalid-feedback d-block"></div>
-                        </div>
+                        </fieldset>
                     </div>
-                    <div class="mb-3">
+                    <fieldset class="mb-3" data-userprefs-key="USERPREFS_OEM_IMAGE_DATA"{{ key_attrs("USERPREFS_OEM_IMAGE_DATA") }}>
                         <label for="oemImageData" class="form-label">OEM Image Data</label>
                         <textarea class="form-control" id="oemImageData" name="oem_image_data" rows="4" placeholder="{ 0x00, 0x00, 0xF0, ... }"></textarea>
                         <div id="error-oem_image_data" class="field-error invalid-feedback d-block"></div>
-                    </div>
+                    </fieldset>
                 </div>
             </div>
         </div>
@@ -52,7 +52,7 @@
             <div id="otherSettingsCollapse" class="accordion-collapse collapse" aria-labelledby="otherSettingsHeading" data-bs-parent="#advancedAccordion">
                 <div class="accordion-body">
                     <div class="row mb-3">
-                        <div class="col-md-6">
+                        <fieldset class="col-md-6" data-userprefs-key="USERPREFS_BUTTON_PIN"{{ key_attrs("USERPREFS_BUTTON_PIN") }}>
                             <label for="buttonPin" class="form-label">Button Pin</label>
                             <input type="text" class="form-control" id="buttonPin" name="button_pin" placeholder="36">
                             <div id="error-button_pin" class="field-error invalid-feedback d-block"></div>
@@ -61,28 +61,28 @@
                                 <input class="form-check-input" type="checkbox" id="buttonPinEnabled" name="button_pin_enabled" value="true">
                                 <label class="form-check-label" for="buttonPinEnabled">Enable Button Pin</label>
                             </div>
-                        </div>
+                        </fieldset>
                     </div>
                     <div class="row mb-3">
-                        <div class="col-md-6" data-userprefs-key="USERPREFS_CANNED_MESSAGES">
+                        <fieldset class="col-md-6" data-userprefs-key="USERPREFS_CANNED_MESSAGES"{{ key_attrs("USERPREFS_CANNED_MESSAGES") }}>
                             <label for="cannedMessages" class="form-label">Canned Messages</label>
                             <textarea class="form-control" id="cannedMessages" name="canned_messages" rows="4" placeholder="OK&#10;On my way&#10;Need help"></textarea>
                             <div id="error-canned_messages" class="field-error invalid-feedback d-block"></div>
                             <div class="form-text text-muted">One message on each line. A message cannot contain |. <code class="small">USERPREFS_CANNED_MESSAGES</code></div>
-                        </div>
+                        </fieldset>
                         <div class="col-md-6">
-                            <div class="mb-3" data-userprefs-key="USERPREFS_RINGTONE_RTTTL">
+                            <fieldset class="mb-3" data-userprefs-key="USERPREFS_RINGTONE_RTTTL"{{ key_attrs("USERPREFS_RINGTONE_RTTTL") }}>
                                 <label for="ringtoneRtttl" class="form-label">Ringtone (RTTTL)</label>
                                 <input type="text" class="form-control" id="ringtoneRtttl" name="ringtone_rtttl" placeholder="24:d=32,o=5,b=565:f6,p,f6">
                                 <div id="error-ringtone_rtttl" class="field-error invalid-feedback d-block"></div>
                                 <div class="form-text text-muted">The ringtone of the external notification module, in RTTTL. <code class="small">USERPREFS_RINGTONE_RTTTL</code></div>
-                            </div>
-                            <div data-userprefs-key="USERPREFS_RINGTONE_NAG_SECS">
+                            </fieldset>
+                            <fieldset data-userprefs-key="USERPREFS_RINGTONE_NAG_SECS"{{ key_attrs("USERPREFS_RINGTONE_NAG_SECS") }}>
                                 <label for="ringtoneNagSecs" class="form-label">Ringtone Duration</label>
                                 <input type="number" class="form-control" id="ringtoneNagSecs" name="ringtone_nag_secs" min="0" placeholder="15">
                                 <div id="error-ringtone_nag_secs" class="field-error invalid-feedback d-block"></div>
                                 <div class="form-text text-muted">The time in seconds that the ringtone plays for each alert. <code class="small">USERPREFS_RINGTONE_NAG_SECS</code></div>
-                            </div>
+                            </fieldset>
                         </div>
                     </div>
                 </div>

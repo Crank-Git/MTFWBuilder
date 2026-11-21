@@ -154,6 +154,12 @@ Key endpoints:
 - `POST /api/v1/generate` — Generate config from JSON
 - `POST /api/v1/preview` — Preview config without downloading
 - `POST /api/v1/download` — Download `userPrefs.jsonc`
+- `GET /api/v1/userprefs/keys?version=<tag>` — The userPrefs keys (`keys`) and the `config.proto` enum values
+  (`enum_values`) that a firmware version reads, from a scan of its firmware source. Without `version`, the result
+  is for the default firmware version. Returns 404 when the firmware version is not installed.
+
+The generate, preview, download and build routes take an optional field `firmware_version`. Without it, they use the
+default firmware version. They return 422 for a field whose userPrefs key or enum value that firmware version lacks.
 - `POST /api/v1/build-firmware` — Start firmware build
 - `GET /api/v1/build-progress/{id}` — SSE build progress stream
 - `GET /api/v1/builds/{id}` — Build status of a build: `build_id`, `status`, `message`, `progress`, `error`, `download_url`

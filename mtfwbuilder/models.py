@@ -398,6 +398,19 @@ class ConfigRequest(_UserPrefsFields):
         return data
 
 
+class UserPrefsKeys(BaseModel):
+    """The body of `GET /api/v1/userprefs/keys`: what one firmware version reads, from a scan of its firmware source.
+
+    `keys` is None when the firmware source cannot be scanned, and then the form shows every control.
+    `enum_values` holds the C name of each `config.proto` enum value in the firmware source. It is None when the
+    firmware source has no `config.pb.h`, and then the form offers every enum value.
+    """
+
+    version: str
+    keys: list[str] | None
+    enum_values: list[str] | None
+
+
 class BuildRequest(BaseModel):
     """Request to build firmware."""
 
