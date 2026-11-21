@@ -1,0 +1,21 @@
+{# The flash panel of a complete ESP32-family build. static/js/flash.js shows one state after its browser checks. #}
+<section class="card mb-2" id="flash-panel"
+         data-esptool-url="{{ url_for('static', path='vendor/esptool-js-0.7.1/bundle.js').path }}"
+         data-artifacts-url="/api/v1/builds/{{ build.build_id }}/artifacts">
+    <div class="card-body">
+        <h2 class="h5 card-title">Flash from the browser</h2>
+        <div id="flash-ready" hidden>
+            <button type="button" class="btn btn-primary" id="flash-start" disabled>Flash</button>
+        </div>
+        <div class="alert alert-warning" role="alert" id="flash-unsupported" hidden>This browser cannot flash. Use Chrome or Edge on a desktop.</div>
+        <div class="alert alert-warning" role="alert" id="flash-insecure" hidden>Web Serial needs HTTPS. Open this page through the TLS proxy or on localhost.</div>
+        <div id="flash-downloads" hidden>
+            <p class="mb-1">Download the artifacts and flash them with <code>esptool</code>:</p>
+            <ul class="list-unstyled mb-0">
+                {% for artifact, url in artifacts %}
+                <li><a href="{{ url }}" download data-flash-download><i class="bi bi-download me-1"></i>{{ artifact.name }}</a></li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</section>
