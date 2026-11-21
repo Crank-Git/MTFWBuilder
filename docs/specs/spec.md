@@ -122,6 +122,8 @@ the header of `userPrefs.jsonc` in `meshtastic/firmware` `develop@fe89ac1`.
 | build worker | noun | The process slot that runs one build at a time. | runner, executor |
 | data directory | noun | The one directory that holds all state: firmware sources, artifacts, the database and `config.yaml`. `MTFW_DATA_DIR` sets it. | state dir, volume (alone) |
 | build cache | noun | Stored artifacts, keyed by a hash of firmware version, variant and userPrefs file. | artifact store |
+| config hash | noun | The HMAC-SHA-256 of a build, keyed with `secret_key`. It covers the app version, the firmware version, the variant and the userPrefs file with its keys sorted. | build hash, fingerprint |
+| cache entry | noun | The artifacts of one config hash in the build cache: one directory and one `cache_entries` row. | cached build, cache item |
 | progress stream | noun | The Server-Sent Events (SSE) stream that sends build status and log lines to the page. | event feed, socket |
 | scrub | verb | To delete every file that holds a secret, after a build ends. | sanitize, wipe, clean |
 | flash | verb | To write an artifact to a device. | burn, install, upload |
@@ -288,8 +290,8 @@ The registry was a YAML file at the inherit (`devices/variants.yaml`, 150 entrie
 | FIRMWARE_SOURCE | firmware-versions | `version` PK, `channel` (stable/alpha/pinned), `path`, `installed_at`, `status` | installing → ready → removed |
 | VARIANT | generated-registry | `env` + `version` PK, `display_name`, `manufacturer`, `architecture`, `support_level`, `hw_model`, `image`, `requires_dfu` | regenerated when a firmware source becomes ready |
 | BUILD | build-pipeline-repair | `id` (random, 128-bit), `version`, `variant`, `status`, `config_hash`, `created_at`, `completed_at`, `error_message`, `fleet_run_id` | queued → compiling → linking → packaging → complete / failed / cancelled → expired |
-| CACHE_ENTRY | fleet-builds | `config_hash` PK, `artifact_paths`, `created_at`, `last_used_at` | created on complete, removed by TTL |
-| PROFILE | fleet-builds | `id`, `name` UNIQUE, `config_json` without secrets, `must_reenter_json`, `stores_secrets`, `created_at`, `updated_at` | created → updated → deleted |
+| CACHE_ENTRY | fleet-builds | `config_hash` PK, `firmware_version`, `variant`, `artifact_dir`, `artifact_names` (JSON list), `created_at`, `last_used_at` (Unix seconds) | created on complete without a secret, removed by TTL or when an artifact is missing |
+| PROFILE | fleet-builds | `id`, `name` UNIQUE, `config_json` without secrets, `must_reenter_json`, `stores_secrets`, `secrets_ciphertext` (Fernet token, nullable), `created_at`, `updated_at` | created → updated → deleted |
 | FLEET | fleet-builds | `id`, `name`, `profile_id` | created → deleted |
 | FLEET_DEVICE | fleet-builds | `id`, `fleet_id`, `label`, `variant`, `long_name`, `short_name`, `role`, `fixed_lat`, `fixed_lon`, `fixed_alt`, `admin_key` | created → deleted |
 | FLEET_RUN | fleet-builds | `id`, `fleet_id`, `version`, `status`, `created_at` | queued → running → complete / partial / failed |
