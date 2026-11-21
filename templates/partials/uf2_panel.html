@@ -6,10 +6,11 @@
     <div class="card-body">
         <h2 class="h5 card-title">Flash with a UF2 file</h2>
         <ol class="mb-0" id="uf2-steps">
-            <li id="uf2-step-1">Download the UF2 file:
-                {% for artifact, url in artifacts if artifact.kind == "uf2" %}
+            <li id="uf2-step-1">
+                {%- for artifact, url in artifacts if artifact.kind == "uf2" %}Download the UF2 file:
                 <a href="{{ url }}" download data-flash-download id="uf2-download"><i class="bi bi-download me-1"></i>{{ artifact.name }}</a>
-                {% endfor %}
+                {%- else %}This build has no UF2 file.
+                {%- endfor %}
             </li>
             {% if platform == "nrf52840" %}
             <li id="uf2-step-2">Connect the device with USB.</li>

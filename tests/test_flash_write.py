@@ -22,6 +22,8 @@ DONE_FULL = "Done. The device restarts with your factory defaults."
 NO_ESP32 = "No ESP32 found on this port."
 OTHER_TABLE = "The partition table on the device differs from this build. Use Full install."
 LOAD_FAILED = "The flashing tool did not load. Use the download links."
+NO_MANIFEST = "This build has no flash manifest. Use Full install."
+INVALID_MANIFEST = "The flash manifest of this build is not valid. Use Full install."
 # The harness logs each loader call that changes the flash or the port.
 DEVICE_CALLS = ("transport:new", "loader:eraseFlash", "loader:writeFlash")
 
@@ -47,7 +49,7 @@ def device_calls(log):
 # FR-browser-flashing-7 (acceptance criterion: full install shows the erase warning before any write)
 
 
-def test_full_install_shows_the_erase_warning_before_it_opens_the_port():
+def test_full_install_shows_the_erase_warning_before_any_erase_or_write():
     result = run(mode="full")
 
     assert "show:flash-confirm" in result["log"]
@@ -298,6 +300,95 @@ def test_update_error_shows_the_update_command_with_the_manifest_offset():
     result = run(mode="update", writeError="The device has been lost.")
 
     assert result["text"]["flash-command"] == f"esptool.py --port <PORT> --baud 921600 write_flash 0x10000 {NAME}.bin"
+
+
+def test_retry_after_a_switch_to_full_install_shows_the_erase_warning_before_it_writes():
+    result = run(mode="update", retry=True, retryMode="full", writeError="The device has been lost.")
+
+    log = result["log"]
+    select = log.index("operator:select:full")
+    retry = log.index("operator:retry")
+    assert select < retry < log.index("show:flash-confirm", retry)
+    assert "loader:writeFlash:0x0:1001" not in log
+    assert "flash-confirm" in result["shown"]
+
+
+def test_failed_write_hard_resets_the_device_before_it_closes_the_port():
+    log = run(mode="full", confirm=True, writeError="The device has been lost.")["log"]
+
+    assert first(log, "loader:writeFlash") < log.index("loader:after:hard_reset") < log.index("transport:disconnect")
+
+
+def test_failed_partition_check_hard_resets_the_device_before_it_closes_the_port():
+    log = run(mode="update", deviceTable=[[0x9000, 0x5000]])["log"]
+
+    assert first(log, "loader:readFlash") < log.index("loader:after:hard_reset") < log.index("transport:disconnect")
+
+
+def test_sync_failure_closes_the_port_without_a_reset():
+    log = run(mode="update", syncFail=True)["log"]
+
+    assert "transport:disconnect" in log
+    assert "loader:after:hard_reset" not in log
+
+
+def test_flash_control_is_disabled_while_the_port_picker_is_open():
+    result = run(mode="update", doubleClick=True)
+
+    log = result["log"]
+    assert "serial:startDisabled:true" in log
+    assert log.count("serial:requestPort") == 1
+    assert log.count("loader:writeFlash:0x10000:601") == 1
+    assert result["startDisabled"] is False
+
+
+def test_cancelled_port_picker_enables_the_flash_control_again():
+    assert run(mode="full", portCancel=True)["startDisabled"] is False
+
+
+def test_update_without_a_manifest_artifact_says_that_the_build_has_no_flash_manifest():
+    artifacts = [
+        {"name": f"{NAME}.factory.bin", "kind": "factory", "size": 1001},
+        {"name": f"{NAME}.bin", "kind": "app", "size": 601},
+    ]
+
+    result = run(mode="update", artifacts=artifacts)
+
+    assert result["text"]["flash-error-text"] == NO_MANIFEST
+    assert device_calls(result["log"]) == []
+
+
+def test_update_with_a_manifest_that_is_not_json_says_that_the_manifest_is_not_valid():
+    result = run(mode="update", manifestText="{not json")
+
+    assert result["text"]["flash-error-text"] == INVALID_MANIFEST
+    assert device_calls(result["log"]) == []
+
+
+@pytest.mark.parametrize("field", ["offset", "size"])
+def test_update_with_an_unparsable_partition_value_says_that_the_manifest_is_not_valid(field):
+    part = {"name": "app0", "type": "app", "subtype": "ota_0", "offset": "0x10000", "size": "0x640000"}
+    part[field] = "sixty-four K"
+
+    result = run(mode="update", manifest={"part": [part]})
+
+    assert result["text"]["flash-error-text"] == INVALID_MANIFEST
+    assert "NaN" not in result["text"]["flash-command"]
+    assert device_calls(result["log"]) == []
+
+
+def test_progress_sets_aria_valuenow_on_the_progressbar_element():
+    result = run(mode="full", confirm=True)
+
+    assert result["progressbar"]["aria-valuenow"] == "100"
+    assert "aria-valuenow" not in result["bar"]
+
+
+def test_panel_puts_role_progressbar_on_the_element_with_the_value_attributes():
+    (line,) = [line for line in TEMPLATE.read_text().splitlines() if 'role="progressbar"' in line]
+
+    assert 'id="flash-progressbar"' in line
+    assert 'aria-valuenow="0"' in line
 
 
 def test_retry_after_a_write_error_flashes_the_same_port_again():

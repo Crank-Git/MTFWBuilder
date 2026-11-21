@@ -108,3 +108,19 @@ def test_nrf54l15_build_shows_the_download_only_note(app):
 
     assert panel.text_of("download-only") == DOWNLOAD_ONLY
     assert panel.by_id("uf2-panel") is None
+
+
+def test_uf2_panel_without_a_uf2_artifact_says_that_the_build_has_no_uf2_file(app):
+    class Build:
+        build_id = "b1"
+        variant = DeviceVariant(
+            id="pico2", name="Pico 2", manufacturer="Raspberry Pi", architecture="rp2040", pio_platform="rp2350"
+        )
+
+    artifact = Artifact(name="firmware-pico2-2.7.26.hex", size=1, kind="hex")
+    template = app.state.templates.get_template("partials/uf2_panel.html")
+    panel = _Panel()
+    panel.feed(template.render(build=Build, artifacts=[(artifact, "/x")]))
+
+    assert panel.text_of("uf2-step-1") == "This build has no UF2 file."
+    assert panel.by_id("uf2-download") is None

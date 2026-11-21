@@ -205,9 +205,10 @@ const { pathToFileURL } = require('url');
 const [script, bundle, scenario] = process.argv.slice(1);
 const { secure, serial } = JSON.parse(scenario);
 
+// As in flash_panel.html, the Flash control has no `hidden` attribute: its container flash-ready hides it.
 function element(id, attrs = {}) {
   return {
-    id, hidden: true, disabled: false, dataset: attrs, listeners: {},
+    id, hidden: id !== 'flash-start', disabled: false, dataset: attrs, listeners: {},
     addEventListener(type, fn) { this.listeners[type] = fn; },
   };
 }
@@ -243,7 +244,7 @@ new vm.Script(fs.readFileSync(script, 'utf8'), {
 // A second htmx swap of the same panel must not start a second check.
 (listeners['htmx:load'] || []).forEach(fn => fn({ detail: { elt: panel } }));
 setTimeout(() => {
-  const shown = ids.filter(id => !parts[id].hidden);
+  const shown = ids.filter(id => !parts[id].hidden && (id !== 'flash-start' || !parts['flash-ready'].hidden));
   console.log(JSON.stringify({
     shown,
     imported,

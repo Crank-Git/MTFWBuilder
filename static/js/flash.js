@@ -26,6 +26,8 @@
   const NO_ESP32 = 'No ESP32 found on this port.';
   const OTHER_TABLE = 'The partition table on the device differs from this build. Use Full install.';
   const NO_APP_PARTITION = 'The build manifest has no app partition. Use Full install.';
+  const NO_MANIFEST = 'This build has no flash manifest. Use Full install.';
+  const INVALID_MANIFEST = 'The flash manifest of this build is not valid. Use Full install.';
   // Each flow state replaces the one before it, so the operator sees one state at a time.
   const FLOW_STATES = ['flash-ready', 'flash-confirm', 'flash-progress', 'flash-done', 'flash-error'];
 
@@ -42,7 +44,7 @@
     const bar = panel.querySelector('#flash-bar');
     bar.style.width = percent + '%';
     bar.textContent = percent + '%';
-    bar.setAttribute('aria-valuenow', percent);
+    panel.querySelector('#flash-progressbar').setAttribute('aria-valuenow', percent);
   }
 
   // esptool-js verifies a write only when the caller gives an MD5 function, and Web Crypto has no MD5.
@@ -146,19 +148,35 @@
     }
     const app = byKind('app');
     const manifest = byKind('manifest');
-    if (!app || !manifest) {
+    if (!manifest) {
+      throw new Error(NO_MANIFEST);
+    }
+    if (!app) {
       throw new Error(NO_APP_PARTITION);
     }
-    const parts = (await (await download(artifactsUrl, manifest.name)).json()).part || [];
+    const manifestResponse = await download(artifactsUrl, manifest.name);
+    let content;
+    try {
+      content = await manifestResponse.json();
+    } catch (error) {
+      // A raw SyntaxError names a JSON position, which does not tell the operator what to do.
+      if (error.name !== 'SyntaxError') {
+        throw error;
+      }
+      throw new Error(INVALID_MANIFEST);
+    }
+    const parts = (content && content.part) || [];
     const appPartition = parts.find(part => part.type === 'app');
     if (!appPartition) {
       throw new Error(NO_APP_PARTITION);
     }
-    return {
-      name: app.name,
-      address: parseSize(appPartition.offset),
-      partitions: parts.map(part => [parseSize(part.offset), parseSize(part.size)]),
-    };
+    const address = parseSize(appPartition.offset);
+    const partitions = parts.map(part => [parseSize(part.offset), parseSize(part.size)]);
+    // An unparsable value gives NaN, which shows as 0xNaN in the manual command and never matches the device table.
+    if (Number.isNaN(address) || partitions.some(([offset, size]) => Number.isNaN(offset) || Number.isNaN(size))) {
+      throw new Error(INVALID_MANIFEST);
+    }
+    return { name: app.name, address, partitions };
   }
 
   function manualCommand(mode, plan) {
@@ -223,12 +241,13 @@
       progress(panel, 'connecting', 0);
       let plan = null;
       let transport = null;
+      let loader = null;
       try {
         plan = await planWrite(panel.dataset.artifactsUrl, mode);
         const data = new Uint8Array(await (await download(panel.dataset.artifactsUrl, plan.name)).arrayBuffer());
         const connection = await connect(panel.esptool, port);
         transport = connection.transport;
-        const loader = connection.loader;
+        loader = connection.loader;
         if (plan.partitions) {
           await checkPartitionTable(loader, plan.partitions);
         }
@@ -257,6 +276,14 @@
         el('flash-done').textContent = DONE_TEXT[mode];
         showState(panel, ['flash-done', 'flash-ready']);
       } catch (error) {
+        // Without a reset, the device stays in the bootloader and does not run its firmware.
+        if (loader) {
+          try {
+            await loader.after('hard_reset');
+          } catch (resetError) {
+            // The device can be unplugged, and the flow reports the first error only.
+          }
+        }
         if (transport) {
           await disconnect(transport);
         }
@@ -265,7 +292,9 @@
     }
 
     // A full install erases the device, so it waits for the operator to confirm the erase warning.
+    // The operator can change the mode in the error state, so each start reads the mode again.
     function begin() {
+      mode = el('flash-mode-update').checked ? 'update' : 'full';
       if (mode === 'full') {
         showState(panel, ['flash-confirm']);
       } else {
@@ -275,7 +304,8 @@
 
     // requestPort needs the click of the operator, so the port picker opens before any other step.
     el('flash-start').addEventListener('click', async () => {
-      mode = el('flash-mode-update').checked ? 'update' : 'full';
+      // A second click while the picker is open would start a second flow on the same port.
+      el('flash-start').disabled = true;
       try {
         port = await navigator.serial.requestPort();
       } catch (error) {
@@ -283,6 +313,8 @@
           showError(error, null);
         }
         return;
+      } finally {
+        el('flash-start').disabled = false;
       }
       begin();
     });
@@ -315,7 +347,7 @@
     } else if (!('serial' in window.navigator)) {
       show(panel, ['flash-unsupported', 'flash-downloads']);
     } else {
-      show(panel, ['flash-ready', 'flash-start']);
+      show(panel, ['flash-ready']);
       loadEsptool(panel);
     }
   }

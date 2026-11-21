@@ -127,6 +127,9 @@ def test_full_install_shows_the_erase_warning_before_any_write_then_flashes_the_
 
     expect(page.locator("#flash-done")).to_have_text(DONE_FULL)
     expect(page.locator("#flash-bar")).to_have_text("100%")
+    # The Done state hides the progress block, so a role query cannot find the bar.
+    expect(page.locator("#flash-progressbar")).to_have_attribute("role", "progressbar")
+    expect(page.locator("#flash-progressbar")).to_have_attribute("aria-valuenow", "100")
     log = page.evaluate("() => window.flashLog")
     factory = page.locator("#flash-downloads a[href$='.factory.bin']").get_attribute("href")
     size = len(page.request.get(f"{live_server}{factory}").body())

@@ -15,7 +15,7 @@ const log = [];
 const IDS = [
   'flash-ready', 'flash-mode-full', 'flash-mode-update', 'flash-start', 'flash-confirm',
   'flash-erase-warning', 'flash-confirm-erase', 'flash-cancel', 'flash-progress', 'flash-step',
-  'flash-bar', 'flash-done', 'flash-error', 'flash-error-text', 'flash-manual', 'flash-command',
+  'flash-progressbar', 'flash-bar', 'flash-done', 'flash-error', 'flash-error-text', 'flash-manual', 'flash-command',
   'flash-retry', 'flash-unsupported', 'flash-insecure', 'flash-load-failed', 'flash-downloads',
 ];
 // The log records each change of these elements, so a test can see the order of the screens.
@@ -25,7 +25,7 @@ const HIDDEN = [...LOGGED, 'flash-unsupported', 'flash-insecure', 'flash-load-fa
 const PARENT = {
   'flash-mode-full': 'flash-ready', 'flash-mode-update': 'flash-ready', 'flash-start': 'flash-ready',
   'flash-erase-warning': 'flash-confirm', 'flash-confirm-erase': 'flash-confirm', 'flash-cancel': 'flash-confirm',
-  'flash-step': 'flash-progress', 'flash-bar': 'flash-progress',
+  'flash-step': 'flash-progress', 'flash-progressbar': 'flash-progress', 'flash-bar': 'flash-progressbar',
   'flash-error-text': 'flash-error', 'flash-manual': 'flash-error', 'flash-command': 'flash-manual', 'flash-retry': 'flash-error',
 };
 
@@ -46,7 +46,8 @@ function element(id) {
     },
     setAttribute(name, value) { this.attributes[name] = String(value); },
     addEventListener(type, fn) { this.listeners[type] = fn; },
-    click() { return this.listeners.click && this.listeners.click({}); },
+    // A browser sends no click event to a disabled button.
+    click() { return !this.disabled && this.listeners.click && this.listeners.click({}); },
   };
 }
 const parts = Object.fromEntries(IDS.map(id => [id, element(id)]));
@@ -92,7 +93,7 @@ async function fakeFetch(url) {
   if (url === panel.dataset.artifactsUrl) return response(200, JSON.stringify(artifacts));
   const name = decodeURIComponent(url.slice(panel.dataset.artifactsUrl.length + 1));
   if ((scenario.missing || []).includes(name)) return response(404, '{}');
-  if (name.endsWith('.mt.json')) return response(200, JSON.stringify(manifest));
+  if (name.endsWith('.mt.json')) return response(200, 'manifestText' in scenario ? scenario.manifestText : JSON.stringify(manifest));
   return contents[name] ? response(200, contents[name]) : response(404, '{}');
 }
 
@@ -161,6 +162,7 @@ const sandbox = {
     serial: {
       requestPort: async () => {
         log.push('serial:requestPort');
+        log.push(`serial:startDisabled:${parts['flash-start'].disabled}`);
         if (scenario.portCancel) {
           const error = new Error('No port selected by the user.');
           error.name = 'NotFoundError';
@@ -202,10 +204,16 @@ async function answerWarning() {
   if (!parts['flash-start'].disabled) {
     log.push('operator:flash');
     parts['flash-start'].click();
+    if (scenario.doubleClick) parts['flash-start'].click();
     await settle();
     await answerWarning();
     if (scenario.retry && visible('flash-error')) {
       scenario.writeError = null;
+      if (scenario.retryMode) {
+        log.push(`operator:select:${scenario.retryMode}`);
+        parts['flash-mode-full'].checked = scenario.retryMode === 'full';
+        parts['flash-mode-update'].checked = scenario.retryMode === 'update';
+      }
       log.push('operator:retry');
       parts['flash-retry'].click();
       await settle();
@@ -220,5 +228,7 @@ async function answerWarning() {
     text: Object.fromEntries(['flash-step', 'flash-bar', 'flash-done', 'flash-error-text', 'flash-command', 'flash-erase-warning']
       .map(id => [id, parts[id].textContent])),
     barWidth: parts['flash-bar'].style.width,
+    progressbar: parts['flash-progressbar'].attributes,
+    bar: parts['flash-bar'].attributes,
   }));
 })();
