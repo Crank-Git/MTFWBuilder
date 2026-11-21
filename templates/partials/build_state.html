@@ -35,6 +35,8 @@
 {# The registry puts every ESP32-family pio platform (esp32, esp32s2, esp32s3, esp32c3, esp32c6) under the architecture esp32. #}
 {% if build.variant.architecture == "esp32" %}
 {% include "partials/flash_panel.html" %}
+{% else %}
+{% include "partials/uf2_panel.html" %}
 {% endif %}
 {% endif %}
 
