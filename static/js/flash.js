@@ -336,15 +336,25 @@
     });
   }
 
+  // Chrome removes navigator.serial outside a secure context, so the HTTPS check goes first.
+  function serialSupport() {
+    if (!window.isSecureContext) {
+      return 'insecure';
+    }
+    return 'serial' in window.navigator ? 'supported' : 'unsupported';
+  }
+  // The push config page runs the same check, so both pages give the same message in the same browser.
+  window.mtfwSerialSupport = serialSupport;
+
   function check(panel) {
     if (panel.dataset.flashChecked) {
       return;
     }
     panel.dataset.flashChecked = 'true';
-    // Chrome removes navigator.serial outside a secure context, so the HTTPS message goes first.
-    if (!window.isSecureContext) {
+    const support = serialSupport();
+    if (support === 'insecure') {
       show(panel, ['flash-insecure', 'flash-downloads']);
-    } else if (!('serial' in window.navigator)) {
+    } else if (support === 'unsupported') {
       show(panel, ['flash-unsupported', 'flash-downloads']);
     } else {
       show(panel, ['flash-ready']);

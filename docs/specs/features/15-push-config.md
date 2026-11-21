@@ -97,6 +97,7 @@ Mockup: [08-push-config](../mockups/08-push-config.html).
 | Result | Applied / failed per section. Restart notice. |
 | Managed device | Managed message. Push disabled. |
 | Unsupported | "This browser cannot connect. Use Chrome or Edge on a desktop." |
+| Not secure | "Web Serial and Web Bluetooth need HTTPS. Open this page through the TLS proxy or on localhost." |
 
 ## Behaviour rules
 

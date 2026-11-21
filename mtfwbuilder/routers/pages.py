@@ -100,6 +100,15 @@ async def profiles_page(request: Request):
     return request.app.state.templates.TemplateResponse(request, template, context)
 
 
+@router.get("/push-config")
+async def push_config_page(request: Request):
+    """Render the push config page: Connect via USB and Connect via Bluetooth (FR-push-config-3).
+
+    The page talks to the device in the browser only, so the route sends no device data (FR-push-config-12).
+    """
+    return request.app.state.templates.TemplateResponse(request, "push_config.html", {"title": "Push config"})
+
+
 @router.get("/fleets")
 async def fleets_page(request: Request):
     """Render the fleets page: each fleet with a link to its fleet editor, and the form that creates a fleet.

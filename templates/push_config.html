@@ -1,0 +1,35 @@
+{% extends "includes/base.html" %}
+
+{% block head %}
+    {# A browser ignores an import map that comes after the first module script, so the map goes in the head. #}
+    <script type="importmap">
+        {"imports": {
+            "@meshtastic/core": "{{ url_for('static', path='vendor/meshtastic/meshtastic-core-2.6.7.mjs').path }}",
+            "@meshtastic/transport-web-serial": "{{ url_for('static', path='vendor/meshtastic/meshtastic-transport-web-serial-0.2.5.mjs').path }}",
+            "@meshtastic/transport-web-bluetooth": "{{ url_for('static', path='vendor/meshtastic/meshtastic-transport-web-bluetooth-0.1.5.mjs').path }}"
+        }}
+    </script>
+{% endblock %}
+
+{% block content %}
+<div class="config-section" id="push-config">
+    <h3 class="section-title"><i class="bi bi-usb-symbol text-success"></i>Push config</h3>
+    <p class="text-muted">Push config sends settings to a device that already runs Meshtastic, with no build.</p>
+    <div id="push-connect" hidden>
+        <button type="button" class="btn btn-primary me-2" id="push-connect-usb" disabled hidden>Connect via USB</button>
+        <button type="button" class="btn btn-outline-primary" id="push-connect-bluetooth" disabled hidden>Connect via Bluetooth</button>
+        <p class="text-muted small mt-2 mb-0">Connect via USB needs Chrome or Edge on a desktop. Connect via Bluetooth also works in Chrome on Android.</p>
+    </div>
+    <p class="mt-3" id="push-reading" aria-live="polite" hidden>Reading device config…</p>
+    <div class="alert alert-success mt-3" role="status" id="push-connected" hidden>Connected.</div>
+    <div class="alert alert-warning mt-3" role="alert" id="push-managed" hidden>This device is managed. Only an admin key holder can change it remotely.</div>
+    <div class="alert alert-danger mt-3" role="alert" id="push-error" hidden></div>
+    <div class="alert alert-warning" role="alert" id="push-unsupported" hidden>This browser cannot connect. Use Chrome or Edge on a desktop.</div>
+    <div class="alert alert-warning" role="alert" id="push-insecure" hidden>Web Serial and Web Bluetooth need HTTPS. Open this page through the TLS proxy or on localhost.</div>
+    <div class="alert alert-warning" role="alert" id="push-load-failed" hidden>The device library did not load. Reload the page.</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="{{ url_for('static', path='js/push-config.js') }}"></script>
+{% endblock %}
