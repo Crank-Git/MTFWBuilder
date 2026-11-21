@@ -1,7 +1,6 @@
 """Tests for the mesh beacon keys (FR-config-coverage-13)."""
 
 import json
-from pathlib import Path
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -11,7 +10,6 @@ from mtfwbuilder.models import ConfigRequest
 from mtfwbuilder.services.jsonc_generator import VERSION_GATED_KEYS, generate_jsonc
 from tests.test_config_enums import _SelectParser
 
-TEMPLATE = Path(__file__).resolve().parents[1] / "templates" / "includes" / "mesh_beacon_config.html"
 PSK_HEX = "38" * 32
 PRESET = "meshtastic_Config_LoRaConfig_ModemPreset_"
 REGION = "meshtastic_Config_LoRaConfig_RegionCode_"
@@ -149,7 +147,8 @@ def test_offer_fields_give_their_keys():
 
 @pytest.mark.parametrize("psk", ["AQ==", "ESIzRFVmd4iZqrvM3e7/AA=="])
 def test_offer_psk_in_base64_gives_a_byte_array(psk):
-    assert generated({"mesh_beacon_offer_channel_psk": psk})["USERPREFS_MESH_BEACON_OFFER_CHANNEL_PSK"].startswith("{ 0x")
+    result = generated({"mesh_beacon_offer_channel_psk": psk})
+    assert result["USERPREFS_MESH_BEACON_OFFER_CHANNEL_PSK"].startswith("{ 0x")
 
 
 @pytest.mark.parametrize("psk", ["abcd", "zz" * 16, "38" * 33])
@@ -162,7 +161,7 @@ def test_offer_psk_that_is_not_0_1_16_or_32_bytes_is_a_field_error(psk):
 @pytest.mark.parametrize("field", ["mesh_beacon_offer_preset", "mesh_beacon_target_2_preset"])
 def test_beacon_preset_that_protobufs_lack_is_a_field_error(field):
     with pytest.raises(ValidationError) as exc:
-        ConfigRequest(**{field: "VERY_LONG_SLOW"})
+        ConfigRequest(**{field: "LONG_TURBO_SLOW"})
     assert error_messages(exc.value, field)
 
 
@@ -211,8 +210,9 @@ def test_frequency_slot_that_is_not_1_or_more_is_a_field_error(field, slot):
 # Build page
 
 
-def test_mesh_beacon_include_marks_each_control_with_its_userprefs_key():
-    html = TEMPLATE.read_text()
+@pytest.mark.asyncio
+async def test_build_page_marks_each_mesh_beacon_control_with_its_userprefs_key(client):
+    html = (await client.get("/")).text
     for key in UPSTREAM_KEYS:
         assert f'data-userprefs-key="{key}"' in html, key
     assert "LEGACY_SPLIT" not in html

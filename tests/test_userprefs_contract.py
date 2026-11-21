@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from mtfwbuilder.models import CHANNEL_SLOTS, ChannelConfig, ConfigRequest
+from mtfwbuilder.models import CHANNEL_SLOTS, MESH_BEACON_TARGETS, ChannelConfig, ConfigRequest
 from mtfwbuilder.services.jsonc_generator import generate_jsonc
 from mtfwbuilder.services.userprefs_keys import read_keys
 
@@ -91,7 +91,21 @@ def full_config() -> dict[str, str]:
         "canned_messages": "Hi\nBye",
         "ringtone_rtttl": "24:d=32,o=5,b=565:f6,p,f6",
         "ringtone_nag_secs": "60",
+        "mesh_beacon_listen_enabled": "true",
+        "mesh_beacon_broadcast_enabled": "true",
+        "mesh_beacon_message": "Join us",
+        "mesh_beacon_interval_secs": "3600",
+        "mesh_beacon_offer_channel_name": "Offer",
+        "mesh_beacon_offer_channel_psk": "deadbeef" * 8,
+        "mesh_beacon_offer_frequency_slot": "48",
+        "mesh_beacon_offer_preset": "NARROW_SLOW",
+        "mesh_beacon_offer_region": "EU_N_868",
     }
+    for target in range(MESH_BEACON_TARGETS):
+        data[f"mesh_beacon_target_{target}_channel_index"] = str(target)
+        data[f"mesh_beacon_target_{target}_frequency_slot"] = "1"
+        data[f"mesh_beacon_target_{target}_preset"] = "LONG_FAST"
+        data[f"mesh_beacon_target_{target}_region"] = "EU_868"
     for slot in range(CHANNEL_SLOTS):
         data[f"channel_{slot}[name]"] = f"Chan{slot}"
         data[f"channel_{slot}[psk]"] = "deadbeef" * 8
