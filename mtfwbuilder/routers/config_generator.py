@@ -25,7 +25,7 @@ MAX_UPLOAD_SIZE = 65536  # 64KB
 
 def field_error(location: tuple[str, ...], message: str) -> dict:
     """Return one 422 error item for the body field at `location`."""
-    return {"type": "value_error", "loc": ("body", *location), "msg": message, "input": None}
+    return {"type": "value_error", "loc": ("body", *location), "msg": message}
 
 
 async def key_scan(request: Request, version: str | None) -> KeyScan | None:
