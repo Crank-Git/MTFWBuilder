@@ -146,7 +146,7 @@ async def test_page_links_to_the_push_config_page(client, path):
 # Each package that the vendored builds hold, with its version and its license. The npm core 2.6.7 `dist/mod.js`
 # names the first five in `//#region` comments. esm.sh adds `crc` and the `unenv` stand-ins of `os`, `path` and `util`.
 BUNDLED = [
-    ("`@meshtastic/protobufs`", "2.7.8", "GPL-3.0-only"),
+    ("`@meshtastic/protobufs`", "2.7.8", "`GPLV3`"),
     ("`@bufbuild/protobuf`", "2.8.0", "Apache-2.0 AND BSD-3-Clause"),
     ("`ste-core`", "3.0.11", "MIT"),
     ("`ste-simple-events`", "3.0.11", "MIT"),

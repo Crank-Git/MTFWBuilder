@@ -13,6 +13,27 @@ each file with the ADR 0008 "Vendor layout" table.
 
 GPL-3.0-only is compatible with the GPL-3.0-or-later license of the project (ADR 0004).
 
+## Bundled dependencies
+
+The core file also holds the code of these packages. The npm core 2.6.7 `dist/mod.js`
+names the first five in its `//#region` comments. esm.sh adds `crc`, which core 2.6.7
+requires as `^4.3.2`. The latest 4.x on npm is 4.3.2. esm.sh also replaces the Node modules `os`, `path` and `util`
+with `unenv` code. The build does not record the `unenv` version. The transport files
+hold no other package.
+
+| Package | Version | License |
+|---|---|---|
+| `@meshtastic/protobufs` | 2.7.8 | `GPLV3`, as its `package.json` writes it |
+| `@bufbuild/protobuf` | 2.8.0 | Apache-2.0 AND BSD-3-Clause |
+| `ste-core` | 3.0.11 | MIT |
+| `ste-simple-events` | 3.0.11 | MIT |
+| `tslog` | 4.9.3 | MIT |
+| `crc` | 4.3.2 | MIT |
+| `unenv` | not recorded | MIT |
+
+Each license is compatible with GPL-3.0. The versions and the licenses come from the npm
+registry, retrieved 2026-11-21.
+
 The core file imports no other file. Each transport file has one import,
 `from "@meshtastic/core"`. The import map in `templates/push_config.html` resolves that
 name to the vendored core file, so the page and both transports share one copy of it.

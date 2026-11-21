@@ -249,7 +249,7 @@ ENCODE_JS = """async ([read, config, section]) => {
   const message = page.sectionMessage(revive(read), config, section, context);
   // The transport never answers, so the promise of the library stays open and the script ignores it.
   let failure = null;
-  device[message.method](message.value).catch(error => { failure = String(error && (error.stack || error.error)); });
+  device[message.method](...message.args).catch(error => { failure = String(error && (error.stack || error.error)); });
   for (let wait = 0; wait < 50 && chunks.length === 0 && failure === null; wait += 1) {
     await new Promise(resolve => setTimeout(resolve, 100));
   }
@@ -293,6 +293,7 @@ def test_mesh_device_of_the_page_sends_want_config_with_no_logger_error(page: Pa
         ("config.lora", {"lora_enabled": "true", "lora_modem_preset": "LONG_FAST"}, b""),
         ("moduleConfig.mqtt", {"network_enabled": "true", "mqtt_enabled": "true", "mqtt_address": "mq.lan"}, b"mq.lan"),
         ("owner", {"owner_long_name": "Ridge Base"}, b"Ridge Base"),
+        ("position", {"gps_enabled": "true", "fixed_position": "true", "fixed_lat": "1", "fixed_lon": "2"}, b""),
     ],
 )
 def test_core_encodes_the_admin_call_of_each_section_kind(page: Page, live_server: str, section, config, expected):
@@ -312,8 +313,14 @@ def wait_for_commit(page: Page) -> None:
 
 
 def test_push_never_sends_managed_mode_and_lists_it_under_not_pushed(page: Page, live_server: str):
-    create_profile(page, live_server, "Managed check", {"security_is_managed": "true", "owner_short_name": "NEW"})
-    connect(page, live_server, "Managed check")
+    key = bytes([7] * 32)
+    # The server accepts managed mode only with an admin key, and the device already has that key.
+    security = {"isManaged": False, "adminKey": [{"$bytes": list(key)}]}
+    read = {**DEVICE, "config": {**DEVICE["config"], "security": security}}
+    profile = {"security_is_managed": "true", "admin_key_0": key.hex(), "owner_short_name": "NEW"}
+    create_profile(page, live_server, "Managed check", profile)
+    connect(page, live_server, "Managed check", read=read)
+    page.locator("#push-reenter input[data-form='admin_key_0']").fill(key.hex())
 
     assert not_pushed(page) == {"security_is_managed": f"security_is_managed: {MANAGED_NOT_PUSHED}"}
     expect(page.locator("[data-section='config.security']")).to_have_count(0)

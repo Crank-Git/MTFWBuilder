@@ -61,6 +61,9 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_json: bool = False
 
+    # The push config page uses a test device only when this is on. Only the E2E test config turns it on.
+    push_test_hooks: bool = False
+
     model_config = {"env_prefix": "MTFW_"}
 
     @field_validator("trusted_proxies", mode="before")

@@ -395,8 +395,10 @@ def table_page(browser, live_server: str):
 @pytest.mark.parametrize(("form", "section", "field", "sample"), MAPPING, ids=[row[0] for row in MAPPING])
 def test_mapping_table_maps_the_form_field_to_a_core_protobuf_field(table_page, form, section, field, sample):
     raw, same, other = sample
+    # The page moves the admin keys of the profile to the first slots, so each lower slot holds a key too.
+    lower_keys = {f"admin_key_{n}": raw for n in range(int(form[-1]))} if form.startswith("admin_key_") else {}
 
-    result = table_page.evaluate(MAPPING_JS, [form, field, raw, same, other, SWITCHES_ON])
+    result = table_page.evaluate(MAPPING_JS, [form, field, raw, same, other, {**SWITCHES_ON, **lower_keys}])
 
     assert result == {"section": section, "field": field, "found": True, "same": 0, "other": 1}
 
