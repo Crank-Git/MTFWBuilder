@@ -89,12 +89,12 @@ async def _start(app, client, **form):
 # FR-frontend-htmx-7
 
 
-async def test_build_control_posts_the_config_form_and_the_variant_into_the_build_panel(client):
+async def test_build_control_posts_the_config_form_the_variant_and_the_firmware_version_into_the_build_panel(client):
     page = _parse((await client.get("/")).text)
     button = page.by_id("buildBtn")
     assert button["hx-post"] == "/api/v1/build-firmware"
     assert button["hx-target"] == "#build-panel"
-    assert set(button["hx-include"].replace(" ", "").split(",")) == {"#configForm", "#variant"}
+    assert set(button["hx-include"].replace(" ", "").split(",")) == {"#configForm", "#variant", "#firmware_version"}
     assert json.loads(button["hx-vals"]) == {"config_source": "form"}
 
 

@@ -24,9 +24,9 @@ def submitted(app, monkeypatch):
     calls = []
     submit = app.state.build_queue.submit
 
-    def record(variant, config_content):
+    def record(variant, config_content, firmware_version=None):
         calls.append(config_content)
-        return submit(variant, config_content)
+        return submit(variant, config_content, firmware_version)
 
     monkeypatch.setattr(app.state.build_queue, "submit", record)
     return calls

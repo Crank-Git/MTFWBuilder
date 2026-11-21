@@ -191,6 +191,10 @@ Every other request gets JSON.
 - `current`: one field `config_json` that holds the config as JSON.
 - `upload` (the default): one field `userPrefs` that holds a userPrefs file.
 
+The optional form field `firmware_version` names an installed firmware version, for example
+`v2.8.2.d5f1619`. Without it, the build uses the newest installed stable firmware version.
+A firmware version that is not installed gives 422 with a field error for `firmware_version`.
+
 An htmx request to `/api/v1/build-firmware` or `/api/v1/builds/{id}` gets the progress
 panel as an HTML fragment. The page `/?build=<id>` shows the progress panel of that build.
 
