@@ -39,10 +39,8 @@ Open `http://localhost:5000`
 ```bash
 git clone https://github.com/Crank-Git/MTFWBuilder.git
 cd MTFWBuilder
-python -m venv venv
-source venv/bin/activate
-pip install -e .
-uvicorn mtfwbuilder.main:app --host 0.0.0.0 --port 5000
+uv sync --no-dev
+uv run uvicorn mtfwbuilder.main:app --host 0.0.0.0 --port 5000
 ```
 
 ### Configuration
@@ -124,7 +122,7 @@ MTFWBuilder/
 | Auth | bcrypt + itsdangerous | Hashed passwords, signed cookie sessions |
 | Device Registry | YAML | Human-readable, git-diffable, easy to contribute |
 | Build System | PlatformIO | Industry standard for embedded firmware |
-| Packaging | pyproject.toml + hatchling | Modern Python, `pip install` ready |
+| Packaging | pyproject.toml + hatchling + uv | `uv.lock` pins every dependency |
 
 ### API
 
@@ -183,22 +181,22 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 ```bash
 # Install with dev dependencies
-pip install -e ".[dev]"
+uv sync
 
 # Run tests
-pytest
+uv run pytest
 
 # Run with coverage
-pytest --cov=mtfwbuilder
+uv run pytest --cov=mtfwbuilder
 
 # Format
-ruff format mtfwbuilder/ tests/
+uv run ruff format mtfwbuilder/ tests/
 
 # Lint
-ruff check mtfwbuilder/ tests/
+uv run ruff check mtfwbuilder/ tests/
 
 # Dev server with hot reload
-uvicorn mtfwbuilder.main:app --reload --port 5000
+uv run uvicorn mtfwbuilder.main:app --reload --port 5000
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed contribution guidelines.

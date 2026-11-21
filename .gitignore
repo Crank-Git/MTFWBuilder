@@ -59,7 +59,6 @@ env/
 ENV/
 .venv/
 .env/
-.python-version
 
 # ===========================================
 # Flask

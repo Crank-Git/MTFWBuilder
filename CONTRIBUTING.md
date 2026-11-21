@@ -9,15 +9,13 @@ and welcomes contributions of all kinds.
 # Clone and set up
 git clone https://github.com/Crank-Git/MTFWBuilder.git
 cd MTFWBuilder
-python -m venv venv
-source venv/bin/activate
-pip install -e ".[dev]"
+uv sync
 
 # Run the tests
-pytest
+uv run pytest
 
 # Start the dev server
-uvicorn mtfwbuilder.main:app --reload --port 5000
+uv run uvicorn mtfwbuilder.main:app --reload --port 5000
 ```
 
 ## Project Structure
@@ -45,27 +43,27 @@ tests/                 # pytest suite
    - `name`: Human-readable display name
    - `manufacturer`: Brand/manufacturer
    - `architecture`: `esp32`, `nrf52`, or `rp2040`
-3. Run `pytest tests/test_device_registry.py` to validate
+3. Run `uv run pytest tests/test_device_registry.py` to validate
 4. Submit a PR
 
 ## Running Tests
 
 ```bash
 # All tests
-pytest
+uv run pytest
 
 # With coverage
-pytest --cov=mtfwbuilder
+uv run pytest --cov=mtfwbuilder
 
 # Specific test file
-pytest tests/test_config_generator.py -v
+uv run pytest tests/test_config_generator.py -v
 ```
 
 ## Code Style
 
-- Python 3.11+, type hints encouraged
-- Format with `ruff format` (line length 120)
-- Lint with `ruff check`. The rule list is in `pyproject.toml`.
+- Python 3.13+, type hints encouraged
+- Format with `uv run ruff format` (line length 120)
+- Lint with `uv run ruff check`. The rule list is in `pyproject.toml`.
 - No `print()` — use `logging` module
 - No `shell=True` in subprocess calls
 
@@ -73,7 +71,7 @@ pytest tests/test_config_generator.py -v
 
 1. Create a feature branch from `main`
 2. Make your changes
-3. Ensure all tests pass (`pytest`)
+3. Ensure all tests pass (`uv run pytest`)
 4. Submit a PR with a clear description
 
 ## Reporting Issues

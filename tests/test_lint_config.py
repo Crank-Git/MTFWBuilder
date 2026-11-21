@@ -68,10 +68,10 @@ def test_ruff_reports_c901_for_a_function_with_complexity_11(tmp_path):
     assert "C901 `classify` is too complex (11 > 10)" in result.stdout
 
 
-def test_dev_extras_do_not_install_black():
+def test_dev_group_does_not_install_black():
     with (ROOT / "pyproject.toml").open("rb") as handle:
         pyproject = tomllib.load(handle)
 
-    dev_extras = pyproject["project"]["optional-dependencies"]["dev"]
-    assert not [dep for dep in dev_extras if dep.startswith("black")]
+    dev_group = pyproject["dependency-groups"]["dev"]
+    assert not [dep for dep in dev_group if dep.startswith("black")]
     assert "black" not in pyproject.get("tool", {})
