@@ -531,3 +531,46 @@ class InstallStatus(BaseModel):
     version: str
     status: Literal["queued", "downloading", "extracting", "installing packages", "ready", "failed"]
     error: str = ""
+
+
+class ChannelUrlRequest(BaseModel):
+    """Request body of `POST /api/v1/import/channel-url`."""
+
+    url: str
+
+
+class ImportedChannel(BaseModel):
+    """One channel of a channel URL."""
+
+    index: int
+    name: str
+    # The PSK in base64. A PSK of 1 byte is a default key, and `default_key` then holds its number.
+    psk: str
+    default_key: int | None
+    role: Literal["PRIMARY", "SECONDARY"]
+    uplink_enabled: bool
+    downlink_enabled: bool
+    position_precision: int
+
+
+class ImportedLora(BaseModel):
+    """The LoRa settings of a channel URL. An enum number that protobufs v2.8.3 does not define is None."""
+
+    region: str | None
+    modem_preset: str | None
+    use_preset: bool
+    hop_limit: int
+    tx_enabled: bool
+    tx_power: int
+    channel_num: int
+    ignore_mqtt: bool
+    config_ok_to_mqtt: bool
+
+
+class ChannelUrlImport(BaseModel):
+    """Response of `POST /api/v1/import/channel-url`. `add` is True for an `add=true` URL."""
+
+    channels: list[ImportedChannel]
+    lora: ImportedLora
+    add: bool
+    warnings: list[str]
