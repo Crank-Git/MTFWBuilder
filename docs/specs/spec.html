@@ -871,6 +871,8 @@ body.rv-open .layout { padding-right:21rem; }
 </li>
 <li>2026-11-21 — Epic 0 shipped (#82). Batch ruling: the generic ruff criterion on each Epic 0 sub-issue was checked at the batch gate, after #7. Out-of-plan fix accepted in #80: Starlette 1.10 needs <code>TemplateResponse(request, name, context)</code>; every page returned 500 before it. <code>dev</code> is now the repository default branch.
 </li>
+<li>2026-11-21 — Epic 1 shipped (#92). PM decision, flagged for the owner: the event mode select defaults to Disabled (#13), so a form left at its defaults does not turn event mode on. The contract test found that firmware v2.7.26 reads no <code>USERPREFS_CHANNEL_3_*</code> key; the generator writes channel slots 0–2 only until #47. The build route still skips <code>ConfigRequest</code>: filed as #94 in epic #16.
+</li>
 </ul><nav class="pager">
 <span></span>
 <a href="html/page-inherit-reconciliation.html">Inherit reconciliation and research &rarr;</a>

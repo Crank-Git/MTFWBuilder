@@ -700,3 +700,4 @@ Written by `/spec-to-issues` on 2026-11-21.
   `firmware/` pattern.
 - 2026-11-21 — `/spec-to-issues`: 13 epics (#4–#70) and 58 sub-issues created. See `## Issue map`.
 - 2026-11-21 — Epic 0 shipped (#82). Batch ruling: the generic ruff criterion on each Epic 0 sub-issue was checked at the batch gate, after #7. Out-of-plan fix accepted in #80: Starlette 1.10 needs `TemplateResponse(request, name, context)`; every page returned 500 before it. `dev` is now the repository default branch.
+- 2026-11-21 — Epic 1 shipped (#92). PM decision, flagged for the owner: the event mode select defaults to Disabled (#13), so a form left at its defaults does not turn event mode on. The contract test found that firmware v2.7.26 reads no `USERPREFS_CHANNEL_3_*` key; the generator writes channel slots 0–2 only until #47. The build route still skips `ConfigRequest`: filed as #94 in epic #16.
