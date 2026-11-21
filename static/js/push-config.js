@@ -252,7 +252,8 @@ const NOT_MAPPED = 'Push config does not send this value.';
 const MESH_BEACON_FIELDS = [
   'listen_enabled', 'broadcast_enabled', 'message', 'interval_secs', 'offer_channel_name', 'offer_channel_psk',
   'offer_frequency_slot', 'offer_preset', 'offer_region',
-  ...[0, 1, 2, 3].flatMap(n => ['channel_index', 'frequency_slot', 'preset', 'region'].map(name => `target_${n}_${name}`)),
+  ...[0, 1, 2, 3].flatMap(n => ['channel_index', 'frequency_slot', 'preset', 'region']
+    .map(name => `target_${n}_${name}`)),
 ];
 
 /**
@@ -513,10 +514,11 @@ export function createMeshDevice(core, transport) {
  * Return a connected MeshDevice for the transport `kind`, "usb" or "bluetooth".
  *
  * Test hook: when the template sets the test flag and `window.__pushConfigTestDevice` is set before the page loads,
- * the page uses that object as the device and opens no transport. The object needs the MeshDevice members that the page calls:
- * `configure()`, `disconnect()`, and `subscribe` on the `events` members `onConfigPacket`, `onModuleConfigPacket`,
- * `onChannelPacket`, `onMyNodeInfo`, `onNodeInfoPacket` and `onDeviceStatus`. Push also calls `beginEditSettings()`,
- * `setConfig`, `setModuleConfig`, `setChannel`, `setOwner`, `setFixedPosition` and `commitEditSettings()`. Each of them returns a promise
+ * the page uses that object as the device and opens no transport. The object needs the MeshDevice members that the
+ * page calls: `configure()`, `disconnect()`, and `subscribe` on the `events` members `onConfigPacket`,
+ * `onModuleConfigPacket`, `onChannelPacket`, `onMyNodeInfo`, `onNodeInfoPacket` and `onDeviceStatus`. Push also calls
+ * `beginEditSettings()`, `setConfig`, `setModuleConfig`, `setChannel`, `setOwner`, `setFixedPosition` and
+ * `commitEditSettings()`. Each of them returns a promise
  * that resolves when the device acknowledges the message, and that rejects with `{id, error}` when the device rejects
  * it. After a restart, the page uses the same object again.
  *
