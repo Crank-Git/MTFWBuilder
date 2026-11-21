@@ -28,7 +28,7 @@ from mtfwbuilder.config import Settings
 from mtfwbuilder.database import find_firmware_source, init_db, save_build
 from mtfwbuilder.models import Artifact, BuildStatus
 from mtfwbuilder.services.cleanup_service import scrub_firmware_source
-from mtfwbuilder.services.device_registry import DeviceVariant
+from mtfwbuilder.services.registry_generator import flash_method
 from mtfwbuilder.services.secret_mask import secret_masker
 
 logger = logging.getLogger("mtfwbuilder.build")
@@ -40,6 +40,25 @@ ENDED_STATUSES = frozenset({"complete", "failed", "cancelled"})
 COPY_VERSION_FILE = ".worker-version"
 # The progress number of each build status that pio output shows.
 STEP_PROGRESS = {"compiling": 10, "linking": 70, "packaging": 90}
+
+
+# The artifact file type of each flash method (FR-generated-registry-14).
+FLASH_METHOD_FORMATS = {"web-serial": "bin", "uf2": "uf2", "dfu-zip": "zip", "download": "bin"}
+
+
+@dataclass(frozen=True)
+class DeviceVariant:
+    """The registry entry of the variant that a build compiles: its env, display name, manufacturer and architecture."""
+
+    id: str
+    name: str
+    manufacturer: str
+    architecture: str
+
+    @property
+    def firmware_format(self) -> str:
+        """Return the artifact file type of the architecture: `bin`, `uf2` or `zip`."""
+        return FLASH_METHOD_FORMATS[flash_method(self.architecture)]
 
 
 class BuildQueueFull(Exception):

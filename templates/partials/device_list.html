@@ -1,7 +1,7 @@
 {# The device picker list of one firmware version, which GET /api/v1/variants sends to an htmx request. #}
 {% if source is none %}
 <p class="text-body-secondary mb-0">No firmware version is installed.</p>
-{% elif source.status == "registry failed" %}
+{% elif registry_failed %}
 <div class="alert alert-danger mb-0" role="alert">The device list for {{ source.version }} failed to load. An admin must reinstall it.</div>
 {% else %}
 <fieldset class="mb-2">

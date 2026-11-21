@@ -257,15 +257,6 @@ async def test_build_without_a_firmware_version_checks_the_registry_of_the_defau
     assert resp.json()["detail"][0]["msg"] == f"Variant not in {FIRMWARE_VERSION}"
 
 
-async def test_build_of_a_variant_only_in_the_yaml_registry_returns_422_when_the_version_has_a_registry(
-    client, stable_source
-):
-    resp = await _build(client, "tbeam")
-
-    assert resp.status_code == 422
-    assert resp.json()["detail"][0]["loc"] == ["body", "variant"]
-
-
 async def test_build_page_shows_the_variant_message_for_an_env_not_in_the_version(client, two_versions):
     resp = await _build(client, "heltec-v4", ALPHA, headers={"HX-Request": "true"})
 
@@ -273,18 +264,15 @@ async def test_build_page_shows_the_variant_message_for_an_env_not_in_the_versio
     assert f"Variant not in {ALPHA}" in resp.text
 
 
-async def test_build_reads_the_yaml_registry_when_the_version_has_no_registry(client, firmware_source):
-    resp = await _build(client, "tbeam")
+async def test_build_of_a_ready_firmware_version_without_a_registry_returns_422_on_variant(app, client, settings):
+    # A firmware source imported before feature 10 is ready and has no registry rows.
+    _install(settings, FIRMWARE_VERSION, [])
 
-    assert resp.status_code == 202
-
-
-async def test_build_of_an_unknown_variant_in_the_yaml_registry_returns_422_on_variant(client, firmware_source):
-    resp = await _build(client, "nonexistent-xyz")
+    resp = await _build(client, "heltec-v3")
 
     assert resp.status_code == 422
     assert resp.json()["detail"][0]["loc"] == ["body", "variant"]
-    assert resp.json()["detail"][0]["msg"] == "Unknown device variant: nonexistent-xyz"
+    assert resp.json()["detail"][0]["msg"] == f"Variant not in {FIRMWARE_VERSION}"
 
 
 async def test_build_of_a_firmware_version_that_is_not_installed_returns_422_on_firmware_version(client, stable_source):

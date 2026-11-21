@@ -11,7 +11,7 @@ from mtfwbuilder.database import find_firmware_source
 from mtfwbuilder.main import create_app, lifespan
 from mtfwbuilder.services.firmware_catalog import CatalogUnavailable, FirmwareCatalog
 from mtfwbuilder.services.firmware_updater import get_firmware_version
-from tests.conftest import REPO_ROOT, SECRET_KEY
+from tests.conftest import SECRET_KEY
 
 
 @pytest.fixture
@@ -182,8 +182,6 @@ def no_github(monkeypatch):
         raise CatalogUnavailable("no network in tests")
 
     monkeypatch.setattr(FirmwareCatalog, "resolve", unreachable)
-    # The base directory of the test holds no registry, so the startup reads the real one.
-    monkeypatch.setenv("MTFW_DEVICES_FILE", str(REPO_ROOT / "devices" / "variants.yaml"))
 
 
 @pytest.mark.usefixtures("no_github")

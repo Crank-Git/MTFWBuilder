@@ -1,6 +1,7 @@
-"""Tests for the registry that the project generates from each firmware source (feature 10, FR 1-7 and 14)."""
+"""Tests for the registry that the project generates from each firmware source (feature 10, FR 1-7, 14 and 16)."""
 
 import asyncio
+import importlib.util
 import json
 import re
 import zipfile
@@ -382,3 +383,14 @@ async def test_startup_import_marks_the_firmware_source_registry_failed_when_pio
     [row] = await _source_rows(settings)
     assert row["status"] == "registry failed"
     assert await _variant_rows(settings) == []
+
+
+# FR-generated-registry-16
+
+
+def test_the_yaml_registry_file_does_not_exist():
+    assert not (REPO_ROOT / "devices" / "variants.yaml").exists()
+
+
+def test_the_yaml_registry_loader_does_not_exist():
+    assert importlib.util.find_spec("mtfwbuilder.services.device_registry") is None

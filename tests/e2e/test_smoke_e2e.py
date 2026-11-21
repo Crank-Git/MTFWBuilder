@@ -6,7 +6,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.conftest import FIRMWARE_VERSION
-from tests.e2e.conftest import ALPHA_VERSION
+from tests.e2e.conftest import ALPHA_VERSION, NO_REGISTRY_VERSION
 
 pytestmark = pytest.mark.e2e
 
@@ -90,3 +90,13 @@ def test_build_of_a_variant_not_in_the_chosen_firmware_version_shows_the_variant
     page.click("#buildBtn")
 
     expect(page.locator("#error-variant")).to_have_text(f"Variant not in {ALPHA_VERSION}")
+
+
+def test_picker_of_a_firmware_version_without_a_registry_says_an_admin_must_reinstall_it(page: Page, live_server: str):
+    page.goto(f"{live_server}/")
+
+    page.select_option("#firmware_version", NO_REGISTRY_VERSION)
+
+    expect(page.locator("#device-results")).to_have_text(
+        f"The device list for {NO_REGISTRY_VERSION} failed to load. An admin must reinstall it."
+    )

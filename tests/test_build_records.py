@@ -14,6 +14,7 @@ from httpx import ASGITransport, AsyncClient
 from mtfwbuilder.database import init_db
 from mtfwbuilder.main import lifespan
 from mtfwbuilder.services.cleanup_service import cleanup_old_builds
+from tests.conftest import fixture_variant
 
 PSK = "deadbeef" * 8
 CONFIG = json.dumps({"device_name": "TestNode", "channel_0_psk": PSK})
@@ -94,7 +95,7 @@ async def test_init_db_adds_config_hash_and_firmware_version_to_an_old_builds_ta
 
 @pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
 async def test_build_record_has_the_end_status_and_no_log_and_no_config(app, database, settings):
-    ctx = await app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
+    ctx = await app.state.build_queue.submit(fixture_variant("heltec-v3"), CONFIG)
     await _wait_for(ctx, ENDED)
 
     row = await _wait_for_row(database, ctx.build_id, ENDED)
@@ -110,7 +111,7 @@ async def test_build_record_has_the_end_status_and_no_log_and_no_config(app, dat
 @pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
 async def test_build_record_shows_compiling_while_pio_runs(app, database, monkeypatch):
     monkeypatch.setenv("FAKE_PIO_SLEEP", "1")
-    ctx = await app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
+    ctx = await app.state.build_queue.submit(fixture_variant("heltec-v3"), CONFIG)
     await _wait_for(ctx, {"compiling"})
 
     row = await _wait_for_row(database, ctx.build_id, {"compiling"})
@@ -122,7 +123,7 @@ async def test_build_record_shows_compiling_while_pio_runs(app, database, monkey
 @pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
 async def test_failed_build_record_holds_the_error(app, database, monkeypatch):
     monkeypatch.setenv("FAKE_PIO_FAIL", "1")
-    ctx = await app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
+    ctx = await app.state.build_queue.submit(fixture_variant("heltec-v3"), CONFIG)
     await _wait_for(ctx, ENDED)
 
     row = await _wait_for_row(database, ctx.build_id, ENDED)

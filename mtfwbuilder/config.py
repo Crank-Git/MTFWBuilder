@@ -33,7 +33,6 @@ class Settings(BaseSettings):
     firmware_dir: Path | None = None
     temp_dir: Path | None = None
     database_path: Path | None = None
-    devices_file: Path | None = None
 
     # Build settings
     max_queue_size: int = 5
@@ -78,8 +77,6 @@ class Settings(BaseSettings):
             self.temp_dir = self.data_dir / "artifacts"
         if self.database_path is None:
             self.database_path = self.data_dir / "mtfwbuilder.db"
-        if self.devices_file is None:
-            self.devices_file = self.base_dir / "devices" / "variants.yaml"
 
 
 def prepare_data_dir(data_dir: Path, base_dir: Path) -> None:

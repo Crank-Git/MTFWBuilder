@@ -15,7 +15,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from mtfwbuilder.database import record_firmware_source
-from tests.conftest import FIRMWARE_VERSION
+from tests.conftest import FIRMWARE_VERSION, FIXTURE_REGISTRY
 
 STABLE = FIRMWARE_VERSION
 ALPHA = "v2.8.2.d5f1619"
@@ -36,7 +36,7 @@ def alpha_source(settings, firmware_source):
         "size_bytes": 0,
         "status": "ready",
     }
-    record_firmware_source(settings.database_path, record)
+    record_firmware_source(settings.database_path, record, FIXTURE_REGISTRY)
     return source_dir
 
 
