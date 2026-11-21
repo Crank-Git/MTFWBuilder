@@ -40,5 +40,30 @@
             <div id="error-device_role" class="field-error invalid-feedback d-block"></div>
             <div id="deviceRoleHelp" class="form-text text-muted">{{ router_role_message }}</div>
         </div>
+        <div class="col-md-6">
+            <label for="deviceRebroadcastMode" class="form-label">Rebroadcast Mode</label>
+            <select class="form-select" id="deviceRebroadcastMode" name="device_rebroadcast_mode" aria-describedby="deviceRebroadcastModeHelp">
+                <option value="">Firmware default (All)</option>
+                {% for value, label in rebroadcast_mode_options %}
+                <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+            <div id="error-device_rebroadcast_mode" class="field-error invalid-feedback d-block"></div>
+            <div id="deviceRebroadcastModeHelp" class="form-text text-muted">The packets that the device sends again to the mesh. <code class="small">USERPREFS_CONFIG_DEVICE_REBROADCAST_MODE</code></div>
+        </div>
+    </div>
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <label for="nodeInfoBroadcastSecs" class="form-label">Node Info Broadcast Interval (seconds)</label>
+            <input type="number" class="form-control" id="nodeInfoBroadcastSecs" name="node_info_broadcast_secs" min="0" max="2592000" placeholder="10800" aria-describedby="nodeInfoBroadcastSecsHelp">
+            <div id="error-node_info_broadcast_secs" class="field-error invalid-feedback d-block"></div>
+            <div id="nodeInfoBroadcastSecsHelp" class="form-text text-muted">0, or 60 to 2592000. The firmware uses 3600 for a lower value. <code class="small">USERPREFS_CONFIG_DEVICE_NODE_INFO_BROADCAST_SECS</code></div>
+        </div>
+        <div class="col-md-6">
+            <label for="nodeInfoReplySuppressSecs" class="form-label">Node Info Reply Suppression (seconds)</label>
+            <input type="number" class="form-control" id="nodeInfoReplySuppressSecs" name="node_info_reply_suppress_secs" min="0" placeholder="43200" aria-describedby="nodeInfoReplySuppressSecsHelp">
+            <div id="error-node_info_reply_suppress_secs" class="field-error invalid-feedback d-block"></div>
+            <div id="nodeInfoReplySuppressSecsHelp" class="form-text text-muted">The time before the device answers a node info request from the same node again. <code class="small">USERPREFS_NODEINFO_REPLY_SUPPRESS_SECS</code></div>
+        </div>
     </div>
 </div>

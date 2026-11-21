@@ -40,5 +40,27 @@
                 </div>
             </div>
         </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label for="loraTxPower" class="form-label">TX Power (dBm)</label>
+                <input type="number" class="form-control" id="loraTxPower" name="lora_tx_power" min="0" max="30" placeholder="0" aria-describedby="loraTxPowerHelp">
+                <div id="error-lora_tx_power" class="field-error invalid-feedback d-block"></div>
+                <div id="loraTxPowerHelp" class="form-text text-muted">0 to 30. 0 selects the region maximum. <code class="small">USERPREFS_LORACONFIG_TX_POWER</code></div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-check form-switch mt-4">
+                    <input type="hidden" name="lora_tx_disabled" value="false">
+                    <input class="form-check-input" type="checkbox" id="loraTxDisabled" name="lora_tx_disabled" value="true" aria-describedby="loraTxDisabledHelp">
+                    <label class="form-check-label" for="loraTxDisabled">Disable LoRa TX</label>
+                </div>
+                <div id="loraTxDisabledHelp" class="form-text text-muted">The device receives but does not transmit. <code class="small">USERPREFS_LORA_TX_DISABLED</code></div>
+                <div class="form-check form-switch mt-2">
+                    <input type="hidden" name="lora_config_ok_to_mqtt" value="false">
+                    <input class="form-check-input" type="checkbox" id="loraConfigOkToMqtt" name="lora_config_ok_to_mqtt" value="true" aria-describedby="loraConfigOkToMqttHelp">
+                    <label class="form-check-label" for="loraConfigOkToMqtt">OK to MQTT</label>
+                </div>
+                <div id="loraConfigOkToMqttHelp" class="form-text text-muted">Sets the ok_to_mqtt bit on outgoing packets. <code class="small">USERPREFS_CONFIG_LORA_CONFIG_OK_TO_MQTT</code></div>
+            </div>
+        </div>
     </div>
 </div> 

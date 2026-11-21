@@ -8,16 +8,52 @@ import json
 from typing import Any
 
 from mtfwbuilder.key_bytes import ADMIN_KEY_LENGTH, byte_array, decode_key
+from mtfwbuilder.models import CHANNEL_SLOTS
 from mtfwbuilder.time_zones import to_posix_tz
 
 ADMIN_KEY_SLOTS = 3
 
-# Upstream `src/mesh/Channels.cpp` reads `USERPREFS_CHANNEL_<n>_*` keys for channels 0 to 2 only.
-FIRMWARE_CHANNEL_SLOTS = 3
+# The suffix of the `USERPREFS_CHANNEL_<n>_*` key for each channel field of the form.
+_CHANNEL_KEY_SUFFIXES = {
+    "name": "NAME",
+    "psk": "PSK",
+    "precision": "PRECISION",
+    "uplink_enabled": "UPLINK_ENABLED",
+    "downlink_enabled": "DOWNLINK_ENABLED",
+    "muted": "IS_MUTED",
+}
+
+# Some firmware versions do not read these keys, so the generator writes one only if the firmware key set holds it.
+VERSION_GATED_KEYS = frozenset(
+    {f"USERPREFS_CHANNEL_{n}_{suffix}" for n in range(CHANNEL_SLOTS) for suffix in _CHANNEL_KEY_SUFFIXES.values()}
+    | {
+        "USERPREFS_CONFIG_DEVICE_REBROADCAST_MODE",
+        "USERPREFS_CONFIG_DEVICE_NODE_INFO_BROADCAST_SECS",
+        "USERPREFS_LORACONFIG_TX_POWER",
+        "USERPREFS_CONFIG_LORA_CONFIG_OK_TO_MQTT",
+    }
+)
+
+# The gated keys that firmware v2.7.26.54e0d8d reads: `src/mesh/Channels.cpp` reads channels 0 to 2, without muted.
+# TODO(#46): Replace this default with the key set of the firmware version that the operator chooses.
+DEFAULT_FIRMWARE_KEYS = frozenset(
+    f"USERPREFS_CHANNEL_{n}_{suffix}"
+    for n in range(3)
+    for suffix in ("NAME", "PSK", "PRECISION", "UPLINK_ENABLED", "DOWNLINK_ENABLED")
+)
 
 
-def generate_jsonc(config_data: dict[str, Any]) -> str:
-    """Generate a userPrefs.jsonc string from form data."""
+def generate_jsonc(config_data: dict[str, Any], firmware_keys: frozenset[str] = DEFAULT_FIRMWARE_KEYS) -> str:
+    """Return a userPrefs.jsonc string for form data.
+
+    Args:
+        config_data: The flat form data, with `channel_N[field]` keys.
+        firmware_keys: The userPrefs keys that the firmware version reads, for example from `read_keys`.
+            The generator writes a key of `VERSION_GATED_KEYS` only if this set holds it.
+
+    Raises:
+        ValueError: An admin key is not 32 bytes, or the time zone is unknown.
+    """
     output: dict[str, str] = {}
 
     channels_to_write = config_data.get("channels_to_write", "1")
@@ -29,17 +65,21 @@ def generate_jsonc(config_data: dict[str, Any]) -> str:
         output["USERPREFS_TZ_STRING"] = to_posix_tz(config_data["tz_string"])
     _set_if_present(config_data, output, "bluetooth_fixed_pin", "USERPREFS_FIXED_BLUETOOTH")
 
-    channel_count = min(int(channels_to_write), FIRMWARE_CHANNEL_SLOTS)
-    for i in range(channel_count):
+    for i in range(min(int(channels_to_write), CHANNEL_SLOTS)):
         _process_channel_config(config_data, output, i)
 
+    _process_device_config(config_data, output)
     _process_lora_config(config_data, output)
+    _process_lora_tx_config(config_data, output)
     _process_gps_config(config_data, output)
     _process_admin_keys(config_data, output)
     _process_network_config(config_data, output)
+    _process_ipv6_config(config_data, output)
     _process_oem_config(config_data, output)
     _process_other_settings(config_data, output)
 
+    for key in VERSION_GATED_KEYS - firmware_keys:
+        output.pop(key, None)
     return json.dumps(output, indent=2)
 
 
@@ -59,9 +99,6 @@ def _process_channel_config(config_data: dict, output: dict, channel_index: int)
             prop = key[key.find("[") + 1 : key.find("]")]
             channel_data[prop] = value
 
-    if not channel_data:
-        return
-
     if "name" in channel_data:
         output[f"USERPREFS_CHANNEL_{channel_index}_NAME"] = channel_data["name"]
     if "precision" in channel_data:
@@ -70,9 +107,9 @@ def _process_channel_config(config_data: dict, output: dict, channel_index: int)
     if channel_data.get("psk"):
         _process_channel_psk(channel_data["psk"], output, channel_index)
 
-    for setting in ("uplink_enabled", "downlink_enabled"):
+    for setting in ("uplink_enabled", "downlink_enabled", "muted"):
         if setting in channel_data:
-            key = f"USERPREFS_CHANNEL_{channel_index}_{setting.upper()}"
+            key = f"USERPREFS_CHANNEL_{channel_index}_{_CHANNEL_KEY_SUFFIXES[setting]}"
             output[key] = "true" if channel_data[setting] == "true" else "false"
 
 
@@ -100,6 +137,28 @@ def _process_lora_config(config_data: dict, output: dict) -> None:
 
     if "lora_ignore_mqtt" in config_data:
         output["USERPREFS_CONFIG_LORA_IGNORE_MQTT"] = "true" if config_data["lora_ignore_mqtt"] == "true" else "false"
+
+
+def _process_device_config(config_data: dict, output: dict) -> None:
+    """Write the role, the rebroadcast mode and the node info intervals."""
+    _set_if_present(config_data, output, "device_role", "USERPREFS_CONFIG_DEVICE_ROLE")
+    _set_if_present(config_data, output, "device_rebroadcast_mode", "USERPREFS_CONFIG_DEVICE_REBROADCAST_MODE")
+    _set_if_present(config_data, output, "node_info_broadcast_secs", "USERPREFS_CONFIG_DEVICE_NODE_INFO_BROADCAST_SECS")
+    _set_if_present(config_data, output, "node_info_reply_suppress_secs", "USERPREFS_NODEINFO_REPLY_SUPPRESS_SECS")
+
+
+def _process_lora_tx_config(config_data: dict, output: dict) -> None:
+    """Write the TX power, the TX switch and the MQTT permission of the LoRa config."""
+    if config_data.get("lora_enabled") != "true":
+        return
+
+    _set_if_present(config_data, output, "lora_tx_power", "USERPREFS_LORACONFIG_TX_POWER")
+    for field, key in (
+        ("lora_tx_disabled", "USERPREFS_LORA_TX_DISABLED"),
+        ("lora_config_ok_to_mqtt", "USERPREFS_CONFIG_LORA_CONFIG_OK_TO_MQTT"),
+    ):
+        if field in config_data:
+            output[key] = "true" if config_data[field] == "true" else "false"
 
 
 def _process_gps_config(config_data: dict, output: dict) -> None:
@@ -169,6 +228,12 @@ def _process_mqtt_config(config_data: dict, output: dict) -> None:
         if field in config_data:
             key = "USERPREFS_" + field.upper()
             output[key] = "true" if config_data[field] == "true" else "false"
+
+
+def _process_ipv6_config(config_data: dict, output: dict) -> None:
+    """Write the IPv6 switch of the network config."""
+    if config_data.get("network_enabled") == "true" and "network_ipv6_enabled" in config_data:
+        output["USERPREFS_NETWORK_IPV6_ENABLED"] = "true" if config_data["network_ipv6_enabled"] == "true" else "false"
 
 
 def _process_oem_config(config_data: dict, output: dict) -> None:
