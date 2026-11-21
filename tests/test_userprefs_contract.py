@@ -31,6 +31,7 @@ def full_config() -> dict[str, str]:
         "owner_long_name": "Test Node",
         "tz_string": "Europe/Berlin",
         "bluetooth_fixed_pin": "123456",
+        "device_role": "meshtastic_Config_DeviceConfig_Role_CLIENT_BASE",
         "channels_to_write": str(CHANNEL_SLOTS),
         "lora_enabled": "true",
         "lora_region": "US",
