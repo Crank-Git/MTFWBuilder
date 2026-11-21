@@ -13,7 +13,7 @@ from meshtastic.__main__ import export_config
 from meshtastic.protobuf import localonly_pb2
 
 from mtfwbuilder import meshtastic_enums as enums
-from mtfwbuilder.models import ConfigRequest
+from mtfwbuilder.models import MODULE_FIELDS, ConfigRequest
 
 IMPORT_URL = "/api/v1/import/cli-yaml"
 INVALID_FILE_MESSAGE = "This is not a valid Meshtastic export file."
@@ -79,14 +79,13 @@ async def test_owner_alice_fills_the_long_name_alice(client):
     assert body["not_applied"] == []
 
 
-async def test_module_config_serial_is_listed_as_not_applied(client):
+async def test_module_config_section_without_a_form_field_is_listed_as_not_applied(client):
     module_config = localonly_pb2.LocalModuleConfig()
-    module_config.serial.enabled = True
-    module_config.serial.baud = 5
+    module_config.audio.codec2_enabled = True
 
     body = await imported(client, export_yaml(module_config=module_config, owner="Alice"))
 
-    assert "module_config.serial" in body["not_applied"]
+    assert "module_config.audio" in body["not_applied"]
     assert "owner_long_name" in body["config"]
 
 
@@ -369,7 +368,6 @@ async def test_canned_messages_and_ringtone_fill_their_fields(client):
     assert config["canned_messages"] == "Hi\nOn my way"
     assert config["ringtone_rtttl"] == "24:d=32,o=5:c"
     assert config["ringtone_nag_secs"] == "30"
-    assert "module_config.externalNotification.enabled" in body["not_applied"]
 
 
 async def test_unknown_key_and_unmapped_section_are_listed_as_not_applied(client):
@@ -469,3 +467,210 @@ async def test_empty_psk_of_a_channel_url_fills_the_empty_byte_list(client):
 
     assert body["config"]["channel_0[name]"] == "Open"
     assert body["config"]["channel_0[psk]"] == "{ }"
+
+
+ModuleConfig = localonly_pb2.LocalModuleConfig
+# The proto values of every field of each module section with form fields, and the form fields that they fill.
+MODULE_SECTIONS = {
+    "serial": (
+        {
+            "enabled": True,
+            "echo": True,
+            "rxd": 44,
+            "txd": 43,
+            "baud": 11,
+            "timeout": 250,
+            "mode": 4,
+            "override_console_serial_port": True,
+        },
+        {
+            "serial_enabled": "true",
+            "serial_echo": "true",
+            "serial_rxd": "44",
+            "serial_txd": "43",
+            "serial_baud": "BAUD_115200",
+            "serial_timeout": "250",
+            "serial_mode": "NMEA",
+            "serial_override_console_serial_port": "true",
+        },
+    ),
+    "store_forward": (
+        {
+            "enabled": True,
+            "heartbeat": True,
+            "records": 300,
+            "history_return_max": 50,
+            "history_return_window": 7200,
+            "is_server": True,
+        },
+        {
+            "store_forward_enabled": "true",
+            "store_forward_heartbeat": "true",
+            "store_forward_records": "300",
+            "store_forward_history_return_max": "50",
+            "store_forward_history_return_window": "7200",
+            "store_forward_is_server": "true",
+        },
+    ),
+    "range_test": (
+        {"enabled": True, "sender": 60, "save": True},
+        {"range_test_enabled": "true", "range_test_sender": "60", "range_test_save": "true"},
+    ),
+    "external_notification": (
+        {
+            "enabled": True,
+            "output_ms": 1000,
+            "output": 13,
+            "output_vibra": 14,
+            "output_buzzer": 15,
+            "active": True,
+            "alert_message": True,
+            "alert_message_vibra": True,
+            "alert_message_buzzer": True,
+            "alert_bell": True,
+            "alert_bell_vibra": True,
+            "alert_bell_buzzer": True,
+            "use_pwm": True,
+            "nag_timeout": 30,
+            "use_i2s_as_buzzer": True,
+        },
+        {
+            "ext_notify_enabled": "true",
+            "ext_notify_output_ms": "1000",
+            "ext_notify_output": "13",
+            "ext_notify_output_vibra": "14",
+            "ext_notify_output_buzzer": "15",
+            "ext_notify_active": "true",
+            "ext_notify_alert_message": "true",
+            "ext_notify_alert_message_vibra": "true",
+            "ext_notify_alert_message_buzzer": "true",
+            "ext_notify_alert_bell": "true",
+            "ext_notify_alert_bell_vibra": "true",
+            "ext_notify_alert_bell_buzzer": "true",
+            "ext_notify_use_pwm": "true",
+            "ringtone_nag_secs": "30",
+            "ext_notify_use_i2s_as_buzzer": "true",
+        },
+    ),
+    "neighbor_info": (
+        {"enabled": True, "update_interval": 21600, "transmit_over_lora": True},
+        {
+            "neighbor_info_enabled": "true",
+            "neighbor_info_update_interval": "21600",
+            "neighbor_info_transmit_over_lora": "true",
+        },
+    ),
+    "detection_sensor": (
+        {
+            "enabled": True,
+            "minimum_broadcast_secs": 45,
+            "state_broadcast_secs": 3600,
+            "send_bell": True,
+            "name": "Door",
+            "monitor_pin": 21,
+            "detection_trigger_type": 4,
+            "use_pullup": True,
+        },
+        {
+            "detection_sensor_enabled": "true",
+            "detection_sensor_minimum_broadcast_secs": "45",
+            "detection_sensor_state_broadcast_secs": "3600",
+            "detection_sensor_send_bell": "true",
+            "detection_sensor_name": "Door",
+            "detection_sensor_monitor_pin": "21",
+            "detection_sensor_trigger_type": "EITHER_EDGE_ACTIVE_LOW",
+            "detection_sensor_use_pullup": "true",
+        },
+    ),
+    "paxcounter": (
+        {"enabled": True, "paxcounter_update_interval": 900, "wifi_threshold": -80, "ble_threshold": -75},
+        {
+            "paxcounter_enabled": "true",
+            "paxcounter_update_interval": "900",
+            "paxcounter_wifi_threshold": "-80",
+            "paxcounter_ble_threshold": "-75",
+        },
+    ),
+}
+
+
+def module_export(section: str, values: dict) -> str:
+    """Return the export text of a device whose module section `section` has `values`."""
+    module_config = ModuleConfig()
+    for name, value in values.items():
+        setattr(getattr(module_config, section), name, value)
+    return export_yaml(module_config=module_config)
+
+
+@pytest.mark.parametrize("section", MODULE_SECTIONS)
+async def test_module_section_maps_each_field_to_its_module_settings_field(client, section):
+    values, fields = MODULE_SECTIONS[section]
+
+    body = await imported(client, module_export(section, values))
+
+    # Upstream `export_config` always writes `mqtt.encryptionEnabled`, so the MQTT fields come too.
+    assert {name: value for name, value in body["config"].items() if not name.startswith("mqtt_")} == fields
+    assert body["not_applied"] == []
+
+
+def test_module_section_tests_cover_every_module_settings_field():
+    mapped = set().union(*(fields for _values, fields in MODULE_SECTIONS.values()))
+
+    assert mapped == {*MODULE_FIELDS, "ringtone_nag_secs"}
+
+
+async def test_module_field_that_the_export_leaves_out_gets_its_proto_default(client):
+    body = await imported(client, module_export("serial", {"enabled": True}))
+
+    config = body["config"]
+    assert config["serial_echo"] == "false"
+    assert config["serial_rxd"] == "0"
+    assert config["serial_baud"] == "BAUD_DEFAULT"
+    assert config["serial_mode"] == "DEFAULT"
+    assert body["not_applied"] == []
+
+
+async def test_neighbor_info_interval_that_the_export_leaves_out_keeps_the_device_value(client):
+    body = await imported(client, module_export("neighbor_info", {"enabled": True}))
+
+    assert body["config"]["neighbor_info_update_interval"] == ""
+    assert body["not_applied"] == []
+    assert body["warnings"] == []
+
+
+async def test_neighbor_info_interval_below_14400_is_listed_as_not_applied_with_the_reason(client):
+    body = await imported(client, module_export("neighbor_info", {"enabled": True, "update_interval": 600}))
+
+    assert "neighbor_info_update_interval" not in body["config"]
+    assert body["config"]["neighbor_info_enabled"] == "true"
+    assert body["not_applied"] == ["module_config.neighborInfo.updateInterval"]
+    assert body["warnings"] == [
+        "module_config.neighborInfo.updateInterval: The firmware uses at least 14400 seconds (4 hours)."
+    ]
+
+
+async def test_serial_mode_that_core_2_6_7_lacks_is_listed_as_not_applied_with_the_reason(client):
+    modes = ModuleConfig.DESCRIPTOR.fields_by_name["serial"].message_type.enum_types_by_name["Serial_Mode"]
+
+    body = await imported(
+        client, module_export("serial", {"enabled": True, "mode": modes.values_by_name["LOG"].number})
+    )
+
+    assert "serial_mode" not in body["config"]
+    assert body["not_applied"] == ["module_config.serial.mode"]
+    assert body["warnings"][0].startswith("module_config.serial.mode: the value is not one of DEFAULT, SIMPLE")
+
+
+async def test_serial_mode_newer_than_the_meshtastic_package_is_listed_as_not_applied(client):
+    # The package stops at LOGTEXT = 10, so `MessageToDict` writes a newer mode as its number.
+    body = await imported(client, "module_config:\n  serial:\n    enabled: true\n    mode: 11\n")
+
+    assert "serial_mode" not in body["config"]
+    assert body["not_applied"] == ["module_config.serial.mode"]
+
+
+async def test_range_test_clear_on_reboot_is_listed_as_not_applied(client):
+    body = await imported(client, module_export("range_test", {"enabled": True, "clear_on_reboot": True}))
+
+    assert body["config"]["range_test_enabled"] == "true"
+    assert body["not_applied"] == ["module_config.rangeTest.clearOnReboot"]

@@ -32,8 +32,9 @@ same mesh.
   protobuf with the `meshtastic` python package.
 - FR-channel-share-4 — `POST /api/v1/import/cli-yaml` takes a YAML file of at most
   64 KB from `meshtastic --export-config`.
-- FR-channel-share-5 — The YAML import maps each field in the list below that has a
-  userPrefs key. A mapped field that an imported section leaves out gets its proto default.
+- FR-channel-share-5 — The YAML import maps each field in the list below to its form
+  field. Each field has a userPrefs key or is a module setting. A mapped field that an
+  imported section leaves out gets its proto default.
   - Top level: `owner`, `owner_short` (`ownerShort`), `channel_url` (`channelUrl`),
     `canned_messages`, `ringtone`, `location`.
   - `config.device`: `role`, `rebroadcastMode`, `nodeInfoBroadcastSecs`, `tzdef`,
@@ -51,9 +52,29 @@ same mesh.
   - `module_config.telemetry`: `deviceUpdateInterval`, `environmentMeasurementEnabled`,
     `environmentUpdateInterval`, `environmentScreenEnabled`, `airQualityEnabled`,
     `airQualityInterval`, `airQualityScreenEnabled`.
-  - `module_config.externalNotification`: `nagTimeout`.
+  - `module_config.serial`: `enabled`, `echo`, `rxd`, `txd`, `baud`, `timeout`, `mode`,
+    `overrideConsoleSerialPort`.
+  - `module_config.storeForward`: `enabled`, `heartbeat`, `records`, `historyReturnMax`,
+    `historyReturnWindow`, `isServer`.
+  - `module_config.rangeTest`: `enabled`, `sender`, `save`.
+  - `module_config.externalNotification`: `enabled`, `outputMs`, `output`, `outputVibra`,
+    `outputBuzzer`, `active`, `alertMessage`, `alertMessageVibra`, `alertMessageBuzzer`,
+    `alertBell`, `alertBellVibra`, `alertBellBuzzer`, `usePwm`, `nagTimeout`,
+    `useI2sAsBuzzer`.
+  - `module_config.neighborInfo`: `enabled`, `updateInterval`, `transmitOverLora`.
+  - `module_config.detectionSensor`: `enabled`, `minimumBroadcastSecs`,
+    `stateBroadcastSecs`, `sendBell`, `name`, `monitorPin`, `detectionTriggerType`,
+    `usePullup`.
+  - `module_config.paxcounter`: `enabled`, `paxcounterUpdateInterval`, `wifiThreshold`,
+    `bleThreshold`.
+
+  The form field of each module setting is in the Behaviour rules table of feature 16.
+  `nagTimeout` fills `ringtone_nag_secs`. The proto default 0 of `updateInterval` gives
+  an empty field, because upstream `NeighborInfoModule.cpp` reads 0 as its default
+  interval.
 - FR-channel-share-6 — The YAML import lists as "Not applied" each field that has no
-  userPrefs key, and each value that the config rejects.
+  form field, and each value that the config rejects. For example, `rangeTest.clearOnReboot`
+  and a `Serial_Mode` value that `@meshtastic/core` 2.6.7 does not have are "Not applied".
 - FR-channel-share-7 — The import shows a preview of the decoded channels before it
   changes the form.
 - FR-channel-share-8 — An "Apply" control fills the form from the preview. An `add=true`
@@ -168,7 +189,8 @@ CLI export format: https://meshtastic.org/docs/software/python/cli/ (checked 202
 - An export of an imported URL gives the same URL.
 - A URL with a broken fragment returns 422 with "This is not a valid Meshtastic channel URL."
 - A YAML export with `owner: Alice` fills the long name "Alice".
-- A YAML export with `module_config.serial` lists `serial` under "Not applied".
+- A YAML export with `module_config.serial` fills the serial fields of the Modules tab.
+- A YAML export with `module_config.audio` lists `audio` under "Not applied".
 - A YAML file with `!!python/object` returns 422.
 - The export response holds an SVG with a QR code that decodes to the channel URL.
 

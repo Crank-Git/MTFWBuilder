@@ -27,6 +27,8 @@ from mtfwbuilder.key_bytes import decode_key
 from mtfwbuilder.meshtastic_enums import MODEM_PRESETS, REGIONS
 from mtfwbuilder.models import (
     CHANNEL_SLOTS,
+    MODULE_ENUMS,
+    MODULE_FIELDS,
     ChannelConfig,
     ChannelUrlImport,
     CliYamlImport,
@@ -415,8 +417,54 @@ _SECTIONS: dict[tuple[str, str], dict[str, Converter]] = {
         "air_quality_interval": _plain("telemetry_air_quality_interval"),
         "air_quality_screen_enabled": _plain("telemetry_air_quality_screen_enabled"),
     },
-    ("module_config", "external_notification"): {"nag_timeout": _plain("ringtone_nag_secs")},
 }
+
+
+def _neighbor_info_interval(value: Any, section: dict) -> dict[str, str] | None:
+    """Return the neighbor info interval field, or the empty field for the proto default 0."""
+    # Upstream `NeighborInfoModule.cpp` reads 0 as its default interval, and the form rejects an interval below 14400.
+    if type(value) is int and value == 0:
+        return {"neighbor_info_update_interval": ""}
+    return _plain("neighbor_info_update_interval")(value, section)
+
+
+# The form field prefix of each module section that has module settings fields (feature module-settings).
+_MODULE_PREFIXES = {
+    "serial": "serial",
+    "store_forward": "store_forward",
+    "range_test": "range_test",
+    "external_notification": "ext_notify",
+    "neighbor_info": "neighbor_info",
+    "detection_sensor": "detection_sensor",
+    "paxcounter": "paxcounter",
+}
+# The fields that do not take the form field name of the section prefix and the proto field name.
+_MODULE_SPECIAL = {
+    ("external_notification", "nag_timeout"): _plain("ringtone_nag_secs"),
+    ("neighbor_info", "update_interval"): _neighbor_info_interval,
+    ("detection_sensor", "detection_trigger_type"): _numbered_enum(
+        "detection_sensor_trigger_type", list(MODULE_ENUMS["detection_sensor_trigger_type"])
+    ),
+    ("paxcounter", "paxcounter_update_interval"): _plain("paxcounter_update_interval"),
+}
+
+
+def _module_converters(section: str) -> dict[str, Converter]:
+    """Return the converter of each proto field of a module section that has a module settings field."""
+    converters = {}
+    for name in localonly_pb2.LocalModuleConfig.DESCRIPTOR.fields_by_name[section].message_type.fields_by_name:
+        form_name = f"{_MODULE_PREFIXES[section]}_{name}"
+        if (section, name) in _MODULE_SPECIAL:
+            converters[name] = _MODULE_SPECIAL[section, name]
+        elif form_name in MODULE_ENUMS:
+            # The names of `MODULE_ENUMS` stop at core 2.6.7, so a newer enum number has no form value.
+            converters[name] = _numbered_enum(form_name, list(MODULE_ENUMS[form_name]))
+        elif form_name in MODULE_FIELDS:
+            converters[name] = _plain(form_name)
+    return converters
+
+
+_SECTIONS |= {("module_config", section): _module_converters(section) for section in _MODULE_PREFIXES}
 
 # The generator writes the fields of these sections only when the section switch of the form is on.
 # The message of each part, for the proto default of a field that `MessageToDict` leaves out.

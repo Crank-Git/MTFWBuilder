@@ -200,10 +200,10 @@ body.rv-open .layout { padding-right:21rem; }
 </ul>
 <p>64 KB from <code>meshtastic --export-config</code>.</p>
 <ul>
-<li>FR-channel-share-5 — The YAML import maps each field in the list below that has a
+<li>FR-channel-share-5 — The YAML import maps each field in the list below to its form
 </li>
 </ul>
-<p>userPrefs key. A mapped field that an imported section leaves out gets its proto default.</p>
+<p>field. Each field has a userPrefs key or is a module setting. A mapped field that an imported section leaves out gets its proto default.</p>
 <ul>
 <li>Top level: <code>owner</code>, <code>owner_short</code> (<code>ownerShort</code>), <code>channel_url</code> (<code>channelUrl</code>),
 </li>
@@ -246,12 +246,44 @@ body.rv-open .layout { padding-right:21rem; }
 </ul>
 <p><code>environmentUpdateInterval</code>, <code>environmentScreenEnabled</code>, <code>airQualityEnabled</code>, <code>airQualityInterval</code>, <code>airQualityScreenEnabled</code>.</p>
 <ul>
-<li><code>module_config.externalNotification</code>: <code>nagTimeout</code>.
+<li><code>module_config.serial</code>: <code>enabled</code>, <code>echo</code>, <code>rxd</code>, <code>txd</code>, <code>baud</code>, <code>timeout</code>, <code>mode</code>,
 </li>
+</ul>
+<p><code>overrideConsoleSerialPort</code>.</p>
+<ul>
+<li><code>module_config.storeForward</code>: <code>enabled</code>, <code>heartbeat</code>, <code>records</code>, <code>historyReturnMax</code>,
+</li>
+</ul>
+<p><code>historyReturnWindow</code>, <code>isServer</code>.</p>
+<ul>
+<li><code>module_config.rangeTest</code>: <code>enabled</code>, <code>sender</code>, <code>save</code>.
+<ul>
+<li><code>module_config.externalNotification</code>: <code>enabled</code>, <code>outputMs</code>, <code>output</code>, <code>outputVibra</code>,
+</li>
+</ul>
+</li>
+</ul>
+<p><code>outputBuzzer</code>, <code>active</code>, <code>alertMessage</code>, <code>alertMessageVibra</code>, <code>alertMessageBuzzer</code>, <code>alertBell</code>, <code>alertBellVibra</code>, <code>alertBellBuzzer</code>, <code>usePwm</code>, <code>nagTimeout</code>, <code>useI2sAsBuzzer</code>.</p>
+<ul>
+<li><code>module_config.neighborInfo</code>: <code>enabled</code>, <code>updateInterval</code>, <code>transmitOverLora</code>.
+<ul>
+<li><code>module_config.detectionSensor</code>: <code>enabled</code>, <code>minimumBroadcastSecs</code>,
+</li>
+</ul>
+</li>
+</ul>
+<p><code>stateBroadcastSecs</code>, <code>sendBell</code>, <code>name</code>, <code>monitorPin</code>, <code>detectionTriggerType</code>, <code>usePullup</code>.</p>
+<ul>
+<li><code>module_config.paxcounter</code>: <code>enabled</code>, <code>paxcounterUpdateInterval</code>, <code>wifiThreshold</code>,
+</li>
+</ul>
+<p><code>bleThreshold</code>.</p>
+<p>The form field of each module setting is in the Behaviour rules table of feature 16. <code>nagTimeout</code> fills <code>ringtone_nag_secs</code>. The proto default 0 of <code>updateInterval</code> gives an empty field, because upstream <code>NeighborInfoModule.cpp</code> reads 0 as its default interval.</p>
+<ul>
 <li>FR-channel-share-6 — The YAML import lists as "Not applied" each field that has no
 </li>
 </ul>
-<p>userPrefs key, and each value that the config rejects.</p>
+<p>form field, and each value that the config rejects. For example, <code>rangeTest.clearOnReboot</code> and a <code>Serial_Mode</code> value that <code>@meshtastic/core</code> 2.6.7 does not have are "Not applied".</p>
 <ul>
 <li>FR-channel-share-7 — The import shows a preview of the decoded channels before it
 </li>
@@ -423,7 +455,9 @@ body.rv-open .layout { padding-right:21rem; }
 </li>
 <li>A YAML export with <code>owner: Alice</code> fills the long name "Alice".
 </li>
-<li>A YAML export with <code>module_config.serial</code> lists <code>serial</code> under "Not applied".
+<li>A YAML export with <code>module_config.serial</code> fills the serial fields of the Modules tab.
+</li>
+<li>A YAML export with <code>module_config.audio</code> lists <code>audio</code> under "Not applied".
 </li>
 <li>A YAML file with <code>!!python/object</code> returns 422.
 </li>
