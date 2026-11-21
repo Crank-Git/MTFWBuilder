@@ -300,7 +300,7 @@ class BuildQueue:
         if source is None and firmware_version is not None:
             raise FirmwareVersionNotInstalled(firmware_version)
         self._forget_old_builds()
-        if source is not None and self.settings.cache_enabled:
+        if source is not None and self.settings.cache_enabled and not build_cache.holds_secret(config_content):
             cached = await self._cached_build(variant, config_content, source[0])
             if cached is not None:
                 return cached
@@ -344,6 +344,8 @@ class BuildQueue:
             # The cleanup task can remove the cache entry during the copy, so the build compiles instead.
             logger.warning(f"Build {ctx.build_id}: the build cache copy failed, so the build compiles: {e}")
             shutil.rmtree(ctx.build_dir, ignore_errors=True)
+            # A damaged cache entry fails each copy, so it goes, and the compile stores a new one.
+            await build_cache.remove_entry(self.settings, key)
             return None
         self._builds[ctx.build_id] = ctx
         self._record(ctx)
@@ -496,7 +498,7 @@ async def run_build(ctx: BuildContext) -> None:
     finally:
         # A cancel arrives as `CancelledError`, and an internal error as any exception, so both pass here.
         scrub_firmware_source(ctx.source_dir, ctx.variant.id)
-    if status == "complete" and ctx.settings.cache_enabled:
+    if status == "complete" and ctx.settings.cache_enabled and not build_cache.holds_secret(ctx.config_content):
         await _store_in_build_cache(ctx)
     ctx.set_status(status, **fields)
 

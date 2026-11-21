@@ -6,12 +6,13 @@ import asyncio
 import logging
 import re
 import shutil
+import sqlite3
 import time
 from collections.abc import Callable, Collection
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from mtfwbuilder.services.build_cache import remove_expired_entries
+from mtfwbuilder.services.build_cache import remove_expired_entries, remove_orphan_folders
 
 if TYPE_CHECKING:
     # config.py imports this module to scrub an old firmware source at startup.
@@ -50,13 +51,18 @@ def cleanup_old_builds(settings: Settings, keep: Collection[str] = ()) -> int:
 
 
 async def cleanup_every_interval(settings: Settings, unended_build_ids: Callable[[], Collection[str]]) -> None:
-    """Remove the old build directories and the expired cache entries now, then each `cleanup_interval_seconds`.
+    """Remove the old build directories and the old build cache data now, then each `cleanup_interval_seconds`.
 
-    The task runs until it is cancelled.
+    The task runs until it is cancelled. An error in one cleanup goes to the log, and the next cleanup runs.
     """
     while True:
-        cleanup_old_builds(settings, keep=unended_build_ids())
-        await remove_expired_entries(settings)
+        try:
+            cleanup_old_builds(settings, keep=unended_build_ids())
+            await remove_expired_entries(settings)
+            await remove_orphan_folders(settings)
+        except (OSError, sqlite3.Error) as e:
+            # The error text names a path or a table, never a config value, so it holds no secret.
+            logger.error(f"The cleanup failed and runs again in {settings.cleanup_interval_seconds} seconds: {e!r}")
         await asyncio.sleep(settings.cleanup_interval_seconds)
 
 
