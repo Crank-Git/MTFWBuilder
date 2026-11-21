@@ -917,6 +917,10 @@ body.rv-open .layout { padding-right:21rem; }
 </li>
 <li>2026-11-21 — Epic 7 shipped (#142). Milestone M2 (Current upstream) is complete. PM ruling on #50: <code>USERPREFS_SIMRADIO_EMULATE_COLLISIONS</code> and <code>USERPREFS_HAS_SPLASH</code> are Non-goals. Every 422 body leaves out the rejected input, so no secret returns to the caller.
 </li>
+<li>2026-11-21 — Epic 10 shipped (#160). PM decisions from the gates and the batch review: only an admin session may store, load or remove the secrets of a profile (ADR 0007). A config that holds a secret is never cached, because the project rule forbids a secret in a cache entry. The owner question is #158. The cache key also covers the app version.
+</li>
+<li>2026-11-21 — Epic 8 shipped (#170). PM decisions from the batch review: Apply never writes into a control that the firmware version does not read. An empty PSK means "No encryption" on a primary channel and "Uses the primary channel key" on a secondary channel (<code>Channels.cpp</code> <code>getKey</code>). An <code>add=true</code> URL follows upstream <code>setURL</code>. <code>requires-python</code> is <code>&gt;=3.13,&lt;3.15</code> because of the <code>meshtastic</code> package.
+</li>
 </ul><nav class="pager">
 <span></span>
 <a href="html/page-inherit-reconciliation.html">Inherit reconciliation and research &rarr;</a>

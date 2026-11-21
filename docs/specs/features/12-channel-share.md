@@ -2,7 +2,7 @@
 id: channel-share
 feature: Channel share
 epic: "Epic 8: Channel share"
-status: issued
+status: built
 issues: [51, 52, 53, 54, 55]
 mockups: [mockups/05-channel-share.html]
 ---
