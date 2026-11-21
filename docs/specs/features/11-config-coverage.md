@@ -2,7 +2,7 @@
 id: config-coverage
 feature: Config coverage
 epic: "Epic 7: Config coverage"
-status: issued
+status: built
 issues: [44, 45, 46, 47, 48, 49, 50]
 mockups: [mockups/04-config-form.html]
 ---
@@ -149,3 +149,14 @@ Module config that upstream does not expose as userPrefs keys (for example seria
 store-and-forward, range test, TAK). Push config (feature 15) covers those.
 
 ## Open questions
+
+## Changes at the batch gate (#142)
+
+- Enum checks read the fixture `config.proto` (protobufs `v2.8.3`); per-version enum values come from each firmware source's `config.pb.h`.
+- The router-role fallback is at `src/mesh/NodeDB.cpp:604-611` in firmware `v2.7.26.54e0d8d` (the line numbers above were from `develop`).
+- Limits accepted at the gates: mesh beacon interval 0 or 3600–2,592,000 s; event hop limit 0–7; canned messages 200 bytes or fewer (the joined value); with `USERPREFS_BLOCK_POSITION_ON_EVENT_CHANNEL` on and a channel 0 PSK set, that PSK is 16 or 32 bytes; frequency slot 1 or more.
+- A key that the chosen firmware version does not read returns 422; `channels_to_write` above the version's channel slots returns 422.
+- Toggles with a firmware default are "Firmware default / On / Off" selects; an untouched toggle writes no key.
+- Preview, generate and download send `X-Userprefs-Note` (and preview shows it) when no firmware version or no key scan is available.
+- `GET /api/v1/userprefs/keys?version=` returns `keys` and `enum_values`; 404 for an unknown version.
+- A 422 body holds only `loc`, `msg` and `type` for each error, never the rejected input.
