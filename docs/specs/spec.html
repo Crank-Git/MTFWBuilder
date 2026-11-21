@@ -429,8 +429,8 @@ body.rv-open .layout { padding-right:21rem; }
   expired --&gt; [*]</pre></div>
 <p>This is the planned build lifecycle. The <code>scrub</code> step runs on every transition into <code>complete</code>, <code>failed</code> and <code>cancelled</code>.</p>
 <h2 id="cross-cutting-concerns">Cross-cutting concerns</h2>
-<p><strong>Authentication and authorization (built).</strong> The admin password is a bcrypt hash in <code>config.yaml</code>. <code>POST /admin/login</code> sets the cookie <code>mtfw_session</code>: an itsdangerous signature of the string <code>admin</code>, HttpOnly, SameSite=Lax, max age 3600 s. The cookie sets <code>Secure</code> only when the request scheme is <code>https</code>. Only <code>/api/v1/update-firmware</code> and <code>/api/v1/cleanup</code> require the session. The <code>/admin</code> page shows a sign-in form when no session exists.</p>
-<p><strong>CSRF (built, Epic 3).</strong> Each admin form carries the hidden field <code>csrf_token</code>. The token is the value of the cookie <code>mtfw_csrf</code>, signed with the same itsdangerous secret key. Sign-in sets a new <code>mtfw_csrf</code> value, so the token belongs to one session. Each admin POST without a valid token returns 403:</p>
+<p><strong>Authentication and authorization (built).</strong> The admin password is a bcrypt hash in <code>config.yaml</code>. <code>POST /admin/login</code> sets the cookie <code>mtfw_session</code>: an itsdangerous signature of the string <code>admin</code>, HttpOnly, SameSite=Lax, max age 3600 s. The cookie sets <code>Secure</code> only when the request scheme is <code>https</code>. These routes require the session: <code>/api/v1/update-firmware</code>, <code>/api/v1/cleanup</code>, <code>GET /api/v1/firmware/available</code>, <code>POST /api/v1/firmware/install</code> and <code>DELETE /api/v1/firmware/{version}</code>. The <code>/admin</code> page shows a sign-in form when no session exists.</p>
+<p><strong>CSRF (built, Epic 3).</strong> Each admin form carries the hidden field <code>csrf_token</code>. The token is the value of the cookie <code>mtfw_csrf</code>, signed with the same itsdangerous secret key. Sign-in sets a new <code>mtfw_csrf</code> value, so the token belongs to one session. A JSON request and a DELETE request send the token in the header <code>X-CSRF-Token</code>. Each admin POST or DELETE without a valid token returns 403:</p>
 <ul>
 <li><code>/admin/login</code>
 </li>
@@ -439,6 +439,10 @@ body.rv-open .layout { padding-right:21rem; }
 <li><code>/api/v1/update-firmware</code>
 </li>
 <li><code>/api/v1/cleanup</code>
+</li>
+<li><code>POST /api/v1/firmware/install</code>
+</li>
+<li><code>DELETE /api/v1/firmware/{version}</code>
 </li>
 </ul>
 <p><strong>Planned auth changes</strong> (feature <code>build-pipeline-repair</code>):</p>

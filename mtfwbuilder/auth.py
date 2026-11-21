@@ -14,6 +14,8 @@ from mtfwbuilder.htmx import is_htmx
 SESSION_COOKIE = "mtfw_session"
 CSRF_COOKIE = "mtfw_csrf"
 CSRF_FIELD = "csrf_token"
+# A JSON route and a DELETE route have no form, so they take the CSRF token in this header.
+CSRF_HEADER = "X-CSRF-Token"
 # The salt keeps a CSRF token apart from a session token, which the same secret key signs.
 _CSRF_SALT = "mtfw-csrf"
 
@@ -100,14 +102,18 @@ async def require_admin(request: Request) -> None:
 
 
 async def require_csrf(request: Request) -> None:
-    """FastAPI dependency that requires the form field `csrf_token` to match the CSRF cookie.
+    """FastAPI dependency that requires the CSRF token to match the CSRF cookie.
+
+    The token is the header `X-CSRF-Token` when the request has it, else the form field `csrf_token`.
 
     Raises:
-        HTTPException: 403 when the field or the cookie is absent, or the token does not match.
+        HTTPException: 403 when the token or the cookie is absent, or the token does not match.
     """
     settings: Settings = request.app.state.settings
-    form = await request.form()
-    token = form.get(CSRF_FIELD)
+    token = request.headers.get(CSRF_HEADER)
+    if token is None:
+        form = await request.form()
+        token = form.get(CSRF_FIELD)
     nonce = request.cookies.get(CSRF_COOKIE)
     if not isinstance(token, str) or not nonce or not csrf_token_is_valid(token, nonce, settings):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="CSRF token missing or invalid")

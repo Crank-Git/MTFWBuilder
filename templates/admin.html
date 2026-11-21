@@ -42,31 +42,51 @@
         </div>
     </section>
     {% else %}
-    <section id="firmware-source" class="card mb-4">
+    {# Each htmx control in the section inherits the header, so an install or a removal carries the CSRF token. #}
+    <section id="firmware-sources" class="card mb-4" hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'>
         <div class="card-header bg-success text-white">
-            <h5 class="mb-0">Firmware source</h5>
+            <h5 class="mb-0">Firmware sources</h5>
         </div>
         <div class="card-body">
-            <table class="table">
-                <tbody>
-                    <tr>
-                        <th>Firmware version:</th>
-                        <td id="firmwareVersion">{{ firmware.version }}</td>
-                    </tr>
-                    <tr>
-                        <th>Last updated:</th>
-                        <td id="lastUpdated">{{ firmware.last_updated }}</td>
-                    </tr>
-                </tbody>
-            </table>
-            <p>Update downloads the latest firmware version from GitHub. No build starts until the update ends.</p>
-            <form hx-post="/api/v1/update-firmware" hx-target="#update-result" hx-disabled-elt="find button">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <button type="submit" class="btn btn-warning">
-                    <i class="bi bi-cloud-download-fill me-2"></i>Update firmware source
+            <div id="firmware-source-list">{% include "partials/firmware_sources.html" %}</div>
+            <div id="firmware-message" class="mt-3" aria-live="polite"></div>
+
+            <h6 class="mt-4">Install a firmware version</h6>
+            <div class="d-flex flex-wrap gap-2 mb-3" hx-ext="json-body" hx-target="#firmware-message">
+                <button type="button" id="install-stable" class="btn {{ 'btn-outline-success' if sources else 'btn-success' }}"
+                        hx-post="/api/v1/firmware/install" hx-vals='{"channel": "stable"}' hx-disabled-elt="this">
+                    <i class="bi bi-cloud-download-fill me-2"></i>Install stable
                 </button>
+                <button type="button" id="install-alpha" class="btn btn-outline-warning"
+                        hx-post="/api/v1/firmware/install" hx-vals='{"channel": "alpha"}' hx-disabled-elt="this">
+                    <i class="bi bi-cloud-download me-2"></i>Install alpha
+                </button>
+            </div>
+            <form class="row g-2 mb-3" hx-post="/api/v1/firmware/install" hx-ext="json-body"
+                  hx-target="#firmware-message" hx-disabled-elt="find button">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="col-sm-6">
+                    <label for="install-tag" class="form-label">Exact tag</label>
+                    <input type="text" class="form-control" id="install-tag" name="tag" required
+                           pattern="v\d+\.\d+\.\d+\.[0-9a-f]{7}" placeholder="v2.7.20.6658ec2">
+                    <div id="error-tag" class="field-error invalid-feedback d-block" data-field="tag"></div>
+                </div>
+                <div class="col-sm-auto align-self-end">
+                    <button type="submit" class="btn btn-outline-secondary">
+                        <i class="bi bi-tag-fill me-2"></i>Install tag
+                    </button>
+                </div>
             </form>
-            <div id="update-result" class="mt-3" aria-live="polite"></div>
+            <div id="firmware-installs">
+                {% for item in installs %}
+                {% with install=item.install, progress_url=item.progress_url %}{% include "partials/firmware_install.html" %}{% endwith %}
+                {% endfor %}
+            </div>
+
+            <h6 class="mt-4">Available firmware versions</h6>
+            <div id="firmware-available" hx-get="/api/v1/firmware/available" hx-trigger="load">
+                <p class="text-muted mb-0">The page reads the upstream firmware list.</p>
+            </div>
         </div>
     </section>
 
@@ -121,4 +141,8 @@
     </section>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='js/admin.js') }}"></script>
 {% endblock %}

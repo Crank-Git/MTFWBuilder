@@ -20,11 +20,19 @@ from mtfwbuilder.rate_limit import configure_rate_limits, limiter
 from mtfwbuilder.routers.admin import rate_limit_response
 from mtfwbuilder.routers.admin import router as admin_router
 from mtfwbuilder.routers.config_generator import router as config_router
+from mtfwbuilder.routers.firmware import router as firmware_versions_router
 from mtfwbuilder.routers.firmware_builder import router as firmware_router
 from mtfwbuilder.routers.pages import router as pages_router
 from mtfwbuilder.services.build_service import BuildQueue
-from mtfwbuilder.services.cleanup_service import cleanup_every_interval, scrub_after_restart
+from mtfwbuilder.services.cleanup_service import cleanup_every_interval, scrub_sources_after_restart
 from mtfwbuilder.services.device_registry import DeviceRegistry
+from mtfwbuilder.services.firmware_catalog import FirmwareCatalog
+from mtfwbuilder.services.firmware_updater import (
+    FirmwareInstalls,
+    import_old_firmware_source,
+    remove_install_staging,
+    remove_unrecorded_sources,
+)
 
 
 def setup_logging(log_level: str, log_json: bool) -> None:
@@ -74,7 +82,11 @@ async def lifespan(app: FastAPI):
         failed = await fail_unended_builds(db, "Server restarted")
     if failed:
         logger.warning(f"Marked {failed} builds failed after a restart")
-    scrub_after_restart(settings.firmware_dir)
+    catalog = FirmwareCatalog()
+    await asyncio.to_thread(import_old_firmware_source, settings, catalog.resolve)
+    remove_install_staging(settings.firmware_dir)
+    await remove_unrecorded_sources(settings)
+    scrub_sources_after_restart(settings.firmware_dir)
 
     # Load device registry
     registry = DeviceRegistry(settings.devices_file)
@@ -84,6 +96,8 @@ async def lifespan(app: FastAPI):
     build_queue = BuildQueue(settings)
     build_queue.start()
     app.state.build_queue = build_queue
+    app.state.firmware_catalog = catalog
+    app.state.firmware_installs = FirmwareInstalls(settings, build_queue, resolver=catalog.resolve)
     logger.info("Build queue started")
     cleanup_task = asyncio.create_task(cleanup_every_interval(settings, build_queue.unended_build_ids))
     configure_rate_limits(settings)
@@ -120,6 +134,7 @@ def create_app() -> FastAPI:
     # Routers
     app.include_router(config_router)
     app.include_router(firmware_router)
+    app.include_router(firmware_versions_router)
     app.include_router(admin_router)
     app.include_router(pages_router)
 

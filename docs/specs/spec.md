@@ -315,18 +315,22 @@ This is the planned build lifecycle. The `scrub` step runs on every transition i
 **Authentication and authorization (built).** The admin password is a bcrypt hash in
 `config.yaml`. `POST /admin/login` sets the cookie `mtfw_session`: an itsdangerous
 signature of the string `admin`, HttpOnly, SameSite=Lax, max age 3600 s. The cookie sets
-`Secure` only when the request scheme is `https`. Only `/api/v1/update-firmware` and
-`/api/v1/cleanup` require the session. The `/admin` page shows a sign-in form when no
+`Secure` only when the request scheme is `https`. These routes require the session:
+`/api/v1/update-firmware`, `/api/v1/cleanup`, `GET /api/v1/firmware/available`,
+`POST /api/v1/firmware/install` and `DELETE /api/v1/firmware/{version}`. The `/admin` page shows a sign-in form when no
 session exists.
 
 **CSRF (built, Epic 3).** Each admin form carries the hidden field `csrf_token`. The token
 is the value of the cookie `mtfw_csrf`, signed with the same itsdangerous secret key. Sign-in
-sets a new `mtfw_csrf` value, so the token belongs to one session. Each admin POST without a
+sets a new `mtfw_csrf` value, so the token belongs to one session. A JSON request and a DELETE
+request send the token in the header `X-CSRF-Token`. Each admin POST or DELETE without a
 valid token returns 403:
 - `/admin/login`
 - `/admin/logout`
 - `/api/v1/update-firmware`
 - `/api/v1/cleanup`
+- `POST /api/v1/firmware/install`
+- `DELETE /api/v1/firmware/{version}`
 
 **Planned auth changes** (feature `build-pipeline-repair`):
 - Build ids are random, so one operator cannot guess another operator's build.

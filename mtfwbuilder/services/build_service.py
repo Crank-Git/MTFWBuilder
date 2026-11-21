@@ -25,11 +25,10 @@ from urllib.parse import quote
 import aiosqlite
 
 from mtfwbuilder.config import Settings
-from mtfwbuilder.database import init_db, save_build
+from mtfwbuilder.database import find_firmware_source, init_db, save_build
 from mtfwbuilder.models import Artifact, BuildStatus
 from mtfwbuilder.services.cleanup_service import scrub_firmware_source
 from mtfwbuilder.services.device_registry import DeviceVariant
-from mtfwbuilder.services.firmware_updater import get_firmware_version
 from mtfwbuilder.services.secret_mask import secret_masker
 
 logger = logging.getLogger("mtfwbuilder.build")
@@ -49,6 +48,10 @@ class BuildQueueFull(Exception):
 
 class BuildEnded(Exception):
     """The build has a build status of `complete`, `failed` or `cancelled`."""
+
+
+class FirmwareVersionNotInstalled(Exception):
+    """The build request names a firmware version that has no ready firmware source."""
 
 
 @dataclass
@@ -73,14 +76,14 @@ class BuildContext:
     firmware_version: str | None = None
     # The build worker that runs the build, so the build uses the firmware source of that build worker.
     worker: int = 0
-    source_dir: Path = field(default_factory=Path)
+    # The firmware source or the build worker copy that the build compiles in; `run_build` sets it when it starts.
+    source_dir: Path | None = None
     # The build queue sets this to put each build status change in the `builds` table.
     on_change: Callable[["BuildContext"], None] = field(default=lambda _ctx: None, repr=False)
     mask: Callable[[str], str] = field(init=False, repr=False)
 
     def __post_init__(self):
         self.build_dir = self.settings.temp_dir / self.build_id
-        self.source_dir = self.settings.firmware_dir
         self.build_dir.mkdir(parents=True, exist_ok=True)
         self.mask = secret_masker(self.config_content)
 
@@ -145,7 +148,8 @@ class FirmwareLock:
     """Let builds hold the firmware source together, and give a firmware update the firmware source alone.
 
     A build holds a shared hold with `shared()`. A firmware update holds the exclusive hold with
-    `acquire()` and `release()`. A build waits while a firmware update waits, so a stream of builds
+    `exclusive()`, or with `acquire()` and `release()`. The install and the removal of a firmware
+    version are firmware updates. A build waits while a firmware update waits, so a stream of builds
     cannot delay an update for ever.
     """
 
@@ -186,6 +190,15 @@ class FirmwareLock:
         self._update = False
         self._notify()
 
+    @asynccontextmanager
+    async def exclusive(self):
+        """Hold the exclusive hold for the body of the `async with` block."""
+        await self.acquire()
+        try:
+            yield
+        finally:
+            self.release()
+
     async def _wait_until(self, ready: Callable[[], bool]) -> None:
         while not ready():
             await self._changed.wait()
@@ -196,36 +209,36 @@ class FirmwareLock:
         self._changed = asyncio.Event()
 
 
-def worker_firmware_source(settings: Settings, worker: int) -> Path:
-    """Return the firmware source that build worker `worker` builds in.
+def worker_firmware_source(source_dir: Path, worker: int) -> Path:
+    """Return the directory that build worker `worker` compiles in, for the firmware source `source_dir`.
 
-    Build worker 0 builds in the firmware source itself. Each other build worker builds in a copy at
-    `<firmware_dir>/.worker-<worker>/`. The function makes the copy on first use, and again when the firmware
-    version changes. A copy without its version file is incomplete, so the function makes it again.
+    Build worker 0 compiles in `source_dir` itself. Each other build worker compiles in a copy at
+    `<source_dir>/.worker-<worker>/`. So each copy is in the directory of its firmware version, and a build of
+    one firmware version never compiles in a copy of another firmware version. The function makes the copy on
+    first use. A copy without its version file is incomplete, so the function makes it again.
     """
-    source = settings.firmware_dir
     if worker == 0:
-        return source
-    copy = source / f".worker-{worker}"
-    info = get_firmware_version(settings)
-    version = f"{info['version']} {info['last_updated']}"
+        return source_dir
+    copy = source_dir / f".worker-{worker}"
+    # A copy that the startup import moved from the old layout holds another text, so the function makes it again.
+    version = source_dir.name
     version_file = copy / COPY_VERSION_FILE
     if version_file.exists() and version_file.read_text() == version:
         return copy
 
     def running_build_files(directory: str, names: list[str]) -> set[str]:
         # Build worker 0 can build in the source during the copy, so its userPrefs file and object files hold secrets.
-        if Path(directory) == source:
+        if Path(directory) == source_dir:
             return {n for n in names if n == "userPrefs.jsonc" or n.startswith(".worker-")}
-        if Path(directory) == source / ".pio":
+        if Path(directory) == source_dir / ".pio":
             return {n for n in names if n in ("build", "build_cache")}
         return set()
 
     if copy.exists():
         shutil.rmtree(copy)
-    shutil.copytree(source, copy, symlinks=True, ignore=running_build_files)
+    shutil.copytree(source_dir, copy, symlinks=True, ignore=running_build_files)
     version_file.write_text(version)
-    logger.info(f"Copied the firmware source for build worker {worker}")
+    logger.info(f"Copied the firmware source {version} for build worker {worker}")
     return copy
 
 
@@ -246,19 +259,38 @@ class BuildQueue:
     def get(self, build_id: str) -> BuildContext | None:
         return self._builds.get(build_id)
 
-    def submit(self, variant: DeviceVariant, config_content: str) -> BuildContext:
-        """Return a new build, after it is put in the build queue.
+    async def submit(
+        self, variant: DeviceVariant, config_content: str, firmware_version: str | None = None
+    ) -> BuildContext:
+        """Return a new build of `firmware_version`, after it is put in the build queue.
 
-        Raises `BuildQueueFull` when the build queue holds `max_queue_size` builds. A build
-        for a missing firmware source fails at once and does not go in the build queue.
+        When `firmware_version` is None, the build uses the newest installed stable firmware version.
+
+        Raises:
+        - `FirmwareVersionNotInstalled` when `firmware_version` has no ready firmware source.
+        - `BuildQueueFull` when the build queue holds `max_queue_size` builds.
+
+        A default build with no firmware source fails at once and does not go in the build queue.
         """
+        # The read is before the queue check, so no other submit can fill the build queue between the two.
+        source = await installed_firmware_source(self.settings, firmware_version)
+        if source is None and firmware_version is not None:
+            raise FirmwareVersionNotInstalled(firmware_version)
         if self._queue.full():
             raise BuildQueueFull
         self._forget_old_builds()
-        ctx = BuildContext(generate_build_id(), variant, config_content, self.settings, on_change=self._record)
+        # A removal refuses a firmware version that a queued build uses, so the build holds its version from submit.
+        ctx = BuildContext(
+            generate_build_id(),
+            variant,
+            config_content,
+            self.settings,
+            firmware_version=source[0] if source else None,
+            on_change=self._record,
+        )
         self._builds[ctx.build_id] = ctx
         self._record(ctx)
-        if self.settings.firmware_dir.exists():
+        if source is not None:
             self._queue.put_nowait(ctx)
         else:
             ctx.set_status("failed", error=FIRMWARE_SOURCE_MISSING)
@@ -301,6 +333,14 @@ class BuildQueue:
     def unended_build_ids(self) -> set[str]:
         """Return the build ids of the builds that have not ended."""
         return {build_id for build_id, ctx in self._builds.items() if not ctx.ended}
+
+    def unended_firmware_versions(self, default_version: str | None) -> set[str]:
+        """Return the firmware versions that the builds that have not ended use.
+
+        A build without a firmware version counts as a build of `default_version`.
+        """
+        versions = {ctx.firmware_version or default_version for ctx in self._builds.values() if not ctx.ended}
+        return versions - {None}
 
     def _record(self, ctx: BuildContext) -> None:
         self._records.put_nowait(ctx.record())
@@ -371,16 +411,28 @@ async def progress_events(ctx: BuildContext, log_from: int | None = None):
         await changed.wait()
 
 
+async def installed_firmware_source(settings: Settings, version: str | None = None) -> tuple[str, Path] | None:
+    """Return the firmware version and the directory of the firmware source of `version`.
+
+    When `version` is None, the result is the default firmware source: the newest installed stable one.
+    Returns None when no ready firmware source matches, or when the directory of its record is missing.
+    """
+    record = await find_firmware_source(settings.database_path, version)
+    if record is None or not Path(record["path"]).is_dir():
+        return None
+    return record["version"], Path(record["path"])
+
+
 async def run_build(ctx: BuildContext) -> None:
     """Run one build to an ended build status, and scrub the firmware source before the end event."""
-    if not ctx.settings.firmware_dir.exists():
+    # The directory of the firmware source can be gone when the build starts, so the build reads the record again.
+    source = await installed_firmware_source(ctx.settings, ctx.firmware_version)
+    if source is None:
         ctx.set_status("failed", error=FIRMWARE_SOURCE_MISSING)
         return
-    # A firmware update can replace the source while the build waits, so the version is read when the build starts.
-    version = get_firmware_version(ctx.settings)["version"]
-    ctx.firmware_version = None if version == "Not installed" else version
+    ctx.firmware_version, source_dir = source
     # The copy holds no secret yet, so it stays outside the scrub.
-    ctx.source_dir = await asyncio.to_thread(worker_firmware_source, ctx.settings, ctx.worker)
+    ctx.source_dir = await asyncio.to_thread(worker_firmware_source, source_dir, ctx.worker)
     ctx.set_status("compiling", message=f"Building firmware for {ctx.variant.name}...")
     try:
         status, fields = await _compile(ctx)

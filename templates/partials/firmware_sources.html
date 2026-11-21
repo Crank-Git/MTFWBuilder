@@ -1,0 +1,41 @@
+{# The list of installed firmware versions. The remove route and a ready install refresh it. #}
+{% set badges = {"stable": "text-bg-success", "alpha": "text-bg-warning"} %}
+{% if sources %}
+<div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+        <thead>
+            <tr>
+                <th>Firmware version</th>
+                <th>Channel</th>
+                <th>Status</th>
+                <th>Disk size</th>
+                <th>Installed</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for source in sources %}
+            <tr data-version="{{ source.version }}">
+                <td><code>{{ source.version }}</code></td>
+                <td><span class="badge {{ badges.get(source.channel, 'text-bg-secondary') }}">{{ source.channel }}</span></td>
+                <td>{{ source.status }}</td>
+                <td>{{ source.size_bytes | filesizeformat }}</td>
+                <td>{{ source.installed_at[:10] }}</td>
+                <td class="text-end">
+                    <button type="button" class="btn btn-sm btn-outline-danger"
+                            hx-delete="/api/v1/firmware/{{ source.version }}" hx-target="#firmware-source-list"
+                            hx-confirm="Remove firmware version {{ source.version }}?">
+                        <i class="bi bi-trash-fill me-1"></i>Remove
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="card card-body text-center" id="no-firmware-source">
+    <p class="mb-1">No firmware version is installed.</p>
+    <p class="text-muted small mb-0">Install stable, so that operators can build firmware.</p>
+</div>
+{% endif %}

@@ -1,0 +1,32 @@
+{# The upstream firmware versions, or the message when both upstreams fail. #}
+{% if error %}
+<div class="alert alert-warning mb-0" role="alert">{{ error }} You can still install an exact tag.</div>
+{% else %}
+{# api.meshtastic.org gives no release date, so the date column shows only for the GitHub list. #}
+{% set dated = available.source == "github" %}
+<p class="text-muted small mb-2">Source: {{ available.source }}. The table shows the five newest firmware versions of each channel.</p>
+<div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+        <thead>
+            <tr>
+                <th>Firmware version</th>
+                <th>Channel</th>
+                <th>Title</th>
+                {% if dated %}<th>Release date</th>{% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for channel in ("stable", "alpha") %}
+            {% for entry in available[channel][:5] %}
+            <tr data-tag="{{ entry.tag }}">
+                <td><code>{{ entry.tag }}</code>{% if entry.revoked %} <span class="badge text-bg-danger">revoked</span>{% endif %}</td>
+                <td>{{ channel }}</td>
+                <td>{{ entry.title }}</td>
+                {% if dated %}<td>{{ entry.date[:10] if entry.date else "" }}</td>{% endif %}
+            </tr>
+            {% endfor %}
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
