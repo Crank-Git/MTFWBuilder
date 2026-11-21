@@ -7,58 +7,58 @@
     </div>
     <div id="gpsConfig">
         <div class="row mb-3">
-            <div class="col-md-6">
+            <fieldset class="col-md-6" data-userprefs-key="USERPREFS_CONFIG_GPS_MODE"{{ key_attrs("USERPREFS_CONFIG_GPS_MODE") }}>
                 <label for="gpsMode" class="form-label">GPS Mode</label>
                 <select class="form-select" id="gpsMode" name="gps_mode">
                     {% for value, label in gps_mode_options %}
-                    <option value="{{ value }}"{% if value == "meshtastic_Config_PositionConfig_GpsMode_ENABLED" %} selected{% endif %}>{{ label }}</option>
+                    <option value="{{ value }}"{{ enum_attrs(value) }}{% if value == "meshtastic_Config_PositionConfig_GpsMode_ENABLED" %} selected{% endif %}>{{ label }}</option>
                     {% endfor %}
                 </select>
                 <div id="error-gps_mode" class="field-error invalid-feedback d-block"></div>
-            </div>
-            <div class="col-md-6">
+            </fieldset>
+            <fieldset class="col-md-6" data-userprefs-key="USERPREFS_FIXED_GPS"{{ key_attrs("USERPREFS_FIXED_GPS") }}>
                 <div class="form-check form-switch mt-4">
                     <input type="hidden" name="fixed_position" value="false">
                     <input class="form-check-input" type="checkbox" id="fixedPositionEnabled" name="fixed_position" value="true">
                     <label class="form-check-label" for="fixedPositionEnabled">Use Fixed Position</label>
                 </div>
-            </div>
+            </fieldset>
         </div>
         <div id="fixedPositionFields" style="display: none;">
             <div class="row mb-3">
-                <div class="col-md-4">
+                <fieldset class="col-md-4" data-userprefs-key="USERPREFS_FIXED_GPS_LAT"{{ key_attrs("USERPREFS_FIXED_GPS_LAT") }}>
                     <label for="fixedLat" class="form-label">Latitude</label>
                     <input type="text" class="form-control" id="fixedLat" name="fixed_lat" placeholder="48.85873920">
                     <div id="error-fixed_lat" class="field-error invalid-feedback d-block"></div>
-                </div>
-                <div class="col-md-4">
+                </fieldset>
+                <fieldset class="col-md-4" data-userprefs-key="USERPREFS_FIXED_GPS_LON"{{ key_attrs("USERPREFS_FIXED_GPS_LON") }}>
                     <label for="fixedLon" class="form-label">Longitude</label>
                     <input type="text" class="form-control" id="fixedLon" name="fixed_lon" placeholder="2.294508368">
                     <div id="error-fixed_lon" class="field-error invalid-feedback d-block"></div>
-                </div>
-                <div class="col-md-4">
+                </fieldset>
+                <fieldset class="col-md-4" data-userprefs-key="USERPREFS_FIXED_GPS_ALT"{{ key_attrs("USERPREFS_FIXED_GPS_ALT") }}>
                     <label for="fixedAlt" class="form-label">Altitude</label>
                     <input type="text" class="form-control" id="fixedAlt" name="fixed_alt" placeholder="0">
                     <div id="error-fixed_alt" class="field-error invalid-feedback d-block"></div>
-                </div>
+                </fieldset>
             </div>
         </div>
         <div class="row mb-3">
-            <div class="col-md-6">
+            <fieldset class="col-md-6" data-userprefs-key="USERPREFS_CONFIG_GPS_UPDATE_INTERVAL"{{ key_attrs("USERPREFS_CONFIG_GPS_UPDATE_INTERVAL") }}>
                 <label for="gpsUpdateInterval" class="form-label">GPS Update Interval (seconds)</label>
                 <input type="number" class="form-control" id="gpsUpdateInterval" name="gps_update_interval" value="600">
                 <div id="error-gps_update_interval" class="field-error invalid-feedback d-block"></div>
-            </div>
-            <div class="col-md-6">
+            </fieldset>
+            <fieldset class="col-md-6" data-userprefs-key="USERPREFS_CONFIG_POSITION_BROADCAST_INTERVAL"{{ key_attrs("USERPREFS_CONFIG_POSITION_BROADCAST_INTERVAL") }}>
                 <label for="positionBroadcastInterval" class="form-label">Position Broadcast Interval (seconds)</label>
                 <input type="number" class="form-control" id="positionBroadcastInterval" name="position_broadcast_interval" value="1800">
                 <div id="error-position_broadcast_interval" class="field-error invalid-feedback d-block"></div>
-            </div>
+            </fieldset>
         </div>
-        <div class="form-check form-switch">
+        <fieldset class="form-check form-switch" data-userprefs-key="USERPREFS_CONFIG_SMART_POSITION_ENABLED"{{ key_attrs("USERPREFS_CONFIG_SMART_POSITION_ENABLED") }}>
             <input type="hidden" name="smart_position_enabled" value="false">
             <input class="form-check-input" type="checkbox" id="smartPositionEnabled" name="smart_position_enabled" value="true">
             <label class="form-check-label" for="smartPositionEnabled">Enable Smart Position</label>
-        </div>
+        </fieldset>
     </div>
 </div> 

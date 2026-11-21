@@ -5,7 +5,7 @@
         <select class="form-select" id="channelsToWrite" name="channels_to_write">
             <option value="0">None</option>
             {% for count in range(1, channel_slots + 1) %}
-            <option value="{{ count }}"{% if count == 3 %} selected{% endif %}>{{ count }}</option>
+            <option value="{{ count }}"{% if count == 3 %} selected{% endif %}{{ slot_attrs(count - 1) }}>{{ count }}</option>
             {% endfor %}
         </select>
         <div id="error-channels_to_write" class="field-error invalid-feedback d-block"></div>
@@ -14,7 +14,7 @@
     <div id="channelTabs" class="mb-4">
         <ul class="nav nav-tabs" id="channelTabsList" role="tablist">
             {% for n in range(channel_slots) %}
-            <li class="nav-item" role="presentation">
+            <li class="nav-item" role="presentation" data-channel-slot="{{ n }}"{{ slot_attrs(n) }}>
                 <button class="nav-link{% if n == 0 %} active{% endif %}" id="channel-{{ n }}-tab" data-bs-toggle="tab" data-bs-target="#channel-{{ n }}-content" type="button" role="tab" aria-controls="channel-{{ n }}-content" aria-selected="{{ 'true' if n == 0 else 'false' }}">Channel {{ n + 1 }}</button>
             </li>
             {% endfor %}
@@ -25,12 +25,12 @@
             <div class="tab-pane fade{% if n == 0 %} show active{% endif %}" id="channel-{{ n }}-content" role="tabpanel" aria-labelledby="channel-{{ n }}-tab">
                 <div class="channel-tab">
                     <div class="row mb-3">
-                        <div class="col-md-6">
+                        <fieldset class="col-md-6" data-userprefs-key="USERPREFS_CHANNEL_{{ n }}_NAME"{{ key_attrs("USERPREFS_CHANNEL_" ~ n ~ "_NAME") }}>
                             <label for="channel{{ n }}Name" class="form-label">Channel Name</label>
                             <input type="text" class="form-control" id="channel{{ n }}Name" name="channel_{{ n }}[name]" placeholder="{{ channel_name_placeholders[n] if n < 3 else 'Channel ' ~ (n + 1) }}">
                             <div id="error-channel_{{ n }}.name" class="field-error invalid-feedback d-block"></div>
-                        </div>
-                        <div class="col-md-6">
+                        </fieldset>
+                        <fieldset class="col-md-6" data-userprefs-key="USERPREFS_CHANNEL_{{ n }}_PRECISION"{{ key_attrs("USERPREFS_CHANNEL_" ~ n ~ "_PRECISION") }}>
                             <label for="channel{{ n }}Precision" class="form-label">Position Precision</label>
                             <select class="form-select" id="channel{{ n }}Precision" name="channel_{{ n }}[precision]">
                                 <option value="13">13 - Default (~100ft accuracy)</option>
@@ -45,10 +45,10 @@
                             </select>
                             <div id="error-channel_{{ n }}.precision" class="field-error invalid-feedback d-block"></div>
                             <div class="form-text text-muted">Higher precision uses more bandwidth</div>
-                        </div>
+                        </fieldset>
                     </div>
                     <div class="row mb-3">
-                        <div class="col-12">
+                        <fieldset class="col-12" data-userprefs-key="USERPREFS_CHANNEL_{{ n }}_PSK"{{ key_attrs("USERPREFS_CHANNEL_" ~ n ~ "_PSK") }}>
                             <label for="channel{{ n }}PSK" class="form-label">Pre-Shared Key (PSK)</label>
                             <div class="input-group">
                                 <input type="text" class="form-control" id="channel{{ n }}PSK" name="channel_{{ n }}[psk]" placeholder="3q2+796tvu/erb7v3q2+796tvu/erb7v3q2+796tvu8=">
@@ -58,31 +58,31 @@
                             </div>
                             <div id="error-channel_{{ n }}.psk" class="field-error invalid-feedback d-block"></div>
                             <div class="form-text text-muted">Base64 or hex. The key is 0, 1, 16 or 32 bytes.</div>
-                        </div>
+                        </fieldset>
                     </div>
                     <div class="row">
-                        <div class="col-md-4">
+                        <fieldset class="col-md-4" data-userprefs-key="USERPREFS_CHANNEL_{{ n }}_UPLINK_ENABLED"{{ key_attrs("USERPREFS_CHANNEL_" ~ n ~ "_UPLINK_ENABLED") }}>
                             <div class="form-check form-switch">
                                 <input type="hidden" name="channel_{{ n }}[uplink_enabled]" value="false">
                                 <input class="form-check-input" type="checkbox" id="channel{{ n }}Uplink" name="channel_{{ n }}[uplink_enabled]" value="true"{% if n == 0 %} checked{% endif %}>
                                 <label class="form-check-label" for="channel{{ n }}Uplink">Uplink Enabled</label>
                             </div>
-                        </div>
-                        <div class="col-md-4">
+                        </fieldset>
+                        <fieldset class="col-md-4" data-userprefs-key="USERPREFS_CHANNEL_{{ n }}_DOWNLINK_ENABLED"{{ key_attrs("USERPREFS_CHANNEL_" ~ n ~ "_DOWNLINK_ENABLED") }}>
                             <div class="form-check form-switch">
                                 <input type="hidden" name="channel_{{ n }}[downlink_enabled]" value="false">
                                 <input class="form-check-input" type="checkbox" id="channel{{ n }}Downlink" name="channel_{{ n }}[downlink_enabled]" value="true">
                                 <label class="form-check-label" for="channel{{ n }}Downlink">Downlink Enabled</label>
                             </div>
-                        </div>
-                        <div class="col-md-4">
+                        </fieldset>
+                        <fieldset class="col-md-4" data-userprefs-key="USERPREFS_CHANNEL_{{ n }}_IS_MUTED"{{ key_attrs("USERPREFS_CHANNEL_" ~ n ~ "_IS_MUTED") }}>
                             <div class="form-check form-switch">
                                 <input type="hidden" name="channel_{{ n }}[muted]" value="false">
                                 <input class="form-check-input" type="checkbox" id="channel{{ n }}Muted" name="channel_{{ n }}[muted]" value="true" aria-describedby="channel{{ n }}MutedHelp">
                                 <label class="form-check-label" for="channel{{ n }}Muted">Muted</label>
                             </div>
                             <div id="channel{{ n }}MutedHelp" class="form-text text-muted">The device gives no notification for messages on this channel.</div>
-                        </div>
+                        </fieldset>
                     </div>
                 </div>
             </div>

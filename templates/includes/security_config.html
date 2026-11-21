@@ -2,38 +2,38 @@
     <h3 class="section-title"><i class="bi bi-shield-lock-fill text-success"></i>Security</h3>
     <p class="text-muted">An admin key is the public key of the device that administers this node. A random value gives no admin access.</p>
     <div class="row mb-3">
-        <div class="col-md-4" data-userprefs-key="USERPREFS_USE_ADMIN_KEY_0">
+        <fieldset class="col-md-4" data-userprefs-key="USERPREFS_USE_ADMIN_KEY_0"{{ key_attrs("USERPREFS_USE_ADMIN_KEY_0") }}>
             <label for="adminKey0" class="form-label">Admin Key 0</label>
             <input type="text" class="form-control" id="adminKey0" name="admin_key_0" placeholder="Public key of the admin device" aria-describedby="adminKey0Help">
             <div id="error-admin_key_0" class="field-error invalid-feedback d-block"></div>
             <div id="adminKey0Help" class="form-text text-muted">Paste the public key of an admin device: 32 bytes in base64, hex or { 0x.. } form. <code class="small">USERPREFS_USE_ADMIN_KEY_0</code></div>
-        </div>
-        <div class="col-md-4" data-userprefs-key="USERPREFS_USE_ADMIN_KEY_1">
+        </fieldset>
+        <fieldset class="col-md-4" data-userprefs-key="USERPREFS_USE_ADMIN_KEY_1"{{ key_attrs("USERPREFS_USE_ADMIN_KEY_1") }}>
             <label for="adminKey1" class="form-label">Admin Key 1</label>
             <input type="text" class="form-control" id="adminKey1" name="admin_key_1" placeholder="Optional" aria-describedby="adminKey1Help">
             <div id="error-admin_key_1" class="field-error invalid-feedback d-block"></div>
             <div id="adminKey1Help" class="form-text text-muted">Paste the public key of an admin device: 32 bytes in base64, hex or { 0x.. } form. <code class="small">USERPREFS_USE_ADMIN_KEY_1</code></div>
-        </div>
-        <div class="col-md-4" data-userprefs-key="USERPREFS_USE_ADMIN_KEY_2">
+        </fieldset>
+        <fieldset class="col-md-4" data-userprefs-key="USERPREFS_USE_ADMIN_KEY_2"{{ key_attrs("USERPREFS_USE_ADMIN_KEY_2") }}>
             <label for="adminKey2" class="form-label">Admin Key 2</label>
             <input type="text" class="form-control" id="adminKey2" name="admin_key_2" placeholder="Optional" aria-describedby="adminKey2Help">
             <div id="error-admin_key_2" class="field-error invalid-feedback d-block"></div>
             <div id="adminKey2Help" class="form-text text-muted">Paste the public key of an admin device: 32 bytes in base64, hex or { 0x.. } form. <code class="small">USERPREFS_USE_ADMIN_KEY_2</code></div>
-        </div>
+        </fieldset>
     </div>
     <div class="row mb-3">
-        <div class="col-md-6" data-userprefs-key="USERPREFS_CONFIG_SECURITY_PACKET_SIGNATURE_POLICY">
+        <fieldset class="col-md-6" data-userprefs-key="USERPREFS_CONFIG_SECURITY_PACKET_SIGNATURE_POLICY"{{ key_attrs("USERPREFS_CONFIG_SECURITY_PACKET_SIGNATURE_POLICY") }}>
             <label for="securityPacketSignaturePolicy" class="form-label">Packet Signature Policy</label>
             <select class="form-select" id="securityPacketSignaturePolicy" name="security_packet_signature_policy">
                 <option value="" selected>Firmware default</option>
                 {% for value, label in packet_signature_policy_options %}
-                <option value="{{ value }}">{{ label }}</option>
+                <option value="{{ value }}"{{ enum_attrs(value) }}>{{ label }}</option>
                 {% endfor %}
             </select>
             <div id="error-security_packet_signature_policy" class="field-error invalid-feedback d-block"></div>
             <div class="form-text text-muted">The policy that the device applies to packets from other nodes. <code class="small">USERPREFS_CONFIG_SECURITY_PACKET_SIGNATURE_POLICY</code></div>
-        </div>
-        <div class="col-md-6" data-userprefs-key="USERPREFS_CONFIG_SECURITY_IS_MANAGED">
+        </fieldset>
+        <fieldset class="col-md-6" data-userprefs-key="USERPREFS_CONFIG_SECURITY_IS_MANAGED"{{ key_attrs("USERPREFS_CONFIG_SECURITY_IS_MANAGED") }}>
             <div class="form-check form-switch mt-4">
                 <input type="hidden" name="security_is_managed" value="false">
                 <input class="form-check-input" type="checkbox" id="securityIsManaged" name="security_is_managed" value="true">
@@ -42,6 +42,6 @@
             <div id="error-security_is_managed" class="field-error invalid-feedback d-block"></div>
             <div class="alert alert-warning mt-2 managed-mode-notice" id="managedModeNotice" role="status">Managed mode is on. The device rejects local config changes. Only admin key 0–2 holders can change it remotely. Without an admin key, nobody can.</div>
             <div class="form-text text-muted">Managed mode needs at least one admin key. <code class="small">USERPREFS_CONFIG_SECURITY_IS_MANAGED</code></div>
-        </div>
+        </fieldset>
     </div>
 </div>

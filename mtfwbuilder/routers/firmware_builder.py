@@ -14,8 +14,9 @@ from mtfwbuilder.database import find_firmware_source, list_firmware_sources
 from mtfwbuilder.htmx import fragment_or_json, is_htmx
 from mtfwbuilder.models import Artifact, ConfigRequest, FirmwareSource
 from mtfwbuilder.rate_limit import build_rate_limit, limiter
+from mtfwbuilder.routers.config_generator import field_error, generate_for_version, key_scan
 from mtfwbuilder.services import build_service
-from mtfwbuilder.services.jsonc_generator import generate_jsonc
+from mtfwbuilder.services.userprefs_keys import KeyScan
 
 logger = logging.getLogger("mtfwbuilder.firmware_routes")
 
@@ -45,7 +46,8 @@ async def start_build(request: Request) -> Response:
 
     Returns:
     - 400 for a bad form.
-    - 422 with field errors for an invalid config, or for a firmware version that is not installed.
+    - 422 with field errors for an invalid config, for a firmware version that is not installed, or for a field
+      that the firmware version does not read.
     - 503 when the build queue is full.
 
     The route validates the config before the build goes in the build queue.
@@ -59,9 +61,9 @@ async def start_build(request: Request) -> Response:
     if not registry.exists(variant_id):
         raise HTTPException(status_code=400, detail=f"Unknown device variant: {variant_id}")
     variant = registry.get(variant_id)
-    config_content = await _config_content(form)
     # An empty field asks for the default firmware version, the same as no field.
     firmware_version = form.get("firmware_version") or None
+    config_content = await _config_content(form, await key_scan(request, firmware_version))
 
     try:
         ctx = await request.app.state.build_queue.submit(variant, config_content, firmware_version)
@@ -113,21 +115,24 @@ def panel_context(ctx: build_service.BuildContext) -> dict:
     }
 
 
-async def _config_content(form) -> str:
-    """Return the userPrefs file of the build form, from the source that `config_source` names."""
+async def _config_content(form, scan: KeyScan | None) -> str:
+    """Return the userPrefs file of the build form, from the source that `config_source` names.
+
+    `scan` is the key scan of the firmware version of the build.
+    """
     source = form.get("config_source", "upload")
     if source == "form":
         fields = {k: v for k, v in form.items() if k not in ("variant", "config_source", "firmware_version")}
-        return _validated(lambda: ConfigRequest.model_validate(fields))
+        return _validated(lambda: ConfigRequest.model_validate(fields), scan)
     if source == "current":
-        return _config_from_json(form.get("config_json"))
+        return _config_from_json(form.get("config_json"), scan)
     return await _config_from_upload(form.get("userPrefs"))
 
 
-def _validated(parse) -> str:
-    """Return the userPrefs file of the config that `parse` returns.
+def _validated(parse, scan: KeyScan | None) -> str:
+    """Return the userPrefs file of the config that `parse` returns, for the firmware version of `scan`.
 
-    Raises a 422 field error when `ConfigRequest` rejects the config.
+    Raises a 422 field error when `ConfigRequest` or the firmware version rejects the config.
     """
     try:
         config = parse()
@@ -135,17 +140,17 @@ def _validated(parse) -> str:
         # The same field locations as the download route, so the form puts each error next to its field.
         errors = [{**error, "loc": ("body", *error["loc"])} for error in e.errors(include_url=False)]
         raise RequestValidationError(errors) from e
-    return generate_jsonc(config.generator_input())
+    return generate_for_version(config, scan)
 
 
-def _config_from_json(config_json: str | None) -> str:
+def _config_from_json(config_json: str | None, scan: KeyScan | None) -> str:
     """Return the userPrefs file that the generator makes from the config JSON of the form.
 
     Raises HTTP 400 when the form holds no config, and a 422 field error when `ConfigRequest` rejects it.
     """
     if not config_json:
         raise HTTPException(status_code=400, detail="No configuration data provided")
-    return _validated(lambda: ConfigRequest.model_validate_json(config_json))
+    return _validated(lambda: ConfigRequest.model_validate_json(config_json), scan)
 
 
 async def _config_from_upload(upload) -> str:
@@ -178,7 +183,7 @@ async def _config_from_upload(upload) -> str:
 
 
 def _field_error(name: str, message: str) -> RequestValidationError:
-    return RequestValidationError([{"type": "value_error", "loc": ("body", name), "msg": message, "input": None}])
+    return RequestValidationError([field_error((name,), message)])
 
 
 @router.get("/build-progress/{build_id}")

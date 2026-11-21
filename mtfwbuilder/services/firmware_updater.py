@@ -28,6 +28,7 @@ from mtfwbuilder.database import (
 )
 from mtfwbuilder.models import InstallStatus
 from mtfwbuilder.services.build_service import BuildQueue
+from mtfwbuilder.services.userprefs_keys import ensure_key_scan
 
 logger = logging.getLogger("mtfwbuilder.firmware_updater")
 
@@ -250,6 +251,8 @@ class FirmwareInstalls:
             zip_path.unlink()
             install.set_status("installing packages")
             await self._pio_pkg_install(tree)
+            # The scan runs before the first build, because a build writes its own userPrefs.jsonc into the source.
+            await asyncio.to_thread(ensure_key_scan, tree)
             # A build reads the firmware source under this lock, so it never sees a half-written record.
             async with self.build_queue.firmware_lock.exclusive():
                 if source_dir.exists():
@@ -402,6 +405,7 @@ def import_old_firmware_source(settings: Settings, resolver: Callable[[str], str
     firmware_dir.mkdir()
     source_dir = firmware_dir / version
     staging.rename(source_dir)
+    ensure_key_scan(source_dir)
 
     try:
         installed_at = datetime.fromisoformat(info["last_updated"]).astimezone(UTC)

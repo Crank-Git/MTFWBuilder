@@ -1,16 +1,20 @@
 """Config generator API routes — /api/v1/generate, /api/v1/preview, /api/v1/download."""
 
+import asyncio
 import logging
+from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, File, Request, UploadFile
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import Response
 from pydantic import ValidationError
 
+from mtfwbuilder.database import find_firmware_source
 from mtfwbuilder.htmx import fragment_or_json
-from mtfwbuilder.models import ConfigRequest, FilePreviewResponse, PreviewResponse
-from mtfwbuilder.services.jsonc_generator import generate_jsonc
+from mtfwbuilder.models import ConfigRequest, FilePreviewResponse, PreviewResponse, UserPrefsKeys
+from mtfwbuilder.services.jsonc_generator import DEFAULT_FIRMWARE_KEYS, generate_jsonc, version_errors
+from mtfwbuilder.services.userprefs_keys import KeyScan, ensure_key_scan, find_key_scan
 
 logger = logging.getLogger("mtfwbuilder.config_generator")
 
@@ -19,10 +23,65 @@ router = APIRouter(prefix="/api/v1", tags=["config"])
 MAX_UPLOAD_SIZE = 65536  # 64KB
 
 
+def field_error(location: tuple[str, ...], message: str) -> dict:
+    """Return one 422 error item for the body field at `location`."""
+    return {"type": "value_error", "loc": ("body", *location), "msg": message, "input": None}
+
+
+async def key_scan(request: Request, version: str | None) -> KeyScan | None:
+    """Return the key scan of `version`, or of the default firmware version when `version` is empty.
+
+    Raises:
+        RequestValidationError: `version` is not an installed firmware version.
+    """
+    database_path = request.app.state.settings.database_path
+    if version and await find_firmware_source(database_path, version) is None:
+        message = f"firmware version {version} is not installed"
+        raise RequestValidationError([field_error(("firmware_version",), message)])
+    return await find_key_scan(database_path, version or None)
+
+
+def generate_for_version(config: ConfigRequest, scan: KeyScan | None) -> str:
+    """Return the userPrefs file of `config` for the firmware version of `scan`.
+
+    Raises:
+        RequestValidationError: The firmware version rejects a field (`version_errors`).
+    """
+    data = config.generator_input()
+    errors = version_errors(data, scan)
+    if errors:
+        raise RequestValidationError([field_error(location, message) for location, message in errors])
+    return generate_jsonc(data, firmware_keys=scan.keys if scan is not None else DEFAULT_FIRMWARE_KEYS)
+
+
+def _chosen_version(config: ConfigRequest) -> str | None:
+    # `firmware_version` is not a userPrefs field, so `ConfigRequest` keeps it as an extra field.
+    return (config.model_extra or {}).get("firmware_version")
+
+
 @router.post("/generate")
-async def generate(config: ConfigRequest) -> PreviewResponse:
-    """Generate JSONC configuration from form data."""
-    return PreviewResponse(success=True, content=generate_jsonc(config.generator_input()))
+async def generate(config: ConfigRequest, request: Request) -> PreviewResponse:
+    """Generate JSONC configuration from form data, for the firmware version in the field `firmware_version`."""
+    scan = await key_scan(request, _chosen_version(config))
+    return PreviewResponse(success=True, content=generate_for_version(config, scan))
+
+
+@router.get("/userprefs/keys", responses={404: {"description": "Firmware version not installed"}})
+async def userprefs_keys(request: Request, version: str | None = None) -> UserPrefsKeys:
+    """Return the userPrefs keys and the enum values that the firmware version reads, from a scan of its source.
+
+    Without `version`, the result is for the default firmware version. Returns 404 when the firmware version is not
+    installed, or when no firmware version is installed.
+    """
+    record = await find_firmware_source(request.app.state.settings.database_path, version)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Firmware version not installed")
+    scan = await asyncio.to_thread(ensure_key_scan, Path(record["path"]))
+    return UserPrefsKeys(
+        version=record["version"],
+        keys=None if scan is None else sorted(scan.keys),
+        enum_values=None if scan is None or scan.enum_values is None else sorted(scan.enum_values),
+    )
 
 
 async def _read_config(request: Request) -> ConfigRequest:
@@ -61,9 +120,14 @@ _CONFIG_BODY = {
 async def preview(request: Request) -> Response:
     """Return the userPrefs file as an HTML fragment for htmx, else as a JSON `PreviewResponse`.
 
-    The body is a JSON `ConfigRequest` or a form. An invalid body returns 422 with field errors.
+    The body is a JSON `ConfigRequest` or a form. The optional field `firmware_version` names an installed firmware
+    version, and the default firmware version applies without it. A 422 with field errors answers:
+    - an invalid body.
+    - a firmware version that is not installed.
+    - a field that the firmware version does not read.
     """
-    content = generate_jsonc((await _read_config(request)).generator_input())
+    config = await _read_config(request)
+    content = generate_for_version(config, await key_scan(request, _chosen_version(config)))
     return fragment_or_json(
         request, "partials/preview.html", {"content": content}, PreviewResponse(success=True, content=content)
     )
@@ -73,11 +137,16 @@ async def preview(request: Request) -> Response:
 async def download(request: Request) -> Response:
     """Download the generated JSONC configuration file.
 
-    The body is a JSON `ConfigRequest` or a form. An invalid body returns 422 with field errors.
+    The body is a JSON `ConfigRequest` or a form. The optional field `firmware_version` names an installed firmware
+    version, and the default firmware version applies without it. A 422 with field errors answers:
+    - an invalid body.
+    - a firmware version that is not installed.
+    - a field that the firmware version does not read.
     """
     config = await _read_config(request)
+    content = generate_for_version(config, await key_scan(request, _chosen_version(config)))
     return Response(
-        content=generate_jsonc(config.generator_input()),
+        content=content,
         media_type="application/json",
         headers={"Content-Disposition": "attachment; filename=userPrefs.jsonc"},
     )

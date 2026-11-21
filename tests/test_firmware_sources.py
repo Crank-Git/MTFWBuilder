@@ -12,6 +12,7 @@ from mtfwbuilder.database import find_firmware_source, init_db, record_firmware_
 from mtfwbuilder.main import lifespan
 from mtfwbuilder.services.firmware_catalog import CatalogUnavailable, FirmwareCatalog
 from mtfwbuilder.services.firmware_updater import import_old_firmware_source, remove_unrecorded_sources
+from mtfwbuilder.services.userprefs_keys import SCAN_FILE
 
 STABLE = "v2.7.26.54e0d8d"
 ALPHA = "v2.8.2.d5f1619"
@@ -186,7 +187,21 @@ async def test_startup_moves_an_old_firmware_source_into_its_tag_directory(app, 
     assert row["path"] == str(source_dir)
     assert row["status"] == "ready"
     assert row["installed_at"] == "2026-10-01T12:00:00+00:00"
-    assert row["size_bytes"] == len("[platformio]\n") + len("int main() {}\n")
+    # The size counts the scan file that the import writes.
+    scan_size = (source_dir / SCAN_FILE).stat().st_size
+    assert row["size_bytes"] == len("[platformio]\n") + len("int main() {}\n") + scan_size
+
+
+async def test_import_stores_the_userprefs_keys_of_the_old_firmware_source(settings, monkeypatch):
+    await init_db(settings)
+    _old_layout(settings, STABLE)
+    (settings.firmware_dir / "userPrefs.jsonc").write_text('{\n  // "USERPREFS_EVENT_MODE": "1",\n}\n')
+    _newest_stable(monkeypatch, STABLE)
+
+    import_old_firmware_source(settings, FirmwareCatalog().resolve)
+
+    scan = json.loads((settings.firmware_dir / STABLE / SCAN_FILE).read_text())
+    assert scan["keys"] == ["USERPREFS_EVENT_MODE"]
 
 
 async def test_import_gives_channel_pinned_when_the_tag_is_not_the_newest_stable(settings, monkeypatch):

@@ -160,3 +160,10 @@ PACKET_SIGNATURE_POLICIES = MeshtasticEnum(
         "PACKET_SIGNATURE_POLICY_STRICT": "Strict - Require Signatures",
     },
 )
+
+# The C name of each value that the form offers, so a check can find an enum value in the generator output.
+ENUM_C_VALUES = frozenset(
+    value
+    for enum in (REGIONS, MODEM_PRESETS, ROLES, REBROADCAST_MODES, GPS_MODES, PACKET_SIGNATURE_POLICIES)
+    for value, _label in enum.options()
+)

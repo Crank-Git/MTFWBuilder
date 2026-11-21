@@ -8,7 +8,9 @@ import json
 from typing import Any
 
 from mtfwbuilder.key_bytes import ADMIN_KEY_LENGTH, byte_array, decode_key
+from mtfwbuilder.meshtastic_enums import ENUM_C_VALUES
 from mtfwbuilder.models import CHANNEL_SLOTS, MESH_BEACON_TARGETS
+from mtfwbuilder.services.userprefs_keys import KeyScan
 from mtfwbuilder.time_zones import to_posix_tz
 
 ADMIN_KEY_SLOTS = 3
@@ -70,7 +72,7 @@ VERSION_GATED_KEYS = frozenset(
 )
 
 # The gated keys that firmware v2.7.26.54e0d8d reads: `src/mesh/Channels.cpp` reads channels 0 to 2, without muted.
-# TODO(#46): Replace this default with the key set of the firmware version that the operator chooses.
+# The routes pass the key scan of the chosen firmware version. This default applies when no key scan exists.
 DEFAULT_FIRMWARE_KEYS = frozenset(
     f"USERPREFS_CHANNEL_{n}_{suffix}"
     for n in range(3)
@@ -93,6 +95,110 @@ _TELEMETRY_SECURITY_EVENT_KEYS = {
     "ringtone_rtttl": "USERPREFS_RINGTONE_RTTTL",
     "ringtone_nag_secs": "USERPREFS_RINGTONE_NAG_SECS",
 }
+
+
+# The location of the `ConfigRequest` field that writes each userPrefs key, for a field error.
+KEY_FIELDS: dict[str, tuple[str, ...]] = (
+    {
+        "USERPREFS_CHANNELS_TO_WRITE": ("channels_to_write",),
+        "USERPREFS_CONFIG_OWNER_SHORT_NAME": ("owner_short_name",),
+        "USERPREFS_CONFIG_OWNER_LONG_NAME": ("owner_long_name",),
+        "USERPREFS_TZ_STRING": ("tz_string",),
+        "USERPREFS_FIXED_BLUETOOTH": ("bluetooth_fixed_pin",),
+        "USERPREFS_CONFIG_DEVICE_ROLE": ("device_role",),
+        "USERPREFS_CONFIG_DEVICE_REBROADCAST_MODE": ("device_rebroadcast_mode",),
+        "USERPREFS_CONFIG_DEVICE_NODE_INFO_BROADCAST_SECS": ("node_info_broadcast_secs",),
+        "USERPREFS_NODEINFO_REPLY_SUPPRESS_SECS": ("node_info_reply_suppress_secs",),
+        "USERPREFS_CONFIG_LORA_REGION": ("lora_region",),
+        "USERPREFS_LORACONFIG_MODEM_PRESET": ("lora_modem_preset",),
+        "USERPREFS_LORACONFIG_CHANNEL_NUM": ("lora_channel_num",),
+        "USERPREFS_CONFIG_LORA_IGNORE_MQTT": ("lora_ignore_mqtt",),
+        "USERPREFS_LORACONFIG_TX_POWER": ("lora_tx_power",),
+        "USERPREFS_LORA_TX_DISABLED": ("lora_tx_disabled",),
+        "USERPREFS_CONFIG_LORA_CONFIG_OK_TO_MQTT": ("lora_config_ok_to_mqtt",),
+        "USERPREFS_CONFIG_GPS_MODE": ("gps_mode",),
+        "USERPREFS_CONFIG_GPS_UPDATE_INTERVAL": ("gps_update_interval",),
+        "USERPREFS_CONFIG_POSITION_BROADCAST_INTERVAL": ("position_broadcast_interval",),
+        "USERPREFS_FIXED_GPS": ("fixed_position",),
+        "USERPREFS_FIXED_GPS_LAT": ("fixed_lat",),
+        "USERPREFS_FIXED_GPS_LON": ("fixed_lon",),
+        "USERPREFS_FIXED_GPS_ALT": ("fixed_alt",),
+        "USERPREFS_CONFIG_SMART_POSITION_ENABLED": ("smart_position_enabled",),
+        "USERPREFS_NETWORK_ENABLED_PROTOCOLS": ("network_protocols",),
+        "USERPREFS_NETWORK_WIFI_ENABLED": ("wifi_enabled",),
+        "USERPREFS_NETWORK_WIFI_SSID": ("wifi_ssid",),
+        "USERPREFS_NETWORK_WIFI_PSK": ("wifi_psk",),
+        "USERPREFS_NETWORK_IPV6_ENABLED": ("network_ipv6_enabled",),
+        "USERPREFS_MQTT_ENABLED": ("mqtt_enabled",),
+        "USERPREFS_MQTT_ADDRESS": ("mqtt_address",),
+        "USERPREFS_MQTT_ROOT_TOPIC": ("mqtt_root_topic",),
+        "USERPREFS_MQTT_USERNAME": ("mqtt_username",),
+        "USERPREFS_MQTT_PASSWORD": ("mqtt_password",),
+        "USERPREFS_MQTT_ENCRYPTION_ENABLED": ("mqtt_encryption_enabled",),
+        "USERPREFS_MQTT_TLS_ENABLED": ("mqtt_tls_enabled",),
+        "USERPREFS_OEM_TEXT": ("oem_text",),
+        "USERPREFS_OEM_FONT_SIZE": ("oem_font_size",),
+        "USERPREFS_OEM_IMAGE_WIDTH": ("oem_image_width",),
+        "USERPREFS_OEM_IMAGE_HEIGHT": ("oem_image_height",),
+        "USERPREFS_OEM_IMAGE_DATA": ("oem_image_data",),
+        "USERPREFS_BUTTON_PIN": ("button_pin",),
+        "USERPREFS_EVENT_MODE": ("event_mode",),
+        "USERPREFS_CANNED_MESSAGES": ("canned_messages",),
+        _MESH_BEACON_PSK_KEY: ("mesh_beacon_offer_channel_psk",),
+    }
+    | {f"USERPREFS_USE_ADMIN_KEY_{n}": (f"admin_key_{n}",) for n in range(ADMIN_KEY_SLOTS)}
+    | {
+        f"USERPREFS_CHANNEL_{n}_{suffix}": (f"channel_{n}", field)
+        for n in range(CHANNEL_SLOTS)
+        for field, suffix in _CHANNEL_KEY_SUFFIXES.items()
+    }
+    | {key: (field,) for field, key in _TELEMETRY_SECURITY_EVENT_KEYS.items()}
+    | {key: (field,) for field, key in _MESH_BEACON_KEYS.items()}
+)
+
+# Upstream `src/mesh/generated/meshtastic/cannedmessages.pb.h` gives `char messages[201]`.
+# `CannedMessageModule.cpp` puts a terminator in the last byte, so 200 bytes of text remain.
+MAX_CANNED_MESSAGES_BYTES = 200
+# Upstream `src/mesh/Channels.cpp` fails the build with a `static_assert` for any other channel 0 PSK length.
+EVENT_CHANNEL_PSK_LENGTHS = (16, 32)
+
+
+def version_errors(config_data: dict[str, Any], scan: KeyScan | None) -> list[tuple[tuple[str, ...], str]]:
+    """Return a `(field location, message)` pair for each part of the config that the firmware version rejects.
+
+    Args:
+        config_data: The flat form data, with `channel_N[field]` keys.
+        scan: The key scan of the chosen firmware version. None skips the checks of keys and enum values.
+
+    The checks are:
+    - The firmware version reads each key that the generator writes.
+    - The firmware source has each enum value that the generator writes.
+    - With block position on, the channel 0 PSK is 16 or 32 bytes.
+    - The joined canned messages are 200 bytes or fewer.
+    """
+    written = json.loads(generate_jsonc(config_data, firmware_keys=VERSION_GATED_KEYS))
+    errors = [] if scan is None else _scan_errors(written, scan)
+    firmware_keys = scan.keys if scan is not None else DEFAULT_FIRMWARE_KEYS
+    kept = {k: v for k, v in written.items() if k not in VERSION_GATED_KEYS or k in firmware_keys}
+    psk = kept.get("USERPREFS_CHANNEL_0_PSK")
+    block_position = kept.get("USERPREFS_BLOCK_POSITION_ON_EVENT_CHANNEL") == "true"
+    if block_position and psk is not None and len(decode_key(psk)) not in EVENT_CHANNEL_PSK_LENGTHS:
+        errors.append((("channel_0", "psk"), "with Block Position on, the channel 0 PSK must be 16 or 32 bytes"))
+    if len(kept.get("USERPREFS_CANNED_MESSAGES", "").encode()) > MAX_CANNED_MESSAGES_BYTES:
+        errors.append((("canned_messages",), f"the messages are more than {MAX_CANNED_MESSAGES_BYTES} bytes"))
+    return errors
+
+
+def _scan_errors(written: dict[str, str], scan: KeyScan) -> list[tuple[tuple[str, ...], str]]:
+    """Return a field error for each written key that the firmware version does not read or has no value of."""
+    errors = []
+    for key, value in written.items():
+        location = KEY_FIELDS.get(key, (key,))
+        if key not in scan.keys:
+            errors.append((location, f"firmware version {scan.version} does not read {key}"))
+        elif scan.enum_values is not None and value in ENUM_C_VALUES and value not in scan.enum_values:
+            errors.append((location, f"firmware version {scan.version} has no value {value}"))
+    return errors
 
 
 def generate_jsonc(config_data: dict[str, Any], firmware_keys: frozenset[str] = DEFAULT_FIRMWARE_KEYS) -> str:

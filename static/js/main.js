@@ -191,6 +191,23 @@ document.addEventListener('DOMContentLoaded', function() {
         channelsToWrite.dispatchEvent(new Event('change'));
     }
 
+    // The server renders the form for the default firmware version, so a change of version asks for its key scan.
+    const versionSelect = document.getElementById('firmware_version');
+    if (versionSelect && versionSelect.value) {
+        const loadKeyScan = () => {
+            fetch(`/api/v1/userprefs/keys?version=${encodeURIComponent(versionSelect.value)}`)
+                .then(response => (response.ok ? response.json() : null))
+                .then(scan => { if (scan) applyKeyScan(scan); });
+        };
+        versionSelect.addEventListener('change', loadKeyScan);
+        // The browser can keep the chosen version after a reload, and then the rendered form is for another version.
+        if (versionSelect.value !== versionSelect.dataset.renderedVersion) {
+            loadKeyScan();
+        } else {
+            updateUnreadNotes(versionSelect.value);
+        }
+    }
+
     document.querySelectorAll('.generate-psk-btn').forEach(button => {
         button.addEventListener('click', function() {
             const targetInput = document.getElementById(this.getAttribute('data-target'));
@@ -200,6 +217,62 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+/**
+ * Show only the controls, enum values and channel slots that one firmware version reads (FR-config-coverage-16).
+ *
+ * A hidden part is also disabled, so the form sends no value for a key that the firmware version does not read.
+ * `routers/pages.py` applies the same rules when it renders the page. A null list shows everything.
+ */
+function applyKeyScan(scan) {
+    const keys = scan.keys === null ? null : new Set(scan.keys);
+    const values = scan.enum_values === null ? null : new Set(scan.enum_values);
+    const setAbsent = (element, absent) => { element.hidden = absent; element.disabled = absent; };
+    const slotRead = slot => keys === null || [...keys].some(key => key.startsWith(`USERPREFS_CHANNEL_${slot}_`));
+
+    document.querySelectorAll('#configForm fieldset[data-userprefs-key]').forEach(fieldset => {
+        setAbsent(fieldset, keys !== null && !keys.has(fieldset.dataset.userprefsKey));
+    });
+    document.querySelectorAll('#configForm option[value^="meshtastic_"]').forEach(option => {
+        setAbsent(option, values !== null && !values.has(option.value));
+    });
+    document.querySelectorAll('#channelTabsList [data-channel-slot]').forEach(tab => {
+        tab.hidden = !slotRead(Number(tab.dataset.channelSlot));
+    });
+    document.querySelectorAll('#channelsToWrite option').forEach(option => {
+        const count = Number(option.value);
+        setAbsent(option, count > 0 && !slotRead(count - 1));
+    });
+    // A disabled option sends no value, so a select on a removed option moves to the last option that remains.
+    document.querySelectorAll('#configForm select').forEach(select => {
+        if (select.selectedOptions[0] && select.selectedOptions[0].disabled) {
+            const remaining = Array.from(select.options).filter(option => !option.disabled);
+            if (remaining.length) {
+                select.value = remaining[select.id === 'channelsToWrite' ? remaining.length - 1 : 0].value;
+            }
+        }
+    });
+    document.getElementById('channelsToWrite').dispatchEvent(new Event('change'));
+    updateUnreadNotes(scan.version);
+    document.getElementById('configForm').dataset.firmwareVersion = scan.version;
+}
+
+/** Put a note at the bottom of each form section that counts its hidden controls. */
+function updateUnreadNotes(version) {
+    document.querySelectorAll('#configForm .config-section').forEach(section => {
+        const count = section.querySelectorAll('fieldset[data-userprefs-key][hidden]').length;
+        let note = section.querySelector(':scope > .unread-note');
+        if (!note) {
+            note = document.createElement('p');
+            note.className = 'unread-note form-text text-muted mb-0';
+            section.append(note);
+        }
+        note.hidden = count === 0;
+        note.textContent = count === 1
+            ? `1 setting is not available in ${version}.`
+            : `${count} settings are not available in ${version}.`;
+    });
+}
 
 /**
  * Return a new 32-byte PSK as base64 (FR-frontend-htmx-18).
