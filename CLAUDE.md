@@ -47,6 +47,15 @@ uvicorn mtfwbuilder.main:app --reload --port 5000   # dev server
 docker compose up -d           # Docker
 ```
 
+Docker operations, for the `mtfwbuilder` service in `docker-compose.yml`:
+
+```bash
+docker compose logs -f                      # follow the container logs
+docker compose exec mtfwbuilder /bin/bash   # open a shell in the running container
+docker compose ps                           # show the container status
+git pull && docker compose build --no-cache && docker compose up -d   # update and rebuild
+```
+
 The project has no real PlatformIO in tests. Tests use a fake `pio` (feature 06).
 
 ## Branch model: dev-and-live
