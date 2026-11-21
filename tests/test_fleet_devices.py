@@ -49,8 +49,11 @@ async def test_a_csv_of_3_rows_with_one_bad_role_shows_one_error_that_names_row_
 
 
 async def test_a_csv_with_an_error_saves_no_fleet_device(client, fleet_id):
-    await client.post(f"/api/v1/fleets/{fleet_id}/devices/csv", json=_csv("gate-1,heltec-v3", "gate-2,,,,ROUTER"))
+    response = await client.post(
+        f"/api/v1/fleets/{fleet_id}/devices/csv", json=_csv("gate-1,heltec-v3", "gate-2,,,,ROUTER")
+    )
 
+    assert _row_errors(response) == [(2, "role", ROUTER_ROLE_MESSAGE)]
     assert await _labels(client, fleet_id) == []
 
 
@@ -160,6 +163,7 @@ async def test_a_csv_for_an_unknown_fleet_returns_404(client, fleet_id):
     response = await client.post(f"/api/v1/fleets/{fleet_id + 1}/devices/csv", json=_csv("a"))
 
     assert response.status_code == 404
+    assert response.json() == {"detail": f"Fleet {fleet_id + 1} does not exist"}
 
 
 async def test_put_devices_replaces_every_fleet_device(client, fleet_id):
@@ -248,3 +252,4 @@ async def test_fleet_page_for_an_unknown_fleet_returns_404(client):
     response = await client.get("/fleets/999")
 
     assert response.status_code == 404
+    assert response.json() == {"detail": "Fleet 999 does not exist"}
