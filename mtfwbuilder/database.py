@@ -64,6 +64,18 @@ CREATE INDEX IF NOT EXISTS idx_builds_status ON builds(status);
 CREATE INDEX IF NOT EXISTS idx_builds_created ON builds(created_at);
 """
 
+# The times are Unix seconds, so the TTL check of the build cache compares numbers.
+CACHE_ENTRIES_SCHEMA = """
+CREATE TABLE IF NOT EXISTS cache_entries (
+    config_hash TEXT PRIMARY KEY,
+    firmware_version TEXT NOT NULL,
+    variant TEXT NOT NULL,
+    artifact_dir TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    last_used_at REAL NOT NULL
+);
+"""
+
 # `CREATE TABLE IF NOT EXISTS` does not change a table that exists, so an older database gets these columns here.
 ADDED_BUILD_COLUMNS = {"config_hash": "TEXT", "firmware_version": "TEXT"}
 
@@ -117,6 +129,7 @@ async def init_db(settings: Settings) -> None:
     """Create the tables, and add the columns that an older database does not have."""
     async with aiosqlite.connect(settings.database_path) as db:
         await db.executescript(SCHEMA)
+        await db.executescript(CACHE_ENTRIES_SCHEMA)
         cursor = await db.execute("PRAGMA table_info(builds)")
         columns = {row[1] for row in await cursor.fetchall()}
         for name, sql_type in ADDED_BUILD_COLUMNS.items():

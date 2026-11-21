@@ -1,4 +1,4 @@
-"""Build artifact cleanup, and the scrub of the firmware source after a build."""
+"""Build artifact cleanup, build cache cleanup, and the scrub of the firmware source after a build."""
 
 from __future__ import annotations
 
@@ -10,6 +10,8 @@ import time
 from collections.abc import Callable, Collection
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from mtfwbuilder.services.build_cache import remove_expired_entries
 
 if TYPE_CHECKING:
     # config.py imports this module to scrub an old firmware source at startup.
@@ -48,9 +50,13 @@ def cleanup_old_builds(settings: Settings, keep: Collection[str] = ()) -> int:
 
 
 async def cleanup_every_interval(settings: Settings, unended_build_ids: Callable[[], Collection[str]]) -> None:
-    """Remove the old build directories now, then again each `cleanup_interval_seconds`, until cancelled."""
+    """Remove the old build directories and the expired cache entries now, then each `cleanup_interval_seconds`.
+
+    The task runs until it is cancelled.
+    """
     while True:
         cleanup_old_builds(settings, keep=unended_build_ids())
+        await remove_expired_entries(settings)
         await asyncio.sleep(settings.cleanup_interval_seconds)
 
 
