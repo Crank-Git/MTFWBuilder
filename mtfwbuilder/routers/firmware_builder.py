@@ -1,13 +1,15 @@
 """Firmware builder API routes — build, download, SSE progress."""
 
+import json
 import logging
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from pydantic import ValidationError
 from sse_starlette.sse import EventSourceResponse
 
+from mtfwbuilder.htmx import fragment_or_json, is_htmx
 from mtfwbuilder.models import Artifact, ConfigRequest
 from mtfwbuilder.rate_limit import limiter
 from mtfwbuilder.services import build_service
@@ -20,12 +22,22 @@ router = APIRouter(prefix="/api/v1", tags=["firmware"])
 
 # The same 64 KB limit as the preview-userprefs route.
 MAX_UPLOAD_SIZE = 65536
+QUEUE_FULL_NOTICE = "The build queue is full. Try again in a few minutes."
+# The steps of a build before its ended build status, in build order.
+RUN_STEPS = ("queued", "compiling", "linking", "packaging")
 
 
 @router.post("/build-firmware", status_code=202)
 @limiter.limit("5/minute")
-async def start_build(request: Request):
+async def start_build(request: Request) -> Response:
     """Put a build in the build queue, and return its build id and progress stream URL.
+
+    An htmx request gets the progress panel of the build, and the page URL changes to `/?build=<id>`.
+    The form gives the config in one of three ways, by `config_source`:
+
+    - `form`: the fields of the config form.
+    - `current`: one field `config_json` that holds the config as JSON.
+    - `upload` (the default): one field `userPrefs` that holds a userPrefs file.
 
     Returns 400 for a bad form, 422 with field errors for an invalid config, and 503 when the
     build queue is full. The route validates the config before the build goes in the build queue.
@@ -39,18 +51,78 @@ async def start_build(request: Request):
     if not registry.exists(variant_id):
         raise HTTPException(status_code=400, detail=f"Unknown device variant: {variant_id}")
     variant = registry.get(variant_id)
-
-    if form.get("config_source", "upload") == "current":
-        config_content = _config_from_json(form.get("config_json") or form.get("stored_config"))
-    else:
-        config_content = await _config_from_upload(form.get("userPrefs"))
+    config_content = await _config_content(form)
 
     try:
         ctx = request.app.state.build_queue.submit(variant, config_content)
     except build_service.BuildQueueFull as e:
+        if is_htmx(request):
+            return request.app.state.templates.TemplateResponse(
+                request, "partials/build_notice.html", {"notice": QUEUE_FULL_NOTICE}, status_code=503
+            )
         raise HTTPException(status_code=503, detail="Build queue is full. Try again later.") from e
 
-    return {"build_id": ctx.build_id, "progress_url": f"/api/v1/build-progress/{ctx.build_id}"}
+    data = {"build_id": ctx.build_id, "progress_url": progress_url(ctx.build_id)}
+    response = fragment_or_json(request, "partials/build_panel.html", panel_context(ctx), data, status_code=202)
+    # The page URL holds the build id, so a reload of the page shows the same build.
+    response.headers["HX-Push-Url"] = f"/?build={ctx.build_id}"
+    return response
+
+
+def progress_url(build_id: str) -> str:
+    return f"/api/v1/build-progress/{build_id}"
+
+
+def panel_context(ctx: build_service.BuildContext) -> dict:
+    """Return the template context of the progress panel of one build.
+
+    Each step has the text `done`, `current` or `waiting`, so the panel shows the build status
+    without color. A `failed` or `cancelled` build has no record of its last step, so its
+    earlier steps have no text.
+    """
+    if ctx.status in ("failed", "cancelled"):
+        steps = [(name, "") for name in RUN_STEPS] + [(ctx.status, "current")]
+    else:
+        names = [*RUN_STEPS, "complete"]
+        index = len(names) if ctx.status == "complete" else names.index(ctx.status)
+        steps = [
+            (name, "done" if i < index else "current" if i == index else "waiting") for i, name in enumerate(names)
+        ]
+    primary = build_service.primary_artifact(ctx.artifacts)
+    # The factory artifact goes first, because it is the preferred download.
+    artifacts = sorted(ctx.artifacts, key=lambda a: a is not primary)
+    return {
+        "build": ctx,
+        "steps": steps,
+        "artifacts": [(a, build_service.artifact_url(ctx.build_id, a.name)) for a in artifacts],
+        "progress_url": progress_url(ctx.build_id),
+        "source_missing": ctx.error == build_service.FIRMWARE_SOURCE_MISSING,
+    }
+
+
+async def _config_content(form) -> str:
+    """Return the userPrefs file of the build form, from the source that `config_source` names."""
+    source = form.get("config_source", "upload")
+    if source == "form":
+        fields = {k: v for k, v in form.items() if k not in ("variant", "config_source")}
+        return _validated(lambda: ConfigRequest.model_validate(fields))
+    if source == "current":
+        return _config_from_json(form.get("config_json") or form.get("stored_config"))
+    return await _config_from_upload(form.get("userPrefs"))
+
+
+def _validated(parse) -> str:
+    """Return the userPrefs file of the config that `parse` returns.
+
+    Raises a 422 field error when `ConfigRequest` rejects the config.
+    """
+    try:
+        config = parse()
+    except ValidationError as e:
+        # The same field locations as the download route, so the form puts each error next to its field.
+        errors = [{**error, "loc": ("body", *error["loc"])} for error in e.errors(include_url=False)]
+        raise RequestValidationError(errors) from e
+    return generate_jsonc(config.generator_input())
 
 
 def _config_from_json(config_json: str | None) -> str:
@@ -60,13 +132,7 @@ def _config_from_json(config_json: str | None) -> str:
     """
     if not config_json:
         raise HTTPException(status_code=400, detail="No configuration data provided")
-    try:
-        config = ConfigRequest.model_validate_json(config_json)
-    except ValidationError as e:
-        # The same field locations as the download route, so the form puts each error next to its field.
-        errors = [{**error, "loc": ("body", *error["loc"])} for error in e.errors(include_url=False)]
-        raise RequestValidationError(errors) from e
-    return generate_jsonc(config.generator_input())
+    return _validated(lambda: ConfigRequest.model_validate_json(config_json))
 
 
 async def _config_from_upload(upload) -> str:
@@ -109,6 +175,26 @@ async def build_progress(build_id: str, request: Request):
     if ctx is None:
         raise HTTPException(status_code=404, detail="Build not found")
     return EventSourceResponse(build_service.progress_events(ctx))
+
+
+@router.get("/builds/{build_id}")
+async def get_build(build_id: str, request: Request) -> Response:
+    """Return the build status of the build, as JSON or as the progress panel for htmx.
+
+    The panel calls this route on each `status` event of the progress stream. For a build that
+    has not ended, the fragment holds the steps, and the build log as an out-of-band swap.
+    For an ended build, the fragment is the whole panel without the progress stream.
+    Returns 404 for an unknown build.
+    """
+    ctx = _get_build(request, build_id)
+    data = {"build_id": ctx.build_id, **json.loads(ctx.status_event())}
+    if not ctx.ended:
+        return fragment_or_json(request, "partials/build_state.html", {**panel_context(ctx), "oob_log": True}, data)
+    response = fragment_or_json(request, "partials/build_panel.html", panel_context(ctx), data)
+    # A swap of the element that holds the progress stream closes the stream, so the browser does not reconnect.
+    response.headers["HX-Retarget"] = "#build-panel"
+    response.headers["HX-Reswap"] = "innerHTML"
+    return response
 
 
 @router.post("/builds/{build_id}/cancel")

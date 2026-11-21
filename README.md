@@ -136,6 +136,8 @@ Key endpoints:
 - `POST /api/v1/download` — Download `userPrefs.jsonc`
 - `POST /api/v1/build-firmware` — Start firmware build
 - `GET /api/v1/build-progress/{id}` — SSE build progress stream
+- `GET /api/v1/builds/{id}` — Build status of a build: `build_id`, `status`, `message`, `progress`, `error`, `download_url`
+- `POST /api/v1/builds/{id}/cancel` — Cancel a queued or running build
 - `GET /api/v1/builds/{id}/artifacts` — Artifact list of a build: `name`, `size`, `kind`
 - `GET /api/v1/builds/{id}/artifacts/{name}` — Download one artifact from the artifact list
 - `GET /api/v1/download-firmware/{id}` — Redirects (308) to the factory or primary artifact, for one release
@@ -148,6 +150,15 @@ The three config routes validate the body with `ConfigRequest`. An invalid body 
 for example `channel_0[psk]`. When the request has the header `HX-Request: true`, the
 preview returns an HTML fragment, and a 422 returns a fragment with the field errors.
 Every other request gets JSON.
+
+`/api/v1/build-firmware` takes the config by the form field `config_source`:
+
+- `form`: the config fields, as the config form posts them.
+- `current`: one field `config_json` that holds the config as JSON.
+- `upload` (the default): one field `userPrefs` that holds a userPrefs file.
+
+An htmx request to `/api/v1/build-firmware` or `/api/v1/builds/{id}` gets the progress
+panel as an HTML fragment. The page `/?build=<id>` shows the progress panel of that build.
 
 ## Docker
 
