@@ -1,5 +1,7 @@
 """Tests for authentication, sessions, and admin routes."""
 
+import time
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 from itsdangerous import TimestampSigner
@@ -53,18 +55,36 @@ class TestSessionTokens:
         assert not validate_session_token(token, settings2)
 
     def test_expired_token_rejected(self):
-        """A token validated with max_age shorter than its age is rejected."""
+        """A token older than session_max_age is rejected."""
         secret = "test-secret"
-        signer = TimestampSigner(secret)
-        token = signer.sign("admin").decode("utf-8")
+        signed_at = int(time.time()) - 10_000
 
-        # Valid with long max_age
-        settings_long = Settings(secret_key=secret, session_max_age=9999)
-        assert validate_session_token(token, settings_long)
+        class PastSigner(TimestampSigner):
+            # The token gets a fixed timestamp 10,000 seconds in the past, so its age
+            # is always larger than the 3,600-second limit below.
+            def get_timestamp(self) -> int:
+                return signed_at
 
-        # Tamper with the token to make it invalid (simulates expiry detection path)
-        bad_token = token[:-2] + "XX"
-        assert not validate_session_token(bad_token, settings_long)
+        token = PastSigner(secret).sign("admin").decode("utf-8")
+
+        # A limit larger than the age accepts the token, so only the age causes the rejection.
+        assert validate_session_token(token, Settings(secret_key=secret, session_max_age=99_999))
+        assert not validate_session_token(token, Settings(secret_key=secret, session_max_age=3600))
+
+    def test_tampered_signature_rejected(self):
+        """A token with one changed signature character is rejected."""
+        settings = Settings(secret_key="test-secret")
+        token = create_session_token(settings)
+        value, _, signature = token.rpartition(".")
+
+        # A middle character carries 6 full bits of the signature. The last character
+        # carries unused padding bits, so a change there can decode to the same bytes.
+        middle = len(signature) // 2
+        replacement = "B" if signature[middle] == "A" else "A"
+        bad_token = f"{value}.{signature[:middle]}{replacement}{signature[middle + 1 :]}"
+
+        assert bad_token != token
+        assert not validate_session_token(bad_token, settings)
 
 
 class TestAdminRoutes:
