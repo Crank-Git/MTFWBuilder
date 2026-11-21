@@ -346,9 +346,9 @@ class ConfigRequest(_UserPrefsFields):
     @field_validator("lora_channel_num")
     @classmethod
     def _check_channel_num(cls, value: str | None) -> str | None:
-        """Accept a channel number from 0 to the `uint32` maximum, where 0 lets the region pick the slot."""
+        """Accept a frequency slot from 0 to the `uint32` maximum, where 0 lets the region pick the slot."""
         if value and not (_is_whole_number(value) and int(value) <= MAX_UINT32):
-            raise ValueError(f"the channel number is not a whole number from 0 to {MAX_UINT32}")
+            raise ValueError(f"the frequency slot is not a whole number from 0 to {MAX_UINT32}")
         return value
 
     @field_validator(

@@ -6,7 +6,7 @@ from httpx import ASGITransport, AsyncClient
 from tests.test_config_enums import form_options
 
 PRECISION_MESSAGE = "Value error, the position precision is not a whole number from 0 to 32"
-CHANNEL_NUM_MESSAGE = "Value error, the channel number is not a whole number from 0 to 4294967295"
+CHANNEL_NUM_MESSAGE = "Value error, the frequency slot is not a whole number from 0 to 4294967295"
 
 
 @pytest.fixture
