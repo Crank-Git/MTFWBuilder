@@ -9,6 +9,7 @@ and welcomes contributions of all kinds.
 # Clone and set up
 git clone https://github.com/Crank-Git/MTFWBuilder.git
 cd MTFWBuilder
+# uv installs Python 3.13 and the dependencies: https://docs.astral.sh/uv/getting-started/installation/
 uv sync
 
 # Run the tests

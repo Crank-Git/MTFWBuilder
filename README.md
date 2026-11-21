@@ -39,6 +39,7 @@ Open `http://localhost:5000`
 ```bash
 git clone https://github.com/Crank-Git/MTFWBuilder.git
 cd MTFWBuilder
+# uv installs Python 3.13 and the dependencies: https://docs.astral.sh/uv/getting-started/installation/
 uv sync --no-dev
 uv run uvicorn mtfwbuilder.main:app --host 0.0.0.0 --port 5000
 ```
