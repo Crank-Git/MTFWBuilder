@@ -233,28 +233,47 @@ async def test_build_page_shows_every_control_when_the_firmware_source_has_no_ke
 # The 422 field errors of a firmware version
 
 
+CHANNELS_TO_WRITE = ("body", "channels_to_write")
+
+
 def _locations(resp) -> list[tuple]:
     return [tuple(error["loc"]) for error in resp.json()["detail"]]
 
 
 @pytest.mark.usefixtures("sources")
 @pytest.mark.parametrize(
-    ("fields", "location"),
+    ("fields", "locations"),
     [
-        ({"channels_to_write": "8", "channel_3": {"name": "Four"}}, ("body", "channel_3", "name")),
-        ({"channels_to_write": "8", "channel_7": {"psk": PSK_16}}, ("body", "channel_7", "psk")),
-        ({"mesh_beacon_message": "Join us"}, ("body", "mesh_beacon_message")),
-        ({"lora_enabled": "true", "lora_region": "ITU1_70CM"}, ("body", "lora_region")),
+        ({"channels_to_write": "8", "channel_3": {"name": "Four"}}, [("body", "channel_3", "name"), CHANNELS_TO_WRITE]),
+        ({"channels_to_write": "8", "channel_7": {"psk": PSK_16}}, [("body", "channel_7", "psk"), CHANNELS_TO_WRITE]),
+        ({"channels_to_write": "4"}, [CHANNELS_TO_WRITE]),
+        ({"mesh_beacon_message": "Join us"}, [("body", "mesh_beacon_message")]),
+        ({"lora_enabled": "true", "lora_region": "ITU1_70CM"}, [("body", "lora_region")]),
     ],
 )
 @pytest.mark.parametrize("route", ["/api/v1/preview", "/api/v1/download", "/api/v1/generate"])
 async def test_config_route_rejects_a_field_that_firmware_version_v2_7_20_does_not_read(
-    client, route, fields, location
+    client, route, fields, locations
 ):
     resp = await client.post(route, json={**fields, "firmware_version": OLD})
 
     assert resp.status_code == 422
-    assert _locations(resp) == [location]
+    assert _locations(resp) == locations
+
+
+@pytest.mark.usefixtures("sources")
+async def test_preview_names_the_channel_slots_that_the_firmware_version_reads(client):
+    resp = await client.post("/api/v1/preview", json={"channels_to_write": "4", "firmware_version": OLD})
+
+    assert resp.json()["detail"][0]["msg"] == f"firmware version {OLD} reads 3 channel slots"
+
+
+@pytest.mark.usefixtures("sources")
+@pytest.mark.parametrize(("version", "count"), [(OLD, "3"), (NEW, "8")])
+async def test_preview_accepts_each_channel_slot_that_the_firmware_version_reads(client, version, count):
+    resp = await client.post("/api/v1/preview", json={"channels_to_write": count, "firmware_version": version})
+
+    assert resp.status_code == 200
 
 
 @pytest.mark.usefixtures("sources")
@@ -295,7 +314,7 @@ async def test_build_rejects_a_field_that_the_firmware_version_does_not_read(app
     resp = await client.post("/api/v1/build-firmware", data=form)
 
     assert resp.status_code == 422
-    assert _locations(resp) == [("body", "channel_5", "psk")]
+    assert _locations(resp) == [("body", "channel_5", "psk"), CHANNELS_TO_WRITE]
     assert not app.state.build_queue._builds
 
 

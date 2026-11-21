@@ -172,12 +172,13 @@ def version_errors(config_data: dict[str, Any], scan: KeyScan | None) -> list[tu
 
     The checks are:
     - The firmware version reads each key that the generator writes.
+    - The firmware version reads each channel slot that `channels_to_write` counts.
     - The firmware source has each enum value that the generator writes.
     - With block position on, the channel 0 PSK is 16 or 32 bytes.
     - The joined canned messages are 200 bytes or fewer.
     """
     written = json.loads(generate_jsonc(config_data, firmware_keys=VERSION_GATED_KEYS))
-    errors = [] if scan is None else _scan_errors(written, scan)
+    errors = [] if scan is None else _scan_errors(written, scan) + _channel_slot_errors(config_data, scan)
     firmware_keys = scan.keys if scan is not None else DEFAULT_FIRMWARE_KEYS
     kept = {k: v for k, v in written.items() if k not in VERSION_GATED_KEYS or k in firmware_keys}
     psk = kept.get("USERPREFS_CHANNEL_0_PSK")
@@ -199,6 +200,17 @@ def _scan_errors(written: dict[str, str], scan: KeyScan) -> list[tuple[tuple[str
         elif scan.enum_values is not None and value in ENUM_C_VALUES and value not in scan.enum_values:
             errors.append((location, f"firmware version {scan.version} has no value {value}"))
     return errors
+
+
+def _channel_slot_errors(config_data: dict[str, Any], scan: KeyScan) -> list[tuple[tuple[str, ...], str]]:
+    """Return a field error when `channels_to_write` counts more channel slots than the firmware version reads.
+
+    For a counted slot without keys, upstream `src/mesh/Channels.cpp` writes a secondary channel with the default PSK.
+    """
+    slots = sum(any(key.startswith(f"USERPREFS_CHANNEL_{n}_") for key in scan.keys) for n in range(CHANNEL_SLOTS))
+    if int(config_data.get("channels_to_write", "1")) > slots:
+        return [(("channels_to_write",), f"firmware version {scan.version} reads {slots} channel slots")]
+    return []
 
 
 def generate_jsonc(config_data: dict[str, Any], firmware_keys: frozenset[str] = DEFAULT_FIRMWARE_KEYS) -> str:
