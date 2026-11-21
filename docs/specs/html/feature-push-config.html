@@ -182,10 +182,10 @@ body.rv-open .layout { padding-right:21rem; }
 </ul>
 <p><code>@meshtastic/transport-web-serial</code> and <code>@meshtastic/transport-web-bluetooth</code> (JSR) against <code>meshtastic-sdk</code> JS. It records the choice in an ADR.</p>
 <ul>
-<li>FR-push-config-2 — The project vendors the chosen library as one prebuilt ES module
+<li>FR-push-config-2 — The project vendors the chosen library under <code>static/vendor/</code> as
 </li>
 </ul>
-<p>under <code>static/vendor/</code>. The project has no JavaScript build step.</p>
+<p>one prebuilt ES module per package, joined by an import map. The project has no JavaScript build step.</p>
 <ul>
 <li>FR-push-config-3 — "Connect" opens the Web Serial port picker or the Web Bluetooth
 </li>
@@ -222,7 +222,7 @@ body.rv-open .layout { padding-right:21rem; }
 <li>FR-push-config-10 — Push config covers the <code>module_config</code> sections that have no
 </li>
 </ul>
-<p>userPrefs key: serial, store_forward, range_test, external_notification, neighbor_info, detection_sensor, paxcounter, status_message, traffic_management.</p>
+<p>userPrefs key: serial, store_forward, range_test, external_notification, neighbor_info, detection_sensor, paxcounter. The protobufs in <code>@meshtastic/core</code> 2.6.7 are 2.7.8. They have no <code>statusmessage</code> or <code>traffic_management</code> field, so push config does not cover those two sections (owner ruling on #70). A newer library can add them again.</p>
 <ul>
 <li>FR-push-config-11 — When the device has managed mode on, the page shows "This device
 </li>
@@ -284,19 +284,20 @@ body.rv-open .layout { padding-right:21rem; }
 <ul>
 <li>AdminMessage reference: protobufs <code>meshtastic/admin.proto</code> at tag <code>v2.8.3</code>.
 </li>
-<li>Library candidates (checked 2026-11-21):
+<li>Library: <code>@meshtastic/core</code> 2.6.7, <code>@meshtastic/transport-web-serial</code> 0.2.5 and
+</li>
+</ul>
+<p><code>@meshtastic/transport-web-bluetooth</code> 0.1.5 from npm, GPL-3.0-only (ADR 0008). The page loads them from <code>static/vendor/</code> as three esm.sh builds with an import map.</p>
 <ul>
-<li><code>@meshtastic/core</code> 2.6.6, <code>@meshtastic/transport-web-serial</code> 0.2.5,
+<li>The core build carries protobufs 2.7.8. It has no <code>ModuleConfig</code> fields
 </li>
 </ul>
-</li>
-</ul>
-<p><code>@meshtastic/transport-web-bluetooth</code> 0.1.2 on https://jsr.io/@meshtastic. GPL-3.0. The source repo <code>meshtastic/js</code> is archived.</p>
+<p><code>statusmessage</code> and <code>traffic_management</code> (ADR 0008).</p>
 <ul>
-<li><code>meshtastic-sdk</code> (https://github.com/meshtastic/meshtastic-sdk), Kotlin Multiplatform,
+<li><code>meshtastic-sdk</code> (https://github.com/meshtastic/meshtastic-sdk) has no JS release, so
 </li>
 </ul>
-<p>GPL-3.0. Its JS build is "snapshot only until 0.3.0".</p>
+<p>the project does not use it (ADR 0008).</p>
 <ul>
 <li>Web Bluetooth: Chrome and Edge on desktop and Android.
 </li>
@@ -339,10 +340,12 @@ body.rv-open .layout { padding-right:21rem; }
 <p>Pushes to many devices at once. Push over TCP/HTTP.</p>
 <h3 id="push-config-open-questions" class="callout-h">Open questions</h3>
 <ul>
-<li>Which library: decided by the spike in FR-push-config-1. Not blocking: the epic is
+<li>Which library: decided by the spike in FR-push-config-1 (ADR 0008).
+</li>
+<li>Vendor layout: three ES modules and an import map, by the owner ruling on #70
 </li>
 </ul>
-<p>last.</p><h2>Mockups</h2><p>Mockups convey intent — the rough shape a user will see. An implementer may diverge where framework conventions, components, accessibility, or a better idea serve the feature's requirements; the FRs and acceptance criteria are the contract, not the pixels.</p><div class="mockup"><iframe src="../mockups/08-push-config.html" loading="lazy"></iframe><p><a href="../mockups/08-push-config.html" target="_blank">Open ../mockups/08-push-config.html in new tab</a></p></div><nav class="pager">
+<p>(ADR 0008).</p><h2>Mockups</h2><p>Mockups convey intent — the rough shape a user will see. An implementer may diverge where framework conventions, components, accessibility, or a better idea serve the feature's requirements; the FRs and acceptance criteria are the contract, not the pixels.</p><div class="mockup"><iframe src="../mockups/08-push-config.html" loading="lazy"></iframe><p><a href="../mockups/08-push-config.html" target="_blank">Open ../mockups/08-push-config.html in new tab</a></p></div><nav class="pager">
 <a href="feature-fleet-builds.html">&larr; Feature: Fleet builds</a>
 <span></span>
 </nav>

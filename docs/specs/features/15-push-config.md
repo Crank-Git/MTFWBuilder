@@ -26,8 +26,9 @@ so the epic starts with a spike.
 - FR-push-config-1 — A spike compares `@meshtastic/core` with
   `@meshtastic/transport-web-serial` and `@meshtastic/transport-web-bluetooth` (JSR)
   against `meshtastic-sdk` JS. It records the choice in an ADR.
-- FR-push-config-2 — The project vendors the chosen library as one prebuilt ES module
-  under `static/vendor/`. The project has no JavaScript build step.
+- FR-push-config-2 — The project vendors the chosen library under `static/vendor/` as
+  one prebuilt ES module per package, joined by an import map. The project has no
+  JavaScript build step.
 - FR-push-config-3 — "Connect" opens the Web Serial port picker or the Web Bluetooth
   device picker.
 - FR-push-config-4 — After connect, the page reads the device's config, module config,
@@ -44,7 +45,9 @@ so the epic starts with a spike.
   commit, and reconnects when the port returns.
 - FR-push-config-10 — Push config covers the `module_config` sections that have no
   userPrefs key: serial, store_forward, range_test, external_notification, neighbor_info,
-  detection_sensor, paxcounter, status_message, traffic_management.
+  detection_sensor, paxcounter. The protobufs in `@meshtastic/core` 2.6.7 are 2.7.8.
+  They have no `statusmessage` or `traffic_management` field, so push config does not
+  cover those two sections (owner ruling on #70). A newer library can add them again.
 - FR-push-config-11 — When the device has managed mode on, the page shows "This device
   is managed. Only an admin key holder can change it remotely." and pushes nothing.
 - FR-push-config-12 — Secrets go only from the page to the device. The server receives
@@ -98,12 +101,13 @@ Mockup: [08-push-config](../mockups/08-push-config.html).
 ## Behaviour rules
 
 - AdminMessage reference: protobufs `meshtastic/admin.proto` at tag `v2.8.3`.
-- Library candidates (checked 2026-11-21):
-  - `@meshtastic/core` 2.6.6, `@meshtastic/transport-web-serial` 0.2.5,
-    `@meshtastic/transport-web-bluetooth` 0.1.2 on https://jsr.io/@meshtastic. GPL-3.0.
-    The source repo `meshtastic/js` is archived.
-  - `meshtastic-sdk` (https://github.com/meshtastic/meshtastic-sdk), Kotlin Multiplatform,
-    GPL-3.0. Its JS build is "snapshot only until 0.3.0".
+- Library: `@meshtastic/core` 2.6.7, `@meshtastic/transport-web-serial` 0.2.5 and
+  `@meshtastic/transport-web-bluetooth` 0.1.5 from npm, GPL-3.0-only (ADR 0008).
+  The page loads them from `static/vendor/` as three esm.sh builds with an import map.
+- The core build carries protobufs 2.7.8. It has no `ModuleConfig` fields
+  `statusmessage` and `traffic_management` (ADR 0008).
+- `meshtastic-sdk` (https://github.com/meshtastic/meshtastic-sdk) has no JS release, so
+  the project does not use it (ADR 0008).
 - Web Bluetooth: Chrome and Edge on desktop and Android.
 
 ## Data touched
@@ -137,5 +141,6 @@ Pushes to many devices at once. Push over TCP/HTTP.
 
 ## Open questions
 
-- Which library: decided by the spike in FR-push-config-1. Not blocking: the epic is
-  last.
+- Which library: decided by the spike in FR-push-config-1 (ADR 0008).
+- Vendor layout: three ES modules and an import map, by the owner ruling on #70
+  (ADR 0008).
