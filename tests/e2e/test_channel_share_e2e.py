@@ -107,6 +107,23 @@ def test_default_key_psk_shows_as_default_key_1(page: Page, live_server: str):
     expect(page.locator("#channelSharePreview tbody tr").nth(0)).to_contain_text("Default key 1")
 
 
+def test_default_key_0_psk_shows_that_the_channel_has_no_encryption(page: Page, live_server: str):
+    page.goto(f"{live_server}/")
+    channel_set = apponly_pb2.ChannelSet()
+    channel_set.settings.add(name="Open", psk=b"\x00")
+
+    decode(page, channel_url(channel_set))
+
+    expect(page.locator("#channelSharePreview tbody tr").nth(0)).to_contain_text("Default key 0 (no encryption)")
+
+
+def test_psk_help_text_says_that_default_key_0_has_no_encryption(page: Page, live_server: str):
+    page.goto(f"{live_server}/")
+    open_tab(page, "channels")
+
+    expect(page.locator("#channel0PSKHelp")).to_contain_text("Default key 0 (no encryption)")
+
+
 def test_apply_fills_the_channels_and_the_lora_settings_of_the_url(page: Page, live_server: str):
     page.goto(f"{live_server}/")
     decode(page, channel_url(event_set()))
