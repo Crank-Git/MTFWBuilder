@@ -235,7 +235,10 @@ async def _firmware_version(settings: Settings, version: str | None) -> str:
 
 
 def _ended_status(statuses: list[str]) -> str:
-    """Return `complete`, `partial`, or `failed` when no fleet device has a complete build (FR-fleet-builds-17)."""
+    """Return the status of an ended fleet run from the build status of each fleet device (FR-fleet-builds-17).
+
+    The status is `complete` when every build is complete, `partial` when one or more is, and `failed` when none is.
+    """
     if all(status == "complete" for status in statuses):
         return "complete"
     return "partial" if "complete" in statuses else "failed"

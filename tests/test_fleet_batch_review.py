@@ -470,6 +470,20 @@ async def test_put_devices_matches_an_id_only_inside_its_own_fleet(client):
     assert [device["label"] for device in (await client.get(f"/api/v1/fleets/{first}")).json()["devices"]] == ["a"]
 
 
+async def test_put_devices_with_one_id_in_two_rows_gives_the_id_to_the_first_row_only(client):
+    fleet_id = await _editor_fleet(client)
+    saved = await client.put(f"/api/v1/fleets/{fleet_id}/devices", json={"devices": [{"label": "a"}]})
+    device_id = saved.json()["devices"][0]["id"]
+
+    rows = [{"id": device_id, "label": "a"}, {"id": device_id, "label": "b"}]
+    response = await client.put(f"/api/v1/fleets/{fleet_id}/devices", json={"devices": rows})
+
+    assert response.status_code == 200, response.text
+    ids = [device["id"] for device in response.json()["devices"]]
+    assert ids[0] == device_id
+    assert ids[1] != device_id
+
+
 async def test_the_device_routes_of_the_page_return_no_admin_key_to_an_admin_session(client, settings):
     fleet_id = await _editor_fleet(client)
     sign_in_admin(client, settings)

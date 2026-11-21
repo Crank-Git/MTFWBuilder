@@ -106,7 +106,10 @@ def _match_saved(devices: list[FleetDevice], saved: dict[int, tuple[str, str | N
     The id of the device decides first, so a rename keeps the fleet device. A device without the id of a saved
     fleet device of this fleet then gets the saved fleet device with its label, if no other device has it.
     """
-    matches = [device.id if device.id in saved else None for device in devices]
+    matches: list[int | None] = []
+    for device in devices:
+        # A request can name one id two times, and only the first device gets the saved fleet device then.
+        matches.append(device.id if device.id in saved and device.id not in matches else None)
     claimed = set(matches)
     by_label = {label: device_id for device_id, (label, _) in saved.items() if device_id not in claimed}
     for index, device in enumerate(devices):
