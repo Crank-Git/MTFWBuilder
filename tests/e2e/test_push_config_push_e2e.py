@@ -47,6 +47,9 @@ SENT_JS = """() => JSON.parse(JSON.stringify(window.__pushConfigTestDevice.sent,
   (key, value) => (value instanceof Uint8Array ? { $bytes: [...value] } : value)))"""
 READ_JS = """() => JSON.parse(JSON.stringify(window.__pushConfigTestDevice.read,
   (key, value) => (value instanceof Uint8Array ? { $bytes: [...value] } : value)))"""
+# Headless Chromium on Linux has no `navigator.bluetooth`, so the page hides Connect via Bluetooth (FR 3).
+# The fake device replaces the transport, so the stub needs no working method.
+WEB_BLUETOOTH = "Object.defineProperty(Navigator.prototype, 'bluetooth', { configurable: true, get: () => ({}) })"
 
 
 def connect(page: Page, url: str, profile_name: str, options: dict | None = None, read: dict = DEVICE) -> None:
@@ -56,6 +59,8 @@ def connect(page: Page, url: str, profile_name: str, options: dict | None = None
     """
     options = dict(options or {})
     control = options.pop("control", "#push-connect-usb")
+    if control == BLUETOOTH:
+        page.add_init_script(WEB_BLUETOOTH)
     page.add_init_script(FAKE_DEVICE % json.dumps({"managed": False, "read": read, **options}))
     open_push_config(page, url)
     page.select_option("#push-profile", label=profile_name)
