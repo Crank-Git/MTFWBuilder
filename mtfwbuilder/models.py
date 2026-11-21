@@ -1,12 +1,11 @@
 """Pydantic models for request/response validation."""
 
-import base64
-import binascii
 import re
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
+from mtfwbuilder.key_bytes import ADMIN_KEY_LENGTH, decode_key
 from mtfwbuilder.time_zones import to_posix_tz
 
 CHANNEL_SLOTS = 8
@@ -14,8 +13,9 @@ PSK_LENGTHS = (0, 1, 16, 32)
 
 # The form posts each channel field as a flat key, for example `channel_0[psk]`.
 _FLAT_CHANNEL_KEY = re.compile(r"(channel_[0-7])\[(\w+)\]")
-_HEX = re.compile(r"(?:[0-9a-fA-F]{2})+")
-_BYTE_LIST = re.compile(r"\{\s*(0x[0-9a-fA-F]{1,2}(?:\s*,\s*0x[0-9a-fA-F]{1,2})*)?\s*\}")
+
+# The generator writes these fields as `{ 0x.. }` byte arrays, so a `//` in base64 input never reaches the file.
+_BYTE_ARRAY_FIELDS = frozenset({"psk", "admin_key_0", "admin_key_1", "admin_key_2"})
 
 
 class _UserPrefsFields(BaseModel):
@@ -23,9 +23,9 @@ class _UserPrefsFields(BaseModel):
 
     @field_validator("*")
     @classmethod
-    def _reject_double_slash(cls, value: Any) -> Any:
+    def _reject_double_slash(cls, value: Any, info: ValidationInfo) -> Any:
         # The upstream parser removes all text after // on a line, so the device gets a cut value.
-        if isinstance(value, str) and "//" in value:
+        if isinstance(value, str) and "//" in value and info.field_name not in _BYTE_ARRAY_FIELDS:
             raise ValueError("the value contains //, which the firmware build reads as a comment")
         return value
 
@@ -43,19 +43,7 @@ class ChannelConfig(_UserPrefsFields):
     @classmethod
     def _check_psk_length(cls, value: str | None) -> str | None:
         """Accept a PSK in hex, `{ 0x.. }` or base64 form that is 0, 1, 16 or 32 bytes."""
-        psk = (value or "").strip()
-        byte_list = _BYTE_LIST.fullmatch(psk)
-        if not psk:
-            length = 0
-        elif _HEX.fullmatch(psk):
-            length = len(psk) // 2
-        elif byte_list:
-            length = len(byte_list[1].split(",")) if byte_list[1] else 0
-        else:
-            try:
-                length = len(base64.b64decode(psk, validate=True))
-            except binascii.Error:
-                raise ValueError("the PSK is not hex, base64 or a { 0x.. } byte list") from None
+        length = len(decode_key(value or ""))
         if length not in PSK_LENGTHS:
             raise ValueError("the PSK is not 0, 1, 16 or 32 bytes")
         return value
@@ -125,6 +113,11 @@ class ConfigRequest(_UserPrefsFields):
     oem_image_height: str | None = None
     oem_image_data: str | None = None
 
+    # Other settings
+    button_pin: str | None = None
+    button_pin_enabled: str | None = None
+    event_mode: str | None = None
+
     # Preview flag
     preview_only: bool = False
 
@@ -148,6 +141,14 @@ class ConfigRequest(_UserPrefsFields):
                 nested[key] = value
         return nested
 
+    @field_validator("admin_key_0", "admin_key_1", "admin_key_2")
+    @classmethod
+    def _check_admin_key_length(cls, value: str | None) -> str | None:
+        """Accept an admin key in hex, `{ 0x.. }` or base64 form that is 32 bytes."""
+        if value and len(decode_key(value)) != ADMIN_KEY_LENGTH:
+            raise ValueError(f"the admin key is not {ADMIN_KEY_LENGTH} bytes")
+        return value
+
     @field_validator("tz_string")
     @classmethod
     def _check_tz_string(cls, value: str | None) -> str | None:
@@ -157,6 +158,14 @@ class ConfigRequest(_UserPrefsFields):
         """
         if value:
             to_posix_tz(value)
+        return value
+
+    @field_validator("button_pin", "event_mode")
+    @classmethod
+    def _check_digits(cls, value: str | None) -> str | None:
+        # The upstream parser quotes a value that is not all digits, and the firmware build then fails.
+        if value and not value.isdecimal():
+            raise ValueError("the value is not a whole number")
         return value
 
     @field_validator("channels_to_write")
