@@ -426,15 +426,20 @@ body.rv-open .layout { padding-right:21rem; }
   expired --&gt; [*]</pre></div>
 <p>This is the planned build lifecycle. The <code>scrub</code> step runs on every transition into <code>complete</code>, <code>failed</code> and <code>cancelled</code>.</p>
 <h2 id="cross-cutting-concerns">Cross-cutting concerns</h2>
-<p><strong>Authentication and authorization (built).</strong> The admin password is a bcrypt hash in <code>config.yaml</code>. <code>POST /admin/login</code> sets the cookie <code>mtfw_session</code>: an itsdangerous signature of the string <code>admin</code>, HttpOnly, SameSite=Lax, Secure unless <code>debug</code>, max age 3600 s. Only <code>/api/v1/update-firmware</code> and <code>/api/v1/cleanup</code> require it. The project has no CSRF token. A cookie with <code>Secure</code> set does not work on plain HTTP, so admin sign-in fails on a default Docker install (<code>mtfwbuilder/routers/admin.py:44-51</code>).</p>
-<p><strong>Planned auth changes</strong> (feature <code>frontend-htmx</code> and <code>build-pipeline-repair</code>):</p>
+<p><strong>Authentication and authorization (built).</strong> The admin password is a bcrypt hash in <code>config.yaml</code>. <code>POST /admin/login</code> sets the cookie <code>mtfw_session</code>: an itsdangerous signature of the string <code>admin</code>, HttpOnly, SameSite=Lax, max age 3600 s. The cookie sets <code>Secure</code> only when the request scheme is <code>https</code>. Only <code>/api/v1/update-firmware</code> and <code>/api/v1/cleanup</code> require the session. The <code>/admin</code> page shows a sign-in form when no session exists.</p>
+<p><strong>CSRF (built, Epic 3).</strong> Each admin form carries the hidden field <code>csrf_token</code>. The token is the value of the cookie <code>mtfw_csrf</code>, signed with the same itsdangerous secret key. Sign-in sets a new <code>mtfw_csrf</code> value, so the token belongs to one session. Each admin POST without a valid token returns 403:</p>
 <ul>
-<li>The <code>/admin</code> page shows a sign-in form when no session exists.
+<li><code>/admin/login</code>
 </li>
-<li>The <code>Secure</code> flag follows the request scheme.
+<li><code>/admin/logout</code>
 </li>
-<li>Every state-changing admin form carries a CSRF token.
+<li><code>/api/v1/update-firmware</code>
 </li>
+<li><code>/api/v1/cleanup</code>
+</li>
+</ul>
+<p><strong>Planned auth changes</strong> (feature <code>build-pipeline-repair</code>):</p>
+<ul>
 <li>Build ids are random, so one operator cannot guess another operator's build.
 </li>
 </ul>
