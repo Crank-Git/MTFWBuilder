@@ -247,6 +247,23 @@ class FirmwareSource(BaseModel):
     status: str
 
 
+class AvailableFirmwareVersion(BaseModel):
+    """One upstream firmware version. `date` is None when the list comes from api.meshtastic.org."""
+
+    tag: str
+    title: str
+    date: str | None
+    revoked: bool
+
+
+class AvailableFirmwareVersions(BaseModel):
+    """The body of `GET /api/v1/firmware/available`: the upstream lists, each newest first."""
+
+    source: Literal["api.meshtastic.org", "github"]
+    stable: list[AvailableFirmwareVersion]
+    alpha: list[AvailableFirmwareVersion]
+
+
 class InstallRequest(BaseModel):
     """The body of `POST /api/v1/firmware/install`: one channel or one exact tag."""
 

@@ -98,7 +98,7 @@ MTFWBuilder/
 │   ├── routers/
 │   │   ├── config_generator.py     # /api/v1/generate, preview, download
 │   │   ├── firmware_builder.py     # /api/v1/build-firmware, SSE progress
-│   │   ├── firmware.py             # /api/v1/firmware, installed firmware versions
+│   │   ├── firmware.py             # /api/v1/firmware, installed and upstream firmware versions
 │   │   ├── admin.py                # Login, firmware updates, cleanup
 │   │   └── pages.py                # HTML page routes
 │   └── services/
@@ -106,6 +106,7 @@ MTFWBuilder/
 │       ├── build_service.py        # Async PlatformIO build pipeline
 │       ├── device_registry.py      # YAML device variant registry
 │       ├── firmware_updater.py     # GitHub firmware source downloads
+│       ├── firmware_catalog.py     # Upstream stable and alpha firmware versions
 │       └── cleanup_service.py      # Build artifact and PSK cleanup
 ├── devices/variants.yaml           # 62 device variants (single source of truth)
 ├── templates/                      # Jinja2 + htmx templates
@@ -143,6 +144,9 @@ Key endpoints:
 - `GET /api/v1/system-info` — Firmware version and status
 - `GET /api/v1/firmware` — Installed firmware versions, the newest first: `version`, `channel`
   (`stable`, `alpha` or `pinned`), `installed_at`, `size_bytes`, `status`
+- `GET /api/v1/firmware/available` (admin) — Upstream firmware versions, the newest first:
+  `source` (`api.meshtastic.org` or `github`), and the lists `stable` and `alpha`. Each
+  entry has `tag`, `title`, `date` and `revoked`. Returns 502 when both upstreams fail.
 
 The three config routes validate the body with `ConfigRequest`. An invalid body returns
 422 with field errors, for example `channel_0.psk`.

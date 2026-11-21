@@ -24,6 +24,7 @@ from mtfwbuilder.routers.pages import router as pages_router
 from mtfwbuilder.services.build_service import BuildQueue
 from mtfwbuilder.services.cleanup_service import cleanup_every_interval, scrub_sources_after_restart
 from mtfwbuilder.services.device_registry import DeviceRegistry
+from mtfwbuilder.services.firmware_catalog import FirmwareCatalog
 from mtfwbuilder.services.firmware_updater import FirmwareInstalls, import_old_firmware_source
 
 
@@ -85,7 +86,8 @@ async def lifespan(app: FastAPI):
     build_queue = BuildQueue(settings)
     build_queue.start()
     app.state.build_queue = build_queue
-    app.state.firmware_installs = FirmwareInstalls(settings, build_queue)
+    app.state.firmware_catalog = FirmwareCatalog()
+    app.state.firmware_installs = FirmwareInstalls(settings, build_queue, resolver=app.state.firmware_catalog.resolve)
     logger.info("Build queue started")
     cleanup_task = asyncio.create_task(cleanup_every_interval(settings, build_queue.unended_build_ids))
 
