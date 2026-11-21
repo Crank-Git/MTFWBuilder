@@ -5,6 +5,7 @@ import re
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
+from mtfwbuilder.auth import get_session_token, require_csrf, validate_session_token
 from mtfwbuilder.models import Profile, ProfileRequest, ProfileUpdate
 from mtfwbuilder.services import profiles
 
@@ -22,29 +23,68 @@ def _duplicate(name: str) -> HTTPException:
     return HTTPException(status_code=409, detail=f"A profile with the name {name} exists")
 
 
+def _is_admin(request: Request) -> bool:
+    token = get_session_token(request)
+    return bool(token) and validate_session_token(token, request.app.state.settings)
+
+
+async def _require_admin_to_store_secrets(request: Request) -> None:
+    """Raise 403 unless the request has an admin session and a valid CSRF token.
+
+    Raises:
+        HTTPException: 403 when the admin session is absent or expired, or the CSRF token is invalid.
+    """
+    if not _is_admin(request):
+        raise HTTPException(status_code=403, detail="An admin session is required to store secrets in a profile")
+    await require_csrf(request)
+
+
+async def _load(request: Request, profile_id: int) -> dict | None:
+    """Return the profile, with the stored secrets only for an admin session."""
+    settings = request.app.state.settings
+    admin = _is_admin(request)
+    profile = await profiles.get_profile(settings.database_path, profile_id, settings.secret_key if admin else None)
+    if profile is not None and profile["stores_secrets"] and not admin:
+        profile["warning"] = profiles.SIGN_IN_FOR_SECRETS
+    return profile
+
+
 @router.get("/profiles", response_model=list[Profile])
 async def get_profiles(request: Request):
-    """Return every profile in name order."""
+    """Return every profile in name order, without secrets, also for an admin session."""
     return await profiles.list_profiles(request.app.state.settings.database_path)
 
 
 @router.post("/profiles", status_code=201, response_model=Profile)
 async def post_profile(body: ProfileRequest, request: Request):
-    """Save the config as a profile without secrets (FR-fleet-builds-1 and -2).
+    """Save the config as a profile (FR-fleet-builds-1 to -3).
 
-    `must_reenter` in the response names each secret field that the save removed. Returns 409 when another
-    profile has the name, and 422 with field errors when `ConfigRequest` rejects the config.
+    Without `stores_secrets`, the save removes the secrets, and `must_reenter` names each removed field. With
+    `stores_secrets` true, the profile keeps the secrets encrypted. Returns:
+
+    - 403 when `stores_secrets` is true without an admin session and a valid CSRF token.
+    - 409 when another profile has the name.
+    - 422 with field errors when `ConfigRequest` rejects the config.
     """
+    if body.stores_secrets:
+        await _require_admin_to_store_secrets(request)
+    settings = request.app.state.settings
     try:
-        return await profiles.create_profile(request.app.state.settings.database_path, body.name, body.config)
+        profile_id = await profiles.create_profile(settings.database_path, settings.secret_key, body)
     except profiles.DuplicateProfileName:
         raise _duplicate(body.name) from None
+    return await _load(request, profile_id)
 
 
 @router.get("/profiles/{profile_id}", response_model=Profile)
 async def get_profile(profile_id: int, request: Request):
-    """Return the profile, or 404 when no profile has the id."""
-    profile = await profiles.get_profile(request.app.state.settings.database_path, profile_id)
+    """Return the profile, or 404 when no profile has the id.
+
+    The profile holds its stored secrets only for an admin session. Without one, `must_reenter` names the
+    stored secrets and `warning` asks for an admin sign-in. When the stored secrets do not decrypt with the
+    current `secret_key`, `must_reenter` names them and `warning` says so.
+    """
+    profile = await _load(request, profile_id)
     if profile is None:
         raise _not_found(profile_id)
     return profile
@@ -52,20 +92,28 @@ async def get_profile(profile_id: int, request: Request):
 
 @router.put("/profiles/{profile_id}", response_model=Profile)
 async def put_profile(profile_id: int, body: ProfileUpdate, request: Request):
-    """Rename the profile, replace its config without secrets, or both (FR-fleet-builds-4).
+    """Rename the profile, replace its config, change its store secrets option, or more of them (FR-fleet-builds-4).
 
-    A new config replaces the saved config in full. Returns 404 when no profile has the id, and 409 when another
-    profile has the new name.
+    A new config replaces the saved config in full. Returns:
+
+    - 403 when the change stores secrets without an admin session and a valid CSRF token.
+    - 404 when no profile has the id.
+    - 409 when another profile has the new name.
     """
+    settings = request.app.state.settings
+    saved = await profiles.get_profile(settings.database_path, profile_id, None)
+    if saved is None:
+        raise _not_found(profile_id)
+    stores = saved["stores_secrets"] if body.stores_secrets is None else body.stores_secrets
+    if stores and (body.config is not None or body.stores_secrets):
+        await _require_admin_to_store_secrets(request)
     try:
-        profile = await profiles.update_profile(
-            request.app.state.settings.database_path, profile_id, body.name, body.config
-        )
+        found = await profiles.update_profile(settings.database_path, settings.secret_key, profile_id, body)
     except profiles.DuplicateProfileName:
         raise _duplicate(body.name) from None
-    if profile is None:
+    if not found:
         raise _not_found(profile_id)
-    return profile
+    return await _load(request, profile_id)
 
 
 @router.delete("/profiles/{profile_id}", status_code=204)
@@ -79,7 +127,8 @@ async def delete_profile(profile_id: int, request: Request) -> Response:
 @router.get("/profiles/{profile_id}/export")
 async def export_profile(profile_id: int, request: Request) -> JSONResponse:
     """Send the profile as a JSON file with `name`, `config` and `must_reenter`, and without secrets."""
-    profile = await profiles.get_profile(request.app.state.settings.database_path, profile_id)
+    # An export file leaves the server, so it never holds a secret or the encrypted secrets.
+    profile = await profiles.get_profile(request.app.state.settings.database_path, profile_id, None)
     if profile is None:
         raise _not_found(profile_id)
     content = {key: profile[key] for key in ("name", "config", "must_reenter")}

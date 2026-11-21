@@ -36,6 +36,7 @@ dependencies = [
     "sse-starlette>=1.8.0",
     "slowapi>=0.1.9",
     "platformio>=6.2.0",
+    "cryptography>=50.0.2",
 ]
 
 # uv installs the dev group by default, so `uv sync` gives a full test environment.
