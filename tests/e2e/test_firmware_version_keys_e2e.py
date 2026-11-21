@@ -8,7 +8,7 @@ from playwright.sync_api import Page, expect
 
 from mtfwbuilder.database import record_firmware_source
 from tests.conftest import REPO_ROOT
-from tests.e2e.conftest import _free_port, _serve, _server_env
+from tests.e2e.conftest import _free_port, _serve, _server_env, open_tab
 from tests.test_config_mesh_beacon import UPSTREAM_KEYS as MESH_BEACON_KEYS
 
 pytestmark = pytest.mark.e2e
@@ -51,7 +51,7 @@ def test_with_firmware_version_v2_7_20_chosen_no_mesh_beacon_control_shows(page:
     page.goto(f"{versions_server}/")
 
     expect(page.locator("#meshBeaconSection fieldset[data-userprefs-key]:visible")).to_have_count(0)
-    expect(page.locator("#meshBeaconSection .unread-note")).to_have_text(
+    expect(page.locator("#config-pane-mesh-beacon .unread-note")).to_have_text(
         f"{len(MESH_BEACON_KEYS)} settings are not available in {OLD}."
     )
 
@@ -60,15 +60,17 @@ def test_a_change_of_firmware_version_shows_the_controls_that_the_version_reads(
     page.goto(f"{versions_server}/")
 
     page.select_option("#firmware_version", NEW)
+    open_tab(page, "mesh-beacon")
 
     expect(page.locator("#configForm")).to_have_attribute("data-firmware-version", NEW)
     expect(page.locator("#meshBeaconMessage")).to_be_visible()
-    expect(page.locator("#meshBeaconSection .unread-note")).to_be_hidden()
+    expect(page.locator("#config-pane-mesh-beacon .unread-note")).to_be_hidden()
 
 
 def test_preview_after_a_change_back_to_v2_7_20_sends_no_mesh_beacon_value(page: Page, versions_server: str):
     page.goto(f"{versions_server}/")
     page.select_option("#firmware_version", NEW)
+    open_tab(page, "mesh-beacon")
     page.fill("#meshBeaconMessage", "Join us")
 
     page.select_option("#firmware_version", OLD)
@@ -81,6 +83,7 @@ def test_preview_after_a_change_back_to_v2_7_20_sends_no_mesh_beacon_value(page:
 
 def test_channel_tabs_follow_the_channel_slots_of_the_firmware_version(page: Page, versions_server: str):
     page.goto(f"{versions_server}/")
+    open_tab(page, "channels")
 
     page.select_option("#channelsToWrite", "3")
 

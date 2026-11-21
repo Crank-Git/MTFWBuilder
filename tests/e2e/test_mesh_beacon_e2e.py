@@ -3,11 +3,14 @@
 import pytest
 from playwright.sync_api import Page, expect
 
+from tests.e2e.conftest import open_tab
+
 pytestmark = pytest.mark.e2e
 
 
 def test_mesh_beacon_section_shows_the_offer_and_four_targets(page: Page, live_server: str):
     page.goto(f"{live_server}/")
+    open_tab(page, "mesh-beacon")
 
     expect(page.locator("#meshBeaconSection")).to_be_visible()
     expect(page.locator("#meshBeaconOfferChannelPsk")).to_be_visible()
@@ -17,6 +20,7 @@ def test_mesh_beacon_section_shows_the_offer_and_four_targets(page: Page, live_s
 
 def test_preview_with_target_channel_index_8_shows_a_field_error(page: Page, live_server: str):
     page.goto(f"{live_server}/")
+    open_tab(page, "mesh-beacon")
     page.fill("#meshBeaconTarget0ChannelIndex", "8")
 
     page.click("#previewBtn")
