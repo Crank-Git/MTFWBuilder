@@ -7,8 +7,8 @@ services:
       - MTFW_LOG_LEVEL=WARNING
       - MTFW_LOG_JSON=true
     restart: always
-    # Remove port exposure — nginx handles this
-    ports: []
+    # Compose appends override sequences to the base, so only !reset removes port 5000.
+    ports: !reset []
     networks:
       - backend
 
