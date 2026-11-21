@@ -182,10 +182,10 @@ body.rv-open .layout { padding-right:21rem; }
 </ul>
 <p><code>@meshtastic/transport-web-serial</code> and <code>@meshtastic/transport-web-bluetooth</code> (JSR) against <code>meshtastic-sdk</code> JS. It records the choice in an ADR.</p>
 <ul>
-<li>FR-push-config-2 — The project vendors the chosen library as one prebuilt ES module
+<li>FR-push-config-2 — The project vendors the chosen library under <code>static/vendor/</code> as
 </li>
 </ul>
-<p>under <code>static/vendor/</code>. The project has no JavaScript build step.</p>
+<p>one prebuilt ES module per package, joined by an import map. The project has no JavaScript build step.</p>
 <ul>
 <li>FR-push-config-3 — "Connect" opens the Web Serial port picker or the Web Bluetooth
 </li>
@@ -222,7 +222,7 @@ body.rv-open .layout { padding-right:21rem; }
 <li>FR-push-config-10 — Push config covers the <code>module_config</code> sections that have no
 </li>
 </ul>
-<p>userPrefs key: serial, store_forward, range_test, external_notification, neighbor_info, detection_sensor, paxcounter, status_message, traffic_management.</p>
+<p>userPrefs key: serial, store_forward, range_test, external_notification, neighbor_info, detection_sensor, paxcounter. The protobufs in <code>@meshtastic/core</code> 2.6.7 are 2.7.8. They have no <code>statusmessage</code> or <code>traffic_management</code> field, so push config does not cover those two sections (owner ruling on #70). A newer library can add them again.</p>
 <ul>
 <li>FR-push-config-11 — When the device has managed mode on, the page shows "This device
 </li>
@@ -342,10 +342,10 @@ body.rv-open .layout { padding-right:21rem; }
 <ul>
 <li>Which library: decided by the spike in FR-push-config-1 (ADR 0008).
 </li>
-<li>FR-push-config-2 says "one prebuilt ES module". ADR 0008 vendors three ES modules.
+<li>Vendor layout: three ES modules and an import map, by the owner ruling on #70
 </li>
 </ul>
-<p>The owner rules on the layout (#71).</p><h2>Mockups</h2><p>Mockups convey intent — the rough shape a user will see. An implementer may diverge where framework conventions, components, accessibility, or a better idea serve the feature's requirements; the FRs and acceptance criteria are the contract, not the pixels.</p><div class="mockup"><iframe src="../mockups/08-push-config.html" loading="lazy"></iframe><p><a href="../mockups/08-push-config.html" target="_blank">Open ../mockups/08-push-config.html in new tab</a></p></div><nav class="pager">
+<p>(ADR 0008).</p><h2>Mockups</h2><p>Mockups convey intent — the rough shape a user will see. An implementer may diverge where framework conventions, components, accessibility, or a better idea serve the feature's requirements; the FRs and acceptance criteria are the contract, not the pixels.</p><div class="mockup"><iframe src="../mockups/08-push-config.html" loading="lazy"></iframe><p><a href="../mockups/08-push-config.html" target="_blank">Open ../mockups/08-push-config.html in new tab</a></p></div><nav class="pager">
 <a href="feature-fleet-builds.html">&larr; Feature: Fleet builds</a>
 <span></span>
 </nav>

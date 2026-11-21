@@ -26,8 +26,9 @@ so the epic starts with a spike.
 - FR-push-config-1 — A spike compares `@meshtastic/core` with
   `@meshtastic/transport-web-serial` and `@meshtastic/transport-web-bluetooth` (JSR)
   against `meshtastic-sdk` JS. It records the choice in an ADR.
-- FR-push-config-2 — The project vendors the chosen library as one prebuilt ES module
-  under `static/vendor/`. The project has no JavaScript build step.
+- FR-push-config-2 — The project vendors the chosen library under `static/vendor/` as
+  one prebuilt ES module per package, joined by an import map. The project has no
+  JavaScript build step.
 - FR-push-config-3 — "Connect" opens the Web Serial port picker or the Web Bluetooth
   device picker.
 - FR-push-config-4 — After connect, the page reads the device's config, module config,
@@ -44,7 +45,9 @@ so the epic starts with a spike.
   commit, and reconnects when the port returns.
 - FR-push-config-10 — Push config covers the `module_config` sections that have no
   userPrefs key: serial, store_forward, range_test, external_notification, neighbor_info,
-  detection_sensor, paxcounter, status_message, traffic_management.
+  detection_sensor, paxcounter. The protobufs in `@meshtastic/core` 2.6.7 are 2.7.8.
+  They have no `statusmessage` or `traffic_management` field, so push config does not
+  cover those two sections (owner ruling on #70). A newer library can add them again.
 - FR-push-config-11 — When the device has managed mode on, the page shows "This device
   is managed. Only an admin key holder can change it remotely." and pushes nothing.
 - FR-push-config-12 — Secrets go only from the page to the device. The server receives
@@ -139,5 +142,5 @@ Pushes to many devices at once. Push over TCP/HTTP.
 ## Open questions
 
 - Which library: decided by the spike in FR-push-config-1 (ADR 0008).
-- FR-push-config-2 says "one prebuilt ES module". ADR 0008 vendors three ES modules.
-  The owner rules on the layout (#71).
+- Vendor layout: three ES modules and an import map, by the owner ruling on #70
+  (ADR 0008).

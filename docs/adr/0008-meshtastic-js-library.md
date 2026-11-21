@@ -1,7 +1,7 @@
 # 0008 — Push config with `@meshtastic/core` 2.6.7 and its two browser transports
 
 Date: 2026-11-21
-Status: proposed. The vendor layout needs an owner ruling on FR-push-config-2 (#71).
+Status: accepted. Owner ruling: https://github.com/Crank-Git/MTFWBuilder/issues/70#issuecomment-7067061600
 
 ## Context
 
@@ -66,10 +66,10 @@ The import map gives the page and both transports one copy of the core module. C
 
 ## Consequences
 
-- The page loads three files, not one. FR-push-config-2 says "one prebuilt ES module", so the owner must rule on this layout.
+- The page loads three files, not one. The owner accepted this layout, and FR-push-config-2 now says "one prebuilt ES module per package, joined by an import map".
 - esm.sh can rebuild a URL when its build version changes. The SHA-256 table is the check. A changed hash needs a new review.
-- No upstream release follows 2.6.7. A protocol change after protobufs 2.7.8 needs a different library or a fork.
-- The bundled protobufs 2.7.8 have no `ModuleConfig` fields `statusmessage` (14), `traffic_management` (15), `tak` (16) and `mesh_beacon` (17). FR-push-config-10 names two of them. #73 and #74 must encode those sections with a newer `@meshtastic/protobufs` and send them with `sendPacket(bytes, PortNum.ADMIN_APP, "self")`, or leave them out.
+- Risk: upstream published nothing after 2.6.7 and removed the source on 2026-06-15. The project pins 2.6.7. A protocol change after protobufs 2.7.8 needs a different library or a fork.
+- The bundled protobufs 2.7.8 have no `ModuleConfig` fields `statusmessage` (14), `traffic_management` (15), `tak` (16) and `mesh_beacon` (17). By the owner ruling, FR-push-config-10 no longer covers `status_message` and `traffic_management`. A newer library can add them again.
 - The bundled protobufs 2.7.8 also have no `Config` fields `display.use_long_node_name`, `display.enable_message_bubbles`, `lora.fem_lna_mode`, `lora.serial_hal_only`, `lora.transparent_mode` and `security.packet_signature_policy`.
 - `beginEditSettings` is private in the TypeScript types only. The page calls it directly, or sends `setConfig` first in each transaction.
 - When `meshtastic-sdk` publishes a JS release that a page can load without a build, a new ADR can replace this one.
