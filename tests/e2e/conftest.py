@@ -1,14 +1,16 @@
 """Fixtures for the E2E tests, which drive a real browser against a real server process."""
 
+import http.server
 import os
 import socket
 import sqlite3
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
-from contextlib import closing
+from contextlib import closing, contextmanager
 
 import pytest
 import yaml
@@ -17,6 +19,7 @@ from mtfwbuilder.database import SCHEMA, record_firmware_source
 from tests.conftest import _ADMIN_PASSWORD_HASH, FIRMWARE_VERSION, REPO_ROOT, SECRET_KEY
 
 STARTUP_TIMEOUT_SECONDS = 20
+FIRMWARE_LIST = REPO_ROOT / "tests" / "fixtures" / "firmware" / "firmware_list.json"
 ALPHA_VERSION = "v2.8.2.d5f1619"
 
 
@@ -38,6 +41,38 @@ def _wait_until_up(url: str, server: subprocess.Popen) -> None:
     raise AssertionError(f"the server did not answer at {url}")
 
 
+def _server_env(base) -> dict:
+    """Return the environment of a server that reads every path from `base` and builds with the fake `pio`."""
+    (base / "config.yaml").write_text(
+        yaml.safe_dump({"admin_password_hash": _ADMIN_PASSWORD_HASH, "secret_key": SECRET_KEY})
+    )
+    # The Playwright sync API runs an event loop in this process, so the fixture creates the tables without asyncio.
+    with closing(sqlite3.connect(base / "mtfwbuilder.db")) as db:
+        db.executescript(SCHEMA)
+    return {
+        **os.environ,
+        "PATH": str(REPO_ROOT / "tests" / "fakes") + os.pathsep + os.environ["PATH"],
+        "MTFW_BASE_DIR": str(base),
+        "MTFW_TEMP_DIR": str(base / "tmp"),
+        "MTFW_DATABASE_PATH": str(base / "mtfwbuilder.db"),
+        "MTFW_FIRMWARE_DIR": str(base / "firmware"),
+        "MTFW_DEVICES_FILE": str(REPO_ROOT / "devices" / "variants.yaml"),
+    }
+
+
+@contextmanager
+def _serve(command: list[str], env: dict, port: int):
+    """Yield the base URL of the server process that `command` starts, and stop the process after the yield."""
+    url = f"http://127.0.0.1:{port}"
+    with subprocess.Popen(command, cwd=REPO_ROOT, env=env) as server:
+        try:
+            _wait_until_up(f"{url}/", server)
+            yield url
+        finally:
+            server.terminate()
+            server.wait(timeout=10)
+
+
 @pytest.fixture(scope="module")
 def live_server(tmp_path_factory):
     """Return the base URL of a uvicorn server that builds with the fake `pio`.
@@ -48,15 +83,9 @@ def live_server(tmp_path_factory):
     The server stops when the module ends.
     """
     base = tmp_path_factory.mktemp("e2e")
-    (base / "config.yaml").write_text(
-        yaml.safe_dump({"admin_password_hash": _ADMIN_PASSWORD_HASH, "secret_key": SECRET_KEY})
-    )
+    env = _server_env(base)
     source_dir = base / "firmware" / FIRMWARE_VERSION
     source_dir.mkdir(parents=True)
-    database_path = base / "mtfwbuilder.db"
-    # The Playwright sync API runs an event loop in this process, so the fixture creates the tables without asyncio.
-    with closing(sqlite3.connect(database_path)) as db:
-        db.executescript(SCHEMA)
     record = {
         "version": FIRMWARE_VERSION,
         "channel": "stable",
@@ -65,6 +94,7 @@ def live_server(tmp_path_factory):
         "size_bytes": 0,
         "status": "ready",
     }
+    database_path = base / "mtfwbuilder.db"
     record_firmware_source(database_path, record)
     # The fake `pio` reads `.fake-pio-version`, so the artifact names show which firmware source the build used.
     alpha_dir = base / "firmware" / ALPHA_VERSION
@@ -77,22 +107,52 @@ def live_server(tmp_path_factory):
         "installed_at": "2026-11-10T00:00:00+00:00",
     }
     record_firmware_source(database_path, {**record, **alpha})
-    env = {
-        **os.environ,
-        "PATH": str(REPO_ROOT / "tests" / "fakes") + os.pathsep + os.environ["PATH"],
-        "MTFW_BASE_DIR": str(base),
-        "MTFW_TEMP_DIR": str(base / "tmp"),
-        "MTFW_DATABASE_PATH": str(database_path),
-        "MTFW_FIRMWARE_DIR": str(base / "firmware"),
-        "MTFW_DEVICES_FILE": str(REPO_ROOT / "devices" / "variants.yaml"),
-    }
     port = _free_port()
     command = [sys.executable, "-m", "uvicorn", "mtfwbuilder.main:app", "--host", "127.0.0.1", "--port", str(port)]
-    url = f"http://127.0.0.1:{port}"
-    with subprocess.Popen(command, cwd=REPO_ROOT, env=env) as server:
-        try:
-            _wait_until_up(f"{url}/", server)
+    with _serve(command, env, port) as url:
+        yield url
+
+
+class _FirmwareListHandler(http.server.BaseHTTPRequestHandler):
+    """Answer each GET with the recorded response of api.meshtastic.org."""
+
+    def do_GET(self):
+        body = FIRMWARE_LIST.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, format, *args):
+        pass
+
+
+# The server process imports the app, then points the firmware catalog at the local list before uvicorn starts.
+_CATALOG_LAUNCHER = """
+import sys
+import uvicorn
+from mtfwbuilder.services import firmware_catalog
+firmware_catalog.MESHTASTIC_LIST_URL = sys.argv[1]
+uvicorn.run("mtfwbuilder.main:app", host="127.0.0.1", port=int(sys.argv[2]))
+"""
+
+
+@pytest.fixture(scope="module")
+def empty_server(tmp_path_factory):
+    """Return the base URL of a uvicorn server with no firmware source.
+
+    The firmware catalog of the server reads `tests/fixtures/firmware/firmware_list.json` from a local
+    HTTP server, so the test reaches no upstream. The servers stop when the module ends.
+    """
+    base = tmp_path_factory.mktemp("e2e-empty")
+    env = _server_env(base)
+    catalog = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _FirmwareListHandler)
+    threading.Thread(target=catalog.serve_forever, daemon=True).start()
+    list_url = f"http://127.0.0.1:{catalog.server_address[1]}/github/firmware/list"
+    port = _free_port()
+    try:
+        with _serve([sys.executable, "-c", _CATALOG_LAUNCHER, list_url, str(port)], env, port) as url:
             yield url
-        finally:
-            server.terminate()
-            server.wait(timeout=10)
+    finally:
+        catalog.shutdown()

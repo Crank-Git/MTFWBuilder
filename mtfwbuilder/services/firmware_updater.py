@@ -209,6 +209,10 @@ class FirmwareInstalls:
     def get(self, install_id: str) -> Install | None:
         return self._installs.get(install_id)
 
+    def unended(self) -> list[Install]:
+        """Return the installs that have not ended, the oldest start first."""
+        return [install for install in self._installs.values() if not install.ended]
+
     async def start(self, channel: str | None = None, tag: str | None = None) -> Install:
         """Return a new install of the exact tag, or of the newest firmware version of the channel.
 
@@ -343,6 +347,18 @@ async def install_events(install: Install):
         if ended:
             return
         await changed.wait()
+
+
+def remove_install_staging(firmware_dir: Path) -> None:
+    """Delete each staging directory `<firmware_dir>/.install-<tag>-*` and log its path.
+
+    An install deletes its staging directory when it ends, so a staging directory at startup is from a stopped
+    process. Raises `OSError` when a delete fails.
+    """
+    for staging in firmware_dir.glob(".install-*"):
+        if staging.is_dir():
+            shutil.rmtree(staging)
+            logger.warning(f"Removed the staging directory {staging} of a stopped install")
 
 
 def get_firmware_version(settings: Settings) -> dict:

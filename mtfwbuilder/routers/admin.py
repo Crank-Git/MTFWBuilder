@@ -21,12 +21,12 @@ from mtfwbuilder.auth import (
     validate_session_token,
     verify_password,
 )
-from mtfwbuilder.database import get_db, get_recent_builds
+from mtfwbuilder.database import get_db, get_recent_builds, list_firmware_sources
 from mtfwbuilder.htmx import fragment_or_json
 from mtfwbuilder.rate_limit import limiter, login_rate_limit
+from mtfwbuilder.routers.firmware import install_context
 from mtfwbuilder.services import firmware_updater
 from mtfwbuilder.services.cleanup_service import cleanup_old_builds
-from mtfwbuilder.services.firmware_updater import get_firmware_version
 
 logger = logging.getLogger("mtfwbuilder.admin")
 
@@ -62,7 +62,12 @@ async def admin_page(request: Request):
         builds = await get_recent_builds(db, limit=RECENT_BUILD_COUNT)
     finally:
         await db.close()
-    context = {"signed_in": True, "firmware": get_firmware_version(settings), "builds": builds}
+    context = {
+        "signed_in": True,
+        "sources": await list_firmware_sources(settings.database_path),
+        "installs": [install_context(install) for install in request.app.state.firmware_installs.unended()],
+        "builds": builds,
+    }
     return _admin_page(request, nonce, context)
 
 
@@ -108,7 +113,7 @@ async def admin_logout():
 async def update_firmware_route(request: Request):
     """Install the newest stable firmware version, and return the result after the install ends (admin only).
 
-    This old route stays for the admin page until #38. It starts the same install as
+    This old route stays for API clients (FR-admin-4). It starts the same install as
     `POST /api/v1/firmware/install` with `{"channel": "stable"}`, and waits for it.
     """
     installs: firmware_updater.FirmwareInstalls = request.app.state.firmware_installs

@@ -10,11 +10,11 @@ from fastapi.responses import FileResponse, RedirectResponse, Response
 from pydantic import ValidationError
 from sse_starlette.sse import EventSourceResponse
 
+from mtfwbuilder.database import find_firmware_source, list_firmware_sources
 from mtfwbuilder.htmx import fragment_or_json, is_htmx
-from mtfwbuilder.models import Artifact, ConfigRequest
+from mtfwbuilder.models import Artifact, ConfigRequest, FirmwareSource
 from mtfwbuilder.rate_limit import build_rate_limit, limiter
 from mtfwbuilder.services import build_service
-from mtfwbuilder.services.firmware_updater import get_firmware_version
 from mtfwbuilder.services.jsonc_generator import generate_jsonc
 
 logger = logging.getLogger("mtfwbuilder.firmware_routes")
@@ -271,7 +271,17 @@ def _get_build(request: Request, build_id: str) -> build_service.BuildContext:
 
 @router.get("/system-info")
 async def system_info(request: Request):
-    """Get firmware version and system status."""
-    settings = request.app.state.settings
-    info = get_firmware_version(settings)
-    return {"success": True, **info}
+    """Return the default firmware version, its install date, and each installed firmware version.
+
+    The default firmware version is the one that a build without `firmware_version` uses. Without a firmware
+    source, `version` is `Not installed` and `last_updated` is `Never`.
+    """
+    database_path = request.app.state.settings.database_path
+    default = await find_firmware_source(database_path)
+    sources = await list_firmware_sources(database_path)
+    return {
+        "success": True,
+        "version": default["version"] if default else "Not installed",
+        "last_updated": default["installed_at"] if default else "Never",
+        "firmware_versions": [FirmwareSource(**source) for source in sources],
+    }
