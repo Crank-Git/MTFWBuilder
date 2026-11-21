@@ -13,12 +13,6 @@ http {
     # Rate limiting
     limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
 
-    # Security headers
-    add_header X-Frame-Options DENY;
-    add_header X-Content-Type-Options nosniff;
-    add_header X-XSS-Protection "1; mode=block";
-    add_header Referrer-Policy "strict-origin-when-cross-origin";
-
     # HTTPS redirect
     server {
         listen 80;
@@ -40,11 +34,15 @@ http {
         ssl_session_cache shared:SSL:10m;
         ssl_session_timeout 10m;
 
-        # Security headers for HTTPS
-        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload";
+        # Security headers
+        # A block with its own add_header drops all inherited add_header lines, so each such block repeats these.
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+        add_header X-Frame-Options DENY always;
+        add_header X-Content-Type-Options nosniff always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
-        # Client max body size for firmware uploads
-        client_max_body_size 100M;
+        # The app accepts an upload of 64KB or less, so nginx refuses a larger body before the app reads it.
+        client_max_body_size 1M;
 
         # Rate limiting
         location /api/ {
@@ -96,6 +94,10 @@ http {
         location ~* \.(css|js|png|jpg|jpeg|gif|ico|svg)$ {
             expires 1y;
             add_header Cache-Control "public, no-transform";
+            add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+            add_header X-Frame-Options DENY always;
+            add_header X-Content-Type-Options nosniff always;
+            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
             proxy_pass http://mtfwbuilder;
         }
 
