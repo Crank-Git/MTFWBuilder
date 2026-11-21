@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "pluginVersion": "0.19.0",
+  "forge": { "type": "github", "host": "github.com", "owner": "Crank-Git", "repo": "MTFWBuilder", "interface": "cli" },
+  "concurrency": 3,
+  "batchSize": 4,
+  "runLength": { "mode": "backlog" },
+  "prGranularity": "batch",
+  "prAuthority": "autonomous",
+  "planReview": false,
+  "reviewWipLimit": 2,
+  "review": { "when": "never" },
+  "deploy": null,
+  "docsMcp": { "offered": [], "installed": [], "marketplacesAdded": [], "declined": false, "restartPending": false },
+  "practices": { "tdd": true, "ddd": false, "e2e": "user-facing", "coverage": null, "commitStyle": "conventional", "docs": "public-api" },
+  "notes": "Overnight run 2026-11-21. Autonomous merges into dev only; dev->main promotion stays with the owner. Concurrency capped at 3 by the owner's machine limit. Workers use a uv-managed Python 3.13 venv (system python is 3.15.2). Hardware-only acceptance criteria (#58, #74) are parked for the owner."
+}
