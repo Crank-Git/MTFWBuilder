@@ -42,15 +42,13 @@ def admin_password():
 
 @pytest.fixture
 def settings_env(tmp_path, monkeypatch):
-    """Return a base directory under `tmp_path` that the `MTFW_*` variables point at.
+    """Return a directory under `tmp_path` that is both the base directory and the data directory.
 
     The directory holds a `config.yaml` with a known admin password and secret key.
     The registry stays the real `devices/variants.yaml`, which the tests only read.
     """
     monkeypatch.setenv("MTFW_BASE_DIR", str(tmp_path))
-    monkeypatch.setenv("MTFW_TEMP_DIR", str(tmp_path / "tmp"))
-    monkeypatch.setenv("MTFW_DATABASE_PATH", str(tmp_path / "mtfwbuilder.db"))
-    monkeypatch.setenv("MTFW_FIRMWARE_DIR", str(tmp_path / "firmware"))
+    monkeypatch.setenv("MTFW_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("MTFW_DEVICES_FILE", str(REPO_ROOT / "devices" / "variants.yaml"))
     config = {"admin_password_hash": _ADMIN_PASSWORD_HASH, "secret_key": SECRET_KEY}
     (tmp_path / "config.yaml").write_text(yaml.safe_dump(config))

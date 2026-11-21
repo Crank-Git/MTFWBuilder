@@ -3,11 +3,22 @@
 import json
 import logging
 import os
+import shutil
+import tempfile
 from pathlib import Path
 
 import bcrypt
 import yaml
 from pydantic_settings import BaseSettings
+
+logger = logging.getLogger("mtfwbuilder")
+
+# Releases before the data directory kept these files in `base_dir`.
+_MOVED_NAMES = ("config.yaml", "mtfwbuilder.db", "firmware", "firmware_version.txt")
+
+
+class DataDirError(RuntimeError):
+    """The data directory does not exist and cannot be made, or the process cannot write to it."""
 
 
 class Settings(BaseSettings):
@@ -20,8 +31,9 @@ class Settings(BaseSettings):
 
     # Paths
     base_dir: Path = Path(__file__).resolve().parent.parent
+    data_dir: Path | None = None
     firmware_dir: Path | None = None
-    temp_dir: Path = Path("/tmp/meshtastic_config")
+    temp_dir: Path | None = None
     database_path: Path | None = None
     devices_file: Path | None = None
 
@@ -49,21 +61,59 @@ class Settings(BaseSettings):
     model_config = {"env_prefix": "MTFW_"}
 
     def model_post_init(self, __context) -> None:
+        if self.data_dir is None:
+            self.data_dir = self.base_dir / "data"
         if self.firmware_dir is None:
-            self.firmware_dir = self.base_dir / "firmware"
+            self.firmware_dir = self.data_dir / "firmware"
+        if self.temp_dir is None:
+            self.temp_dir = self.data_dir / "artifacts"
         if self.database_path is None:
-            self.database_path = self.base_dir / "mtfwbuilder.db"
+            self.database_path = self.data_dir / "mtfwbuilder.db"
         if self.devices_file is None:
             self.devices_file = self.base_dir / "devices" / "variants.yaml"
+
+
+def prepare_data_dir(data_dir: Path, base_dir: Path) -> None:
+    """Make the data directory writable and move the files of an old release into it.
+
+    A file moves only when it exists in `base_dir` and the data directory has no file of that name.
+
+    Raises:
+        DataDirError: The process cannot make the data directory or write to it.
+    """
+    try:
+        data_dir.mkdir(parents=True, exist_ok=True)
+        tempfile.TemporaryFile(dir=data_dir).close()
+    except OSError as exc:
+        raise DataDirError(
+            f"The data directory {data_dir} is not writable ({exc.strerror}). "
+            "Set MTFW_DATA_DIR to a writable directory, or give the process user write access to it."
+        ) from exc
+
+    if data_dir.resolve() == base_dir.resolve():
+        return
+    for name in _MOVED_NAMES:
+        old, new = base_dir / name, data_dir / name
+        if old.exists() and not new.exists():
+            shutil.move(old, new)
+            # Startup configures logging after the settings load, and the default level drops an info line.
+            logger.warning(f"Moved {old} to {new}")
 
 
 def load_settings() -> Settings:
     """Load settings from config.yaml, with password auto-migration.
 
-    The function reads config.yaml and config.json from `MTFW_BASE_DIR`, else from the project root.
+    The function reads config.yaml from the data directory: `MTFW_DATA_DIR`, else `data/` under
+    the base directory. It reads config.json from the base directory: `MTFW_BASE_DIR`, else the
+    project root.
+
+    Raises:
+        DataDirError: The process cannot write to the data directory.
     """
     base_dir = Path(os.environ.get("MTFW_BASE_DIR") or Path(__file__).resolve().parent.parent)
-    config_path = base_dir / "config.yaml"
+    data_dir = Path(os.environ.get("MTFW_DATA_DIR") or base_dir / "data")
+    prepare_data_dir(data_dir, base_dir)
+    config_path = data_dir / "config.yaml"
     old_config_path = base_dir / "config.json"
 
     overrides: dict = {}
@@ -101,7 +151,7 @@ def load_settings() -> Settings:
     # Default password if nothing configured
     if not overrides.get("admin_password_hash"):
         overrides["admin_password_hash"] = _hash_password("meshtastic")
-        logging.getLogger("mtfwbuilder").warning(
+        logger.warning(
             "SECURITY: Using default admin password 'meshtastic'. Set admin_password in config.yaml for production use."
         )
 
@@ -115,6 +165,8 @@ def load_settings() -> Settings:
             with open(config_path, "w") as f:
                 yaml.dump(overrides_copy, f, default_flow_style=False)
 
+    # The data directory holds config.yaml, so config.yaml cannot move it.
+    overrides["data_dir"] = data_dir
     return Settings(**overrides)
 
 

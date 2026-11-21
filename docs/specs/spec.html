@@ -232,6 +232,7 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><td>artifact</td><td>noun</td><td>One file a build produces for the operator, for example <code>firmware-heltec-v4-2.7.26.54e0d8d.factory.bin</code>.</td><td>output, binary, image</td></tr>
 <tr><td>build queue</td><td>noun</td><td>The ordered list of builds that wait for a free build worker.</td><td>job queue</td></tr>
 <tr><td>build worker</td><td>noun</td><td>The process slot that runs one build at a time.</td><td>runner, executor</td></tr>
+<tr><td>data directory</td><td>noun</td><td>The one directory that holds all state: firmware sources, artifacts, the database and <code>config.yaml</code>. <code>MTFW_DATA_DIR</code> sets it.</td><td>state dir, volume (alone)</td></tr>
 <tr><td>build cache</td><td>noun</td><td>Stored artifacts, keyed by a hash of firmware version, variant and userPrefs file.</td><td>artifact store</td></tr>
 <tr><td>progress stream</td><td>noun</td><td>The Server-Sent Events (SSE) stream that sends build status and log lines to the page.</td><td>event feed, socket</td></tr>
 <tr><td>scrub</td><td>verb</td><td>To delete every file that holds a secret, after a build ends.</td><td>sanitize, wipe, clean</td></tr>
