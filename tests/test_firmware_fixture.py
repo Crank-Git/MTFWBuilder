@@ -17,15 +17,25 @@ VARIANT_FILES = [
     "variants/rp2040/rak11310/platformio.ini",
 ]
 
+ARCHITECTURE_FILES = [
+    "variants/esp32/esp32-common.ini",
+    "variants/esp32s3/esp32s3.ini",
+    "variants/nrf52840/nrf52.ini",
+    "variants/nrf52840/nrf52840.ini",
+    "variants/rp2040/rp2040.ini",
+    "src/graphics/niche/InkHUD/PlatformioConfig.ini",
+]
+
 ROOT_FILES = [
     "platformio.ini",
     "userPrefs.jsonc",
     "bin/platformio-custom.py",
     "SOURCE.md",
+    "project_config.json",
 ]
 
 
-@pytest.mark.parametrize("relpath", ROOT_FILES + VARIANT_FILES)
+@pytest.mark.parametrize("relpath", ROOT_FILES + VARIANT_FILES + ARCHITECTURE_FILES)
 def test_fixture_file_exists(relpath):
     assert (FIXTURE_DIR / relpath).is_file()
 
