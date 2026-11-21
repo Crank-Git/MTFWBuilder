@@ -1,6 +1,7 @@
 """JSONC configuration generator for Meshtastic userPrefs files.
 
-Each key name is a name that the firmware source reads at `v2.7.26.54e0d8d`.
+Each key name is a name that the firmware source reads. A key of `VERSION_GATED_KEYS` goes into the file
+only when the chosen firmware version reads it.
 The firmware ignores an unknown key without an error.
 """
 

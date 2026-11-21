@@ -74,7 +74,7 @@
                             <label for="cannedMessages" class="form-label">Canned Messages</label>
                             <textarea class="form-control" id="cannedMessages" name="canned_messages" rows="4" placeholder="OK&#10;On my way&#10;Need help"></textarea>
                             <div id="error-canned_messages" class="field-error invalid-feedback d-block"></div>
-                            <div class="form-text text-muted">One message on each line. A message cannot contain |. <code class="small">USERPREFS_CANNED_MESSAGES</code></div>
+                            <div class="form-text text-muted">One message on each line. A message cannot contain |. The messages and the | between them are 200 bytes or fewer. <code class="small">USERPREFS_CANNED_MESSAGES</code></div>
                         </fieldset>
                         <div class="col-md-6">
                             <fieldset class="mb-3" data-userprefs-key="USERPREFS_RINGTONE_RTTTL"{{ key_attrs("USERPREFS_RINGTONE_RTTTL") }}>
