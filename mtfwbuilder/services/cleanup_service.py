@@ -1,9 +1,10 @@
 """Build artifact cleanup, and the scrub of the firmware source after a build."""
 
+import asyncio
 import logging
-import os
 import shutil
 import time
+from collections.abc import Callable, Collection
 from pathlib import Path
 
 from mtfwbuilder.config import Settings
@@ -18,42 +19,49 @@ async def cleanup_build_directory(build_dir: Path) -> None:
         logger.info(f"Cleaned up build directory: {build_dir}")
 
 
-def cleanup_old_builds(settings: Settings) -> int:
-    """Remove build directories older than max age. Returns count removed."""
+def cleanup_old_builds(settings: Settings, keep: Collection[str] = ()) -> int:
+    """Return the number of build directories removed, after each one older than `build_max_age_seconds` is removed.
+
+    A build directory is `<temp_dir>/<build_id>` and holds the artifacts of one build. Its age is the age of
+    its last change. `keep` holds the build ids of the builds that have not ended, and their directories stay.
+    """
     temp_dir = settings.temp_dir
     if not temp_dir.exists():
         return 0
 
+    oldest = time.time() - settings.build_max_age_seconds
     removed = 0
-    current_time = time.time()
-    max_age = settings.build_max_age_seconds
-
-    for item in os.listdir(temp_dir):
-        if not item.startswith("build_"):
+    for build_path in temp_dir.iterdir():
+        if build_path.name in keep or not build_path.is_dir() or build_path.stat().st_mtime > oldest:
             continue
-
-        build_path = temp_dir / item
-        if not build_path.is_dir():
-            continue
-
-        try:
-            # Extract timestamp from directory name (build_<timestamp>_<pid>)
-            parts = item.replace("build_", "").split("_")
-            timestamp = int(parts[0])
-            if current_time - timestamp > max_age:
-                shutil.rmtree(str(build_path), ignore_errors=True)
-                removed += 1
-                logger.info(f"Removed old build directory: {item}")
-        except (ValueError, IndexError):
-            # Can't parse timestamp — remove if modified long ago
-            mtime = build_path.stat().st_mtime
-            if current_time - mtime > max_age:
-                shutil.rmtree(str(build_path), ignore_errors=True)
-                removed += 1
+        shutil.rmtree(build_path, ignore_errors=True)
+        removed += 1
+        logger.info(f"Removed old build directory: {build_path.name}")
 
     if removed:
         logger.info(f"Periodic cleanup: removed {removed} old build directories")
     return removed
+
+
+async def cleanup_every_interval(settings: Settings, unended_build_ids: Callable[[], Collection[str]]) -> None:
+    """Remove the old build directories now, then again each `cleanup_interval_seconds`, until cancelled."""
+    while True:
+        cleanup_old_builds(settings, keep=unended_build_ids())
+        await asyncio.sleep(settings.cleanup_interval_seconds)
+
+
+def scrub_after_restart(firmware_dir: Path) -> None:
+    """Delete `userPrefs.jsonc` and each `.pio/build/<env>/` directory from the firmware source.
+
+    A build scrubs its own env directory when it ends, so an env directory at startup is from a build
+    that a restart stopped. Raises `OSError` when a delete fails.
+    """
+    (firmware_dir / "userPrefs.jsonc").unlink(missing_ok=True)
+    pio_build = firmware_dir / ".pio" / "build"
+    if pio_build.is_dir():
+        for env_build in pio_build.iterdir():
+            if env_build.is_dir():
+                scrub_firmware_source(firmware_dir, env_build.name)
 
 
 def scrub_firmware_source(firmware_dir: Path, env_name: str) -> None:

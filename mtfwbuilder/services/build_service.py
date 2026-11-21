@@ -7,6 +7,7 @@ The build keeps its build status and log lines in memory for the progress stream
 import asyncio
 import fnmatch
 import glob
+import hashlib
 import json
 import logging
 import multiprocessing
@@ -19,10 +20,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import quote
 
+import aiosqlite
+
 from mtfwbuilder.config import Settings
+from mtfwbuilder.database import init_db, save_build
 from mtfwbuilder.models import Artifact, BuildStatus
 from mtfwbuilder.services.cleanup_service import scrub_firmware_source
 from mtfwbuilder.services.device_registry import DeviceVariant
+from mtfwbuilder.services.firmware_updater import get_firmware_version
 from mtfwbuilder.services.secret_mask import secret_masker
 
 logger = logging.getLogger("mtfwbuilder.build")
@@ -60,6 +65,9 @@ class BuildContext:
     created_at: float = field(default_factory=time.monotonic)
     task: asyncio.Task | None = None
     changed: asyncio.Event = field(default_factory=asyncio.Event)
+    firmware_version: str | None = None
+    # The build queue sets this to put each build status change in the `builds` table.
+    on_change: Callable[["BuildContext"], None] = field(default=lambda _ctx: None, repr=False)
     mask: Callable[[str], str] = field(init=False, repr=False)
 
     def __post_init__(self):
@@ -80,6 +88,7 @@ class BuildContext:
         self.error = error
         self.download_url = download_url
         self.progress = 100 if status == "complete" else STEP_PROGRESS.get(status, self.progress)
+        self.on_change(self)
         self._notify()
 
     def add_log(self, line: str) -> str:
@@ -88,6 +97,21 @@ class BuildContext:
         self.build_log.append(masked)
         self._notify()
         return masked
+
+    def record(self) -> dict:
+        """Return the `builds` table values of the build, without the build log and without the config."""
+        primary = primary_artifact(self.artifacts)
+        return {
+            "id": self.build_id,
+            "variant": self.variant.id,
+            "architecture": self.variant.architecture,
+            "firmware_format": self.variant.firmware_format,
+            "status": self.status,
+            "firmware_path": str(self.build_dir / primary.name) if primary else None,
+            "error_message": self.error or None,
+            "config_hash": hashlib.sha256(self.config_content.encode()).hexdigest(),
+            "firmware_version": self.firmware_version,
+        }
 
     def status_event(self) -> str:
         """Return the JSON of the current build status for the progress stream."""
@@ -113,6 +137,12 @@ class BuildQueue:
         self._queue: asyncio.Queue[BuildContext] = asyncio.Queue(maxsize=settings.max_queue_size)
         self._builds: dict[str, BuildContext] = {}
         self._workers: list[asyncio.Task] = []
+        # Each record is a copy taken at the change, so a later change cannot alter what is written.
+        self._records: asyncio.Queue[dict | None] = asyncio.Queue()
+        self._recorder: asyncio.Task | None = None
+        # A build worker holds the lock for each build, and a firmware update holds it while it replaces the source.
+        # TODO(#88): Let build workers hold the lock together, so that only a firmware update excludes them.
+        self.firmware_lock = asyncio.Lock()
 
     def get(self, build_id: str) -> BuildContext | None:
         return self._builds.get(build_id)
@@ -126,8 +156,9 @@ class BuildQueue:
         if self._queue.full():
             raise BuildQueueFull
         self._forget_old_builds()
-        ctx = BuildContext(generate_build_id(), variant, config_content, self.settings)
+        ctx = BuildContext(generate_build_id(), variant, config_content, self.settings, on_change=self._record)
         self._builds[ctx.build_id] = ctx
+        self._record(ctx)
         if self.settings.firmware_dir.exists():
             self._queue.put_nowait(ctx)
         else:
@@ -153,6 +184,7 @@ class BuildQueue:
             # TODO(#88): Copy the firmware source per build worker and start `build_workers` of them.
             logger.warning("MTFW_BUILD_WORKERS > 1 needs one firmware source per build worker; one build worker runs")
         self._workers = [asyncio.create_task(self._work())]
+        self._recorder = asyncio.create_task(self._write_records())
 
     async def stop(self) -> None:
         """Stop the build workers, and cancel the builds that run."""
@@ -161,20 +193,44 @@ class BuildQueue:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
         self._workers = []
+        if self._recorder is not None:
+            # The recorder writes the records it holds, then ends; an error in a write raises here.
+            self._records.put_nowait(None)
+            recorder, self._recorder = self._recorder, None
+            await recorder
+
+    def unended_build_ids(self) -> set[str]:
+        """Return the build ids of the builds that have not ended."""
+        return {build_id for build_id, ctx in self._builds.items() if not ctx.ended}
+
+    def _record(self, ctx: BuildContext) -> None:
+        self._records.put_nowait(ctx.record())
+
+    async def _write_records(self) -> None:
+        # A test app has no lifespan, so the recorder creates the tables itself.
+        await init_db(self.settings)
+        async with aiosqlite.connect(self.settings.database_path) as db:
+            while (record := await self._records.get()) is not None:
+                await save_build(db, record)
 
     async def _work(self) -> None:
         while True:
             ctx = await self._queue.get()
-            # A build cancelled while it waits stays in the queue until a build worker takes it.
-            if not ctx.ended:
-                ctx.task = asyncio.create_task(run_build(ctx))
-                # `wait` does not raise when the build task is cancelled, so the build worker continues.
-                await asyncio.wait({ctx.task})
-                if not ctx.task.cancelled() and ctx.task.exception() is not None:
-                    # Without an ended build status, the progress stream of the build never ends.
-                    logger.error(f"Build {ctx.build_id} raised an error", exc_info=ctx.task.exception())
-                    ctx.set_status("failed", error="The build stopped because of an internal error.")
+            async with self.firmware_lock:
+                await self._run(ctx)
             self._queue.task_done()
+
+    async def _run(self, ctx: BuildContext) -> None:
+        # A build cancelled while it waits stays in the queue until a build worker takes it.
+        if ctx.ended:
+            return
+        ctx.task = asyncio.create_task(run_build(ctx))
+        # `wait` does not raise when the build task is cancelled, so the build worker continues.
+        await asyncio.wait({ctx.task})
+        if not ctx.task.cancelled() and ctx.task.exception() is not None:
+            # Without an ended build status, the progress stream of the build never ends.
+            logger.error(f"Build {ctx.build_id} raised an error", exc_info=ctx.task.exception())
+            ctx.set_status("failed", error="The build stopped because of an internal error.")
 
     def _forget_old_builds(self) -> None:
         oldest = time.monotonic() - self.settings.build_max_age_seconds
@@ -214,6 +270,9 @@ async def run_build(ctx: BuildContext) -> None:
     if not ctx.settings.firmware_dir.exists():
         ctx.set_status("failed", error=FIRMWARE_SOURCE_MISSING)
         return
+    # A firmware update can replace the source while the build waits, so the version is read when the build starts.
+    version = get_firmware_version(ctx.settings)["version"]
+    ctx.firmware_version = None if version == "Not installed" else version
     ctx.set_status("compiling", message=f"Building firmware for {ctx.variant.name}...")
     try:
         status, fields = await _compile(ctx)

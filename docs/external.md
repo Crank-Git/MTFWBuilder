@@ -19,7 +19,7 @@ Settings read `config.yaml` first, then `MTFW_<FIELD>` environment variables
 | `MTFW_DEVICES_FILE` | Registry YAML | built; removed by feature 10 |
 | `MTFW_MAX_QUEUE_SIZE` | Build queue limit | built (unused); used by feature 06 |
 | `MTFW_BUILD_TIMEOUT_SECONDS` | Build timeout | built |
-| `MTFW_CLEANUP_INTERVAL_SECONDS` | Cleanup task interval | built (unused); used by feature 06 |
+| `MTFW_CLEANUP_INTERVAL_SECONDS` | Cleanup task interval | built |
 | `MTFW_BUILD_MAX_AGE_SECONDS` | Artifact age limit | built |
 | `MTFW_ADMIN_PASSWORD_HASH` | Admin bcrypt hash | built |
 | `MTFW_SECRET_KEY` | Session and CSRF signing key | built |

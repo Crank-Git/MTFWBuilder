@@ -1,7 +1,4 @@
-"""Firmware source updater — downloads latest Meshtastic firmware from GitHub.
-
-Migrated from utils/firmware_updater.py. Shell=True removed, logging replaces print().
-"""
+"""Firmware source updater: download the latest Meshtastic firmware source from GitHub."""
 
 import logging
 import os
