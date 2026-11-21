@@ -137,7 +137,7 @@ No new screens. Feature 07 renders the states.
 | Method | Path | Response |
 |---|---|---|
 | POST | `/api/v1/build-firmware` | 202 `{build_id, progress_url}`; 400; 422; 429; 503 queue full |
-| GET | `/api/v1/build-progress/{build_id}` | SSE events `status` `{status, message, progress}`, `log` `{line}`, `artifacts` `[...]`; 404 |
+| GET | `/api/v1/build-progress/{build_id}?log_from=<n>` | SSE events `status` `{status, message, progress}`, `log` `{line}`, `artifacts` `[...]`; 404; 422 negative `log_from`. Without `log_from`, the `log` events start after the connect. |
 | POST | `/api/v1/builds/{build_id}/cancel` | 200; 404; 409 already ended |
 | GET | `/api/v1/builds/{build_id}/artifacts` | 200 list; 404 |
 | GET | `/api/v1/builds/{build_id}/artifacts/{name}` | file; 404 |

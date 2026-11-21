@@ -8,6 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import Response
 from pydantic import ValidationError
 
+from mtfwbuilder.htmx import fragment_or_json
 from mtfwbuilder.models import ConfigRequest, FilePreviewResponse, PreviewResponse
 from mtfwbuilder.services.jsonc_generator import generate_jsonc
 
@@ -24,30 +25,57 @@ async def generate(config: ConfigRequest) -> PreviewResponse:
     return PreviewResponse(success=True, content=generate_jsonc(config.generator_input()))
 
 
-@router.post("/preview")
-async def preview(config: ConfigRequest) -> PreviewResponse:
-    """Generate a preview of the JSONC configuration."""
-    return PreviewResponse(success=True, content=generate_jsonc(config.generator_input()))
+async def _read_config(request: Request) -> ConfigRequest:
+    """Return the `ConfigRequest` of a JSON body or of a form body.
 
+    A form holds the config fields, or one field `config` that holds the config as JSON.
+    The config form posts the fields themselves, so it works without JavaScript.
 
-@router.post("/download", responses={422: {"description": "Validation Error"}})
-async def download(request: Request) -> Response:
-    """Download the generated JSONC configuration file.
-
-    The body is a JSON `ConfigRequest`, or a form with the field `config` that holds one.
-    An invalid body returns 422 with field errors.
+    Raises:
+        RequestValidationError: The body is not a valid `ConfigRequest`.
     """
-    if "application/json" in request.headers.get("content-type", ""):
-        raw_config = await request.body()
-    else:
-        form = await request.form()
-        raw_config = form.get("config", "{}")
     try:
-        config = ConfigRequest.model_validate_json(raw_config)
+        if "application/json" in request.headers.get("content-type", ""):
+            return ConfigRequest.model_validate_json(await request.body())
+        form = await request.form()
+        if "config" in form:
+            return ConfigRequest.model_validate_json(form["config"])
+        return ConfigRequest.model_validate(dict(form))
     except ValidationError as e:
         errors = [{**error, "loc": ("body", *error["loc"])} for error in e.errors(include_url=False)]
         raise RequestValidationError(errors) from e
 
+
+# The routes read the body themselves to take a form too, so the schema of the JSON body is named here.
+_CONFIG_BODY = {
+    "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/ConfigRequest"}}}}
+}
+
+
+@router.post(
+    "/preview",
+    response_model=PreviewResponse,
+    responses={422: {"description": "Validation Error"}},
+    openapi_extra=_CONFIG_BODY,
+)
+async def preview(request: Request) -> Response:
+    """Return the userPrefs file as an HTML fragment for htmx, else as a JSON `PreviewResponse`.
+
+    The body is a JSON `ConfigRequest` or a form. An invalid body returns 422 with field errors.
+    """
+    content = generate_jsonc((await _read_config(request)).generator_input())
+    return fragment_or_json(
+        request, "partials/preview.html", {"content": content}, PreviewResponse(success=True, content=content)
+    )
+
+
+@router.post("/download", responses={422: {"description": "Validation Error"}}, openapi_extra=_CONFIG_BODY)
+async def download(request: Request) -> Response:
+    """Download the generated JSONC configuration file.
+
+    The body is a JSON `ConfigRequest` or a form. An invalid body returns 422 with field errors.
+    """
+    config = await _read_config(request)
     return Response(
         content=generate_jsonc(config.generator_input()),
         media_type="application/json",

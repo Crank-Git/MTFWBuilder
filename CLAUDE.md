@@ -40,6 +40,7 @@ edit `docs/specs/spec.html` or `docs/specs/html/` by hand.
 
 ```bash
 uv sync                               # install, with the dev group
+uv run python -m playwright install chromium   # browser for the E2E tests in tests/e2e/
 uv run pytest                         # tests
 uv run ruff check mtfwbuilder/ tests/ # lint
 uv run ruff format mtfwbuilder/ tests/ # format

@@ -12,11 +12,11 @@ import aiosqlite
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from mtfwbuilder.auth import SESSION_COOKIE, create_session_token
 from mtfwbuilder.database import init_db
 from mtfwbuilder.main import lifespan
 from mtfwbuilder.routers import admin
 from mtfwbuilder.services.cleanup_service import cleanup_old_builds
+from tests.conftest import sign_in_admin
 
 PSK = "deadbeef" * 8
 CONFIG = json.dumps({"device_name": "TestNode", "channel_0_psk": PSK})
@@ -240,7 +240,7 @@ async def test_cleanup_task_runs_every_cleanup_interval(settings_env, monkeypatc
 
 
 def _sign_in(client, settings):
-    client.cookies.set(SESSION_COOKIE, create_session_token(settings))
+    client.token = sign_in_admin(client, settings)
 
 
 @pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
@@ -252,7 +252,7 @@ async def test_firmware_update_waits_until_no_build_runs(app, client, settings, 
     await _wait_for(ctx, {"compiling"})
     _sign_in(client, settings)
 
-    resp = await client.post("/api/v1/update-firmware")
+    resp = await client.post("/api/v1/update-firmware", data={"csrf_token": client.token})
 
     assert resp.json()["success"] is True
     assert statuses_at_update == ["complete"]
@@ -270,7 +270,7 @@ async def test_no_build_starts_while_a_firmware_update_runs(app, client, setting
 
     monkeypatch.setattr(admin, "update_firmware", slow_update)
     _sign_in(client, settings)
-    update = asyncio.create_task(client.post("/api/v1/update-firmware"))
+    update = asyncio.create_task(client.post("/api/v1/update-firmware", data={"csrf_token": client.token}))
     await asyncio.to_thread(started.wait, 5)
 
     ctx = app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
@@ -297,7 +297,7 @@ async def test_cancelled_update_request_keeps_the_lock_until_the_update_thread_e
     monkeypatch.setattr(admin, "update_firmware", slow_update)
     _sign_in(client, settings)
     lock = app.state.build_queue.firmware_lock
-    update = asyncio.create_task(client.post("/api/v1/update-firmware"))
+    update = asyncio.create_task(client.post("/api/v1/update-firmware", data={"csrf_token": client.token}))
     await asyncio.to_thread(started.wait, 5)
 
     update.cancel()

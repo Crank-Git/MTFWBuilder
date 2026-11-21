@@ -350,7 +350,7 @@ body.rv-open .layout { padding-right:21rem; }
 <div class="table-wrap"><table>
 <tr><th>Method</th><th>Path</th><th>Response</th></tr>
 <tr><td>POST</td><td><code>/api/v1/build-firmware</code></td><td>202 <code>{build_id, progress_url}</code>; 400; 422; 429; 503 queue full</td></tr>
-<tr><td>GET</td><td><code>/api/v1/build-progress/{build_id}</code></td><td>SSE events <code>status</code> <code>{status, message, progress}</code>, <code>log</code> <code>{line}</code>, <code>artifacts</code> <code>[...]</code>; 404</td></tr>
+<tr><td>GET</td><td><code>/api/v1/build-progress/{build_id}?log_from=&lt;n&gt;</code></td><td>SSE events <code>status</code> <code>{status, message, progress}</code>, <code>log</code> <code>{line}</code>, <code>artifacts</code> <code>[...]</code>; 404; 422 negative <code>log_from</code>. Without <code>log_from</code>, the <code>log</code> events start after the connect.</td></tr>
 <tr><td>POST</td><td><code>/api/v1/builds/{build_id}/cancel</code></td><td>200; 404; 409 already ended</td></tr>
 <tr><td>GET</td><td><code>/api/v1/builds/{build_id}/artifacts</code></td><td>200 list; 404</td></tr>
 <tr><td>GET</td><td><code>/api/v1/builds/{build_id}/artifacts/{name}</code></td><td>file; 404</td></tr>

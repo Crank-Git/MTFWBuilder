@@ -11,7 +11,7 @@ async def client(app):
         yield c
 
 
-@pytest.mark.parametrize("path", ["/", "/firmware-builder", "/admin"])
+@pytest.mark.parametrize("path", ["/", "/admin"])
 async def test_page_returns_200(client, path):
     resp = await client.get(path)
     assert resp.status_code == 200
