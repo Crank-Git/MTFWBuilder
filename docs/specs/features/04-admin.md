@@ -12,6 +12,8 @@ mockups: []
 The admin area lets an admin download the firmware source from GitHub and remove old
 builds. This file describes the code at commit `bd15bb1`.
 
+**Changed since this record.** Epic 2 (#102) added the periodic cleanup task and a lock between the firmware update and builds. Epic 3 (#22) adds the sign-in form.
+
 ## User stories
 
 - As an admin, I want to download the latest firmware source, so that builds use

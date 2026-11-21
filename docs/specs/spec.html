@@ -873,6 +873,8 @@ body.rv-open .layout { padding-right:21rem; }
 </li>
 <li>2026-11-21 — Epic 1 shipped (#92). PM decision, flagged for the owner: the event mode select defaults to Disabled (#13), so a form left at its defaults does not turn event mode on. The contract test found that firmware v2.7.26 reads no <code>USERPREFS_CHANNEL_3_*</code> key; the generator writes channel slots 0–2 only until #47. The build route still skips <code>ConfigRequest</code>: filed as #94 in epic #16.
 </li>
+<li>2026-11-21 — Epic 2 shipped (#102). PM decision from the batch review, flagged for the owner: the project sets no shared PlatformIO build cache and the scrub deletes <code>.pio/build_cache</code>, because the cache keeps objects compiled with secrets (Goal 7). Each build then compiles from the start; toolchains stay cached. <code>config_hash</code> is an HMAC with <code>secret_key</code>. Follow-up #88 (more than one build worker) stays open.
+</li>
 </ul><nav class="pager">
 <span></span>
 <a href="html/page-inherit-reconciliation.html">Inherit reconciliation and research &rarr;</a>
