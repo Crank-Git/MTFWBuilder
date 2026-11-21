@@ -1,0 +1,915 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MTFWBuilder</title>
+<style>
+:root { --bg:#ffffff; --fg:#1a1a24; --muted:#5a5a68; --line:#e3e3ea; --accent:#3452c8;
+        --card:#f6f6f9; --warn-bg:#fff7e8; --warn-line:#e8b34a; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#14141b; --fg:#e8e8ee; --muted:#9a9aa8; --line:#2c2c38; --accent:#8ea6ff;
+          --card:#1c1c26; --warn-bg:#2a2318; --warn-line:#a87c2a; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--fg);
+       font:16px/1.6 system-ui,-apple-system,sans-serif; }
+.layout { display:flex; min-height:100vh; }
+aside.site { width:17rem; flex:none; border-right:1px solid var(--line);
+             padding:1.2rem 1rem 3rem; position:sticky; top:0; height:100vh;
+             overflow-y:auto; background:var(--card); }
+aside.site h2 { font-size:.8rem; text-transform:uppercase; letter-spacing:.06em;
+                color:var(--muted); margin:1.2rem 0 .3rem; border:none; padding:0; }
+aside.site ul { list-style:none; margin:0; padding:0; }
+aside.site li { margin:.15rem 0; }
+aside.site a { text-decoration:none; color:var(--fg); font-size:.92rem;
+               display:block; padding:.15rem .5rem; border-radius:6px; }
+aside.site a:hover { background:var(--bg); }
+aside.site a.current { background:var(--accent); color:#fff; }
+aside.site a.sub { padding-left:1.3rem; font-size:.84rem; color:var(--muted); }
+aside.site .brand { font-weight:700; font-size:1.05rem; }
+main { max-width:60rem; margin:0 auto; padding:2rem 1.5rem 6rem; min-width:0; flex:1; }
+h1,h2,h3,h4 { line-height:1.25; }
+h1 { font-size:2rem; margin:.2rem 0; }
+h2 { border-bottom:1px solid var(--line); padding-bottom:.3rem; margin-top:2.5rem; }
+a { color:var(--accent); }
+code { background:var(--card); padding:.1em .35em; border-radius:4px; font-size:.9em; }
+pre.code { background:var(--card); border:1px solid var(--line); border-radius:8px;
+           padding:1rem; overflow-x:auto; }
+pre.code code { background:none; padding:0; }
+.table-wrap { overflow-x:auto; }
+table { border-collapse:collapse; margin:1rem 0; min-width:50%; }
+th,td { border:1px solid var(--line); padding:.4rem .7rem; text-align:left; }
+th { background:var(--card); }
+blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:.2rem 1rem;
+             color:var(--muted); }
+.meta { color:var(--muted); margin-bottom:2rem; }
+.badge { display:inline-block; padding:.1rem .6rem; border-radius:999px;
+         border:1px solid var(--accent); color:var(--accent); font-size:.85rem; }
+.diagram { background:var(--card); border:1px solid var(--line); border-radius:8px;
+           padding:1rem; margin:1rem 0; overflow-x:auto; }
+.diagram pre.mermaid { margin:0; }
+.diagram.raw::before { content:"diagram source (assets/mermaid.min.js not vendored)";
+                       display:block; color:var(--muted); font-size:.8rem;
+                       margin-bottom:.5rem; }
+.callout-h, .callout-h ~ p, .callout-h ~ ul { background:var(--warn-bg); }
+.callout-h { border-left:4px solid var(--warn-line); padding:.3rem .8rem; }
+.mockup { margin:1.5rem 0; }
+.mockup iframe { width:100%; height:32rem; border:1px solid var(--line);
+                 border-radius:8px; background:#fff; }
+nav.pager { display:flex; justify-content:space-between; margin-top:3rem;
+            border-top:1px solid var(--line); padding-top:1rem; }
+@media (max-width: 900px) {
+  .layout { display:block; }
+  aside.site { width:auto; height:auto; position:static; border-right:none;
+               border-bottom:1px solid var(--line); }
+}
+h1[id]:hover .rv-add, h2[id]:hover .rv-add, h3[id]:hover .rv-add,
+h4[id]:hover .rv-add { opacity:1; }
+.rv-add { opacity:0; margin-left:.5rem; font-size:.75rem; cursor:pointer;
+          border:1px solid var(--accent); color:var(--accent); background:none;
+          border-radius:6px; padding:0 .45rem; vertical-align:middle;
+          transition:opacity .15s; }
+.rv-comment { border:1px solid var(--warn-line); border-left-width:4px;
+              background:var(--warn-bg); border-radius:8px; padding:.6rem .9rem;
+              margin:.8rem 0; font-size:.92rem; }
+.rv-comment.rv-resolved { opacity:.6; border-left-color:var(--line); }
+.rv-comment .rv-head { display:flex; gap:.6rem; align-items:center;
+                       color:var(--muted); font-size:.8rem; margin-bottom:.3rem; }
+.rv-comment .rv-head button { font-size:.75rem; cursor:pointer; background:none;
+                              border:1px solid var(--line); border-radius:6px;
+                              color:var(--muted); padding:0 .4rem; }
+.rv-comment .rv-body { white-space:pre-wrap; }
+.rv-editor textarea { width:100%; min-height:5rem; background:var(--bg);
+                      color:var(--fg); border:1px solid var(--line);
+                      border-radius:6px; padding:.5rem; font:inherit; }
+.rv-editor .rv-actions { margin-top:.4rem; display:flex; gap:.5rem; }
+.rv-editor button { cursor:pointer; border-radius:6px; padding:.2rem .8rem;
+                    border:1px solid var(--accent); background:var(--accent);
+                    color:#fff; }
+.rv-editor button.rv-cancel { background:none; color:var(--accent); }
+#rv-toggle { position:fixed; right:1rem; bottom:1rem; z-index:60;
+             background:var(--accent); color:#fff; border:none; cursor:pointer;
+             border-radius:999px; padding:.5rem 1rem; font-size:.85rem;
+             box-shadow:0 2px 10px rgba(0,0,0,.2); }
+#rv-drawer { position:fixed; top:0; right:0; bottom:0; width:21rem; z-index:55;
+             background:var(--card); border-left:1px solid var(--line);
+             display:flex; flex-direction:column; transform:translateX(100%);
+             transition:transform .2s ease; box-shadow:-4px 0 16px rgba(0,0,0,.12); }
+body.rv-open #rv-drawer { transform:none; }
+body.rv-open .layout { padding-right:21rem; }
+#rv-drawer header { padding:.8rem 1rem .5rem; border-bottom:1px solid var(--line); }
+#rv-drawer header .rv-count { color:var(--muted); font-size:.8rem; }
+#rv-drawer .rv-compose { padding:.8rem 1rem; border-bottom:1px solid var(--line); }
+#rv-drawer .rv-compose label { display:block; font-size:.75rem;
+                               color:var(--muted); margin-bottom:.25rem; }
+#rv-drawer .rv-compose select { width:100%; margin-bottom:.4rem;
+             background:var(--bg); color:var(--fg); border:1px solid var(--line);
+             border-radius:6px; padding:.3rem; font:inherit; font-size:.85rem; }
+#rv-drawer .rv-compose textarea { width:100%; min-height:5.5rem;
+             background:var(--bg); color:var(--fg); border:1px solid var(--line);
+             border-radius:6px; padding:.5rem; font:inherit; font-size:.9rem; }
+#rv-drawer .rv-compose .rv-live { font-size:.72rem; color:var(--muted); }
+#rv-drawer .rv-list { flex:1; overflow-y:auto; padding:.6rem 1rem; }
+#rv-drawer .rv-item { border:1px solid var(--line); border-left:3px solid
+             var(--warn-line); border-radius:8px; padding:.45rem .6rem;
+             margin-bottom:.6rem; font-size:.82rem; cursor:pointer; }
+#rv-drawer .rv-item.rv-resolved { opacity:.55; border-left-color:var(--line); }
+#rv-drawer .rv-item .rv-where { color:var(--accent); font-size:.72rem; }
+#rv-drawer .rv-item .rv-meta { color:var(--muted); font-size:.72rem;
+                               display:flex; gap:.5rem; align-items:center; }
+#rv-drawer .rv-item .rv-meta button { font-size:.7rem; cursor:pointer;
+             background:none; border:1px solid var(--line); border-radius:5px;
+             color:var(--muted); padding:0 .35rem; }
+#rv-drawer .rv-item .rv-text { white-space:pre-wrap; margin:.15rem 0; }
+#rv-drawer footer { padding:.6rem 1rem; border-top:1px solid var(--line);
+                    display:flex; gap:.5rem; flex-wrap:wrap; }
+#rv-drawer footer button, #rv-drawer .rv-compose button {
+  cursor:pointer; border:1px solid var(--accent); background:none;
+  color:var(--accent); border-radius:6px; padding:.2rem .7rem; font-size:.8rem; }
+#rv-drawer .rv-compose button.rv-primary { background:var(--accent); color:#fff; }
+#rv-drawer .rv-otherpages { color:var(--muted); font-size:.75rem;
+                            margin:.4rem 0 0; }
+@media (max-width: 1200px) { body.rv-open .layout { padding-right:0; } }
+</style>
+</head>
+<body data-page="index" data-rvkey="mtfwbuilder">
+<div class="layout">
+<aside class="site"><a class="brand" href="spec.html">MTFWBuilder</a>
+<h2>Spec</h2><ul>
+<li><a class="current" href="spec.html">Overview &amp; index</a></li>
+<li><a class="sub" href="#overview">Overview</a></li>
+<li><a class="sub" href="#terms">Terms</a></li>
+<li><a class="sub" href="#goals">Goals</a></li>
+<li><a class="sub" href="#non-goals">Non-goals</a></li>
+<li><a class="sub" href="#users-personas">Users &amp; personas</a></li>
+<li><a class="sub" href="#feature-map">Feature map</a></li>
+<li><a class="sub" href="#architecture-stack">Architecture &amp; stack</a></li>
+<li><a class="sub" href="#data-model">Data model</a></li>
+<li><a class="sub" href="#cross-cutting-concerns">Cross-cutting concerns</a></li>
+<li><a class="sub" href="#environments-config">Environments &amp; config</a></li>
+<li><a class="sub" href="#testing-strategy">Testing strategy</a></li>
+<li><a class="sub" href="#epics">Epics</a></li>
+<li><a class="sub" href="#milestones">Milestones</a></li>
+<li><a class="sub" href="#assumptions">Assumptions</a></li>
+<li><a class="sub" href="#risks-open-questions">Risks &amp; open questions</a></li>
+<li><a class="sub" href="#changelog">Changelog</a></li>
+</ul>
+<h2>Pages</h2><ul>
+<li><a href="html/page-inherit-reconciliation.html">Inherit reconciliation and research</a></li>
+</ul>
+<h2>Features</h2><ul>
+<li><a href="html/feature-foundation.html">Foundation</a></li>
+<li><a href="html/feature-config-generator.html">Config generator</a></li>
+<li><a href="html/feature-firmware-builder.html">Firmware builder</a></li>
+<li><a href="html/feature-device-registry.html">Device registry</a></li>
+<li><a href="html/feature-admin.html">Admin</a></li>
+<li><a href="html/feature-userprefs-correctness.html">userPrefs correctness</a></li>
+<li><a href="html/feature-build-pipeline-repair.html">Build pipeline repair</a></li>
+<li><a href="html/feature-frontend-htmx.html">Frontend on htmx</a></li>
+<li><a href="html/feature-platform-modernization.html">Platform modernization</a></li>
+<li><a href="html/feature-firmware-versions.html">Firmware versions</a></li>
+<li><a href="html/feature-generated-registry.html">Generated registry</a></li>
+<li><a href="html/feature-config-coverage.html">Config coverage</a></li>
+<li><a href="html/feature-channel-share.html">Channel share</a></li>
+<li><a href="html/feature-browser-flashing.html">Browser flashing</a></li>
+<li><a href="html/feature-fleet-builds.html">Fleet builds</a></li>
+<li><a href="html/feature-push-config.html">Push config</a></li>
+</ul></aside>
+<main>
+<p class="meta"><span class="badge">approved</span> &nbsp; created 2026-11-21 &nbsp; rendered 2026-11-21</p>
+<h1>MTFWBuilder</h1>
+<h1 id="mtfwbuilder">MTFWBuilder</h1>
+<h2 id="overview">Overview</h2>
+<p>MTFWBuilder is a self-hosted web application for Meshtastic radios. The operator fills in a form. The project writes a <code>userPrefs.jsonc</code> file from the form. The project then compiles Meshtastic firmware with PlatformIO, and the <code>userPrefs.jsonc</code> values are compiled into the firmware. The operator downloads the firmware and flashes it to the device.</p>
+<p>The project serves three groups:</p>
+<ul>
+<li>the owner, who runs it in a homelab for personal devices;
+</li>
+<li>self-hosters in the Meshtastic community, who clone the repository and run it;
+</li>
+<li>event and fleet organizers, who give many devices the same channels and settings.
+</li>
+</ul>
+<p>The official Meshtastic Web Flasher flashes prebuilt firmware only. The Meshtastic CLI configures a device after it is flashed. No other public tool gives a web interface for firmware that carries custom defaults. Research on 2026-11-21 found only small command-line forks (see <code>pages/inherit-reconciliation.md</code>).</p>
+<p><strong>Current state (2026-11-21).</strong> The v2 rewrite (FastAPI, March 2026) changed the backend. It did not change the frontend. Research found that the end-to-end flow does not work today, for these reasons:</p>
+<ul>
+<li>The pages call v1 URLs that the v2 backend does not serve.
+</li>
+<li>71 of the 150 registry ids are not PlatformIO environment names.
+</li>
+<li>Upstream firmware changed its output file names in December 2025.
+</li>
+<li>The generator writes many keys that the firmware does not read.
+</li>
+</ul>
+<p>This spec documents the code as it is (<code>status: built</code> features 01–04). It then plans the repair, the update to current upstream firmware, and new capabilities (<code>status: planned</code> features 00 and 05–15). The full reconciliation of documents against code is in <code>pages/inherit-reconciliation.md</code>.</p>
+<p><strong>An important upstream fact.</strong> A <code>userPrefs.jsonc</code> value is a factory default. The firmware applies it on first boot and on factory reset only. After that, the saved device config wins. To stop a user changing settings, the config must set an admin key (<code>USERPREFS_USE_ADMIN_KEY_0</code>) and <code>USERPREFS_CONFIG_SECURITY_IS_MANAGED</code>. Source: the header of <code>userPrefs.jsonc</code> in <code>meshtastic/firmware</code> <code>develop@fe89ac1</code>.</p>
+<h2 id="terms">Terms</h2>
+<div class="table-wrap"><table>
+<tr><th>Term</th><th>Part of speech</th><th>Meaning in this project</th><th>Do not use</th></tr>
+<tr><td>project</td><td>noun</td><td>MTFWBuilder, the whole application this spec describes.</td><td>app, tool, system</td></tr>
+<tr><td>operator</td><td>noun</td><td>A person who uses the project's web pages to make a config or a build.</td><td>user, customer</td></tr>
+<tr><td>admin</td><td>noun</td><td>An operator who has signed in with the admin password. Only an admin can change the firmware source or run cleanup.</td><td>administrator, superuser</td></tr>
+<tr><td>device</td><td>noun</td><td>One physical Meshtastic radio.</td><td>node (except in Meshtastic field names), radio unit</td></tr>
+<tr><td>variant</td><td>noun</td><td>One PlatformIO environment in the firmware source, for example <code>heltec-v4</code>. A variant is what the project compiles.</td><td>board, target, model, env</td></tr>
+<tr><td>registry</td><td>noun</td><td>The list of variants the project offers, with name, manufacturer, architecture and support level.</td><td>device list, catalog</td></tr>
+<tr><td>architecture</td><td>noun</td><td>The chip family of a variant: <code>esp32</code>, <code>esp32s3</code>, <code>esp32c3</code>, <code>esp32c6</code>, <code>esp32s2</code>, <code>nrf52840</code>, <code>nrf54l15</code>, <code>rp2040</code>, <code>rp2350</code>, <code>stm32</code>.</td><td>platform, chip</td></tr>
+<tr><td>support level</td><td>noun</td><td>The upstream <code>board_level</code> of a variant: <code>release</code>, <code>pr</code> or <code>extra</code>.</td><td>tier, status</td></tr>
+<tr><td>config</td><td>noun</td><td>The set of setting values that an operator enters for a device.</td><td>configuration, settings file, preferences</td></tr>
+<tr><td>userPrefs file</td><td>noun</td><td>The <code>userPrefs.jsonc</code> file the project writes from a config. The firmware build reads it.</td><td>prefs, jsonc</td></tr>
+<tr><td>userPrefs key</td><td>noun</td><td>One <code>USERPREFS_*</code> name in the userPrefs file.</td><td>define, flag, macro</td></tr>
+<tr><td>factory default</td><td>noun</td><td>A value the firmware applies on first boot and on factory reset only. Every userPrefs key is a factory default.</td><td>baked setting, locked setting</td></tr>
+<tr><td>firmware source</td><td>noun</td><td>One extracted copy of the <code>meshtastic/firmware</code> source tree at one firmware version.</td><td>firmware tree, repo copy</td></tr>
+<tr><td>firmware version</td><td>noun</td><td>One upstream release tag, for example <code>v2.7.26.54e0d8d</code>.</td><td>release, tag (alone)</td></tr>
+<tr><td>channel</td><td>noun</td><td>A Meshtastic channel: index 0–7, name, PSK, precision, uplink, downlink, muted.</td><td>room, group</td></tr>
+<tr><td>PSK</td><td>noun</td><td>The pre-shared key that encrypts a channel.</td><td>password, key (alone)</td></tr>
+<tr><td>secret</td><td>noun</td><td>Any config value that gives access: a PSK, a WiFi password, an MQTT password, an admin key.</td><td>credential, sensitive data</td></tr>
+<tr><td>channel URL</td><td>noun</td><td>A <code>https://meshtastic.org/e/#…</code> URL that encodes a ChannelSet protobuf.</td><td>share link, QR link</td></tr>
+<tr><td>build</td><td>noun</td><td>One compile of one variant with one userPrefs file. A build has a build id and a status.</td><td>job, compile run</td></tr>
+<tr><td>build id</td><td>noun</td><td>The identifier of one build.</td><td>job id, token</td></tr>
+<tr><td>build status</td><td>noun</td><td>One of: <code>queued</code>, <code>compiling</code>, <code>linking</code>, <code>packaging</code>, <code>complete</code>, <code>failed</code>, <code>cancelled</code>.</td><td>state, phase</td></tr>
+<tr><td>artifact</td><td>noun</td><td>One file a build produces for the operator, for example <code>firmware-heltec-v4-2.7.26.54e0d8d.factory.bin</code>.</td><td>output, binary, image</td></tr>
+<tr><td>build queue</td><td>noun</td><td>The ordered list of builds that wait for a free build worker.</td><td>job queue</td></tr>
+<tr><td>build worker</td><td>noun</td><td>The process slot that runs one build at a time.</td><td>runner, executor</td></tr>
+<tr><td>build cache</td><td>noun</td><td>Stored artifacts, keyed by a hash of firmware version, variant and userPrefs file.</td><td>artifact store</td></tr>
+<tr><td>progress stream</td><td>noun</td><td>The Server-Sent Events (SSE) stream that sends build status and log lines to the page.</td><td>event feed, socket</td></tr>
+<tr><td>scrub</td><td>verb</td><td>To delete every file that holds a secret, after a build ends.</td><td>sanitize, wipe, clean</td></tr>
+<tr><td>flash</td><td>verb</td><td>To write an artifact to a device.</td><td>burn, install, upload</td></tr>
+<tr><td>profile</td><td>noun</td><td>A saved config with a name, stored by the project.</td><td>template, preset (alone)</td></tr>
+<tr><td>fleet</td><td>noun</td><td>A named group of devices that share one profile and differ in per-device fields.</td><td>batch, group</td></tr>
+<tr><td>fleet run</td><td>noun</td><td>One request that makes one build for each device in a fleet.</td><td>bulk build</td></tr>
+<tr><td>push config</td><td>verb</td><td>To send a config to a connected device over Web Serial or Web Bluetooth, without a build.</td><td>provision, sync</td></tr>
+<tr><td>modem preset</td><td>noun</td><td>A Meshtastic LoRa modem preset, for example <code>LONG_FAST</code>.</td><td>preset (alone), speed</td></tr>
+<tr><td>region</td><td>noun</td><td>A Meshtastic LoRa region code, for example <code>US</code>.</td><td>country, band</td></tr>
+<tr><td>role</td><td>noun</td><td>A Meshtastic device role, for example <code>CLIENT</code> or <code>ROUTER</code>.</td><td>mode, type</td></tr>
+<tr><td>Web Serial</td><td>noun</td><td>The browser API that opens a USB serial port from a page.</td><td>WebUSB</td></tr>
+<tr><td>SSE</td><td>noun</td><td>Server-Sent Events: a one-way HTTP stream from server to browser.</td><td>websocket</td></tr>
+</table></div>
+<h2 id="goals">Goals</h2>
+<ol>
+<li>An operator makes a config, starts a build, and downloads a working artifact for any
+</li>
+</ol>
+<p><code>release</code> or <code>pr</code> variant of the selected firmware version.</p>
+<ol>
+<li>Every userPrefs key the project writes is a key the selected firmware version reads.
+</li>
+</ol>
+<p>A test checks this against the firmware source.</p>
+<ol>
+<li>The registry comes from the firmware source. No person edits a variant list by hand.
+</li>
+<li>The config form covers every userPrefs key that upstream lists, except the keys in
+</li>
+</ol>
+<p><code>Non-goals</code>.</p>
+<ol>
+<li>An operator flashes an ESP32-family artifact from the browser in one step.
+</li>
+<li>An organizer makes builds for 20 devices in one fleet run.
+</li>
+<li>No secret stays on disk after its build ends, on any path: success, failure, timeout
+</li>
+</ol>
+<p>or cancel.</p>
+<ol>
+<li>A fresh clone installs, tests, lints and starts with the commands in <code>CLAUDE.md</code>, and
+</li>
+</ol>
+<p>CI runs the same commands on each pull request.</p>
+<h2 id="non-goals">Non-goals</h2>
+<ul>
+<li>A public hosted instance. The project stays self-hosted.
+</li>
+<li>MeshCore or any mesh firmware other than Meshtastic.
+</li>
+<li>Native Linux variants (<code>meshtasticd</code>, architecture <code>native</code>). Their output is not
+</li>
+</ul>
+<p>flashable.</p>
+<ul>
+<li>Over-the-air (OTA) firmware update.
+</li>
+<li>Injection of a config into a prebuilt binary without a compile. No upstream mechanism
+</li>
+</ul>
+<p>exists for it.</p>
+<ul>
+<li>Accounts for operators. The admin password is the only sign-in.
+</li>
+<li>The userPrefs keys <code>USERPREFS_UI_TEST_LOG</code>, <code>USERPREFS_FIRMWARE_EDITION</code> and
+</li>
+</ul>
+<p><code>USERPREFS_MESH_BEACON_LEGACY_SPLIT</code>. They are for upstream testing and vendor editions.</p>
+<h2 id="users-personas">Users &amp; personas</h2>
+<div class="table-wrap"><table>
+<tr><th>Persona</th><th>Needs</th><th>Allowed to</th></tr>
+<tr><td>Homelab owner</td><td>Fast builds for a few personal devices. Correct defaults.</td><td>Everything, as admin.</td></tr>
+<tr><td>Self-hoster</td><td>A Docker install that works on first start. Clear setup.</td><td>Everything on their own instance.</td></tr>
+<tr><td>Fleet organizer</td><td>One config for many devices, with per-device names, roles and positions. Locked settings.</td><td>Create profiles and fleet runs. Download all artifacts.</td></tr>
+<tr><td>Admin</td><td>Change the firmware source. Run cleanup. See build history.</td><td>All admin pages and admin API routes.</td></tr>
+</table></div>
+<p>An operator who is not signed in can make configs, builds and fleet runs. An admin changes what firmware versions the instance holds. The project has no other roles.</p>
+<h2 id="feature-map">Feature map</h2>
+<div class="table-wrap"><table>
+<tr><th>Feature set</th><th>Spec file</th><th>Status</th><th>Epic</th><th>Mockups</th></tr>
+<tr><td>Foundation</td><td><a href="html/feature-foundation.html">features/00-foundation.md</a></td><td>planned</td><td>Epic 0: Foundation</td><td>—</td></tr>
+<tr><td>Config generator</td><td><a href="html/feature-config-generator.html">features/01-config-generator.md</a></td><td>built</td><td>—</td><td>—</td></tr>
+<tr><td>Firmware builder</td><td><a href="html/feature-firmware-builder.html">features/02-firmware-builder.md</a></td><td>built</td><td>—</td><td>—</td></tr>
+<tr><td>Device registry</td><td><a href="html/feature-device-registry.html">features/03-device-registry.md</a></td><td>built</td><td>—</td><td>—</td></tr>
+<tr><td>Admin</td><td><a href="html/feature-admin.html">features/04-admin.md</a></td><td>built</td><td>—</td><td>—</td></tr>
+<tr><td>userPrefs correctness</td><td><a href="html/feature-userprefs-correctness.html">features/05-userprefs-correctness.md</a></td><td>planned</td><td>Epic 1: Correct userPrefs</td><td>—</td></tr>
+<tr><td>Build pipeline repair</td><td><a href="html/feature-build-pipeline-repair.html">features/06-build-pipeline-repair.md</a></td><td>planned</td><td>Epic 2: Build pipeline repair</td><td>—</td></tr>
+<tr><td>Frontend on htmx</td><td><a href="html/feature-frontend-htmx.html">features/07-frontend-htmx.md</a></td><td>planned</td><td>Epic 3: Frontend on htmx</td><td><a href="mockups/01-build-page.html">01-build-page</a></td></tr>
+<tr><td>Platform modernization</td><td><a href="html/feature-platform-modernization.html">features/08-platform-modernization.md</a></td><td>planned</td><td>Epic 4: Platform modernization</td><td>—</td></tr>
+<tr><td>Firmware versions</td><td><a href="html/feature-firmware-versions.html">features/09-firmware-versions.md</a></td><td>planned</td><td>Epic 5: Firmware versions</td><td><a href="mockups/02-firmware-sources.html">02-firmware-sources</a></td></tr>
+<tr><td>Generated registry</td><td><a href="html/feature-generated-registry.html">features/10-generated-registry.md</a></td><td>planned</td><td>Epic 6: Generated registry</td><td><a href="mockups/03-device-picker.html">03-device-picker</a></td></tr>
+<tr><td>Config coverage</td><td><a href="html/feature-config-coverage.html">features/11-config-coverage.md</a></td><td>planned</td><td>Epic 7: Config coverage</td><td><a href="mockups/04-config-form.html">04-config-form</a></td></tr>
+<tr><td>Channel share</td><td><a href="html/feature-channel-share.html">features/12-channel-share.md</a></td><td>planned</td><td>Epic 8: Channel share</td><td><a href="mockups/05-channel-share.html">05-channel-share</a></td></tr>
+<tr><td>Browser flashing</td><td><a href="html/feature-browser-flashing.html">features/13-browser-flashing.md</a></td><td>planned</td><td>Epic 9: Browser flashing</td><td><a href="mockups/06-flash.html">06-flash</a></td></tr>
+<tr><td>Fleet builds</td><td><a href="html/feature-fleet-builds.html">features/14-fleet-builds.md</a></td><td>planned</td><td>Epic 10: Profiles and build cache, Epic 11: Fleet runs</td><td><a href="mockups/07-fleet.html">07-fleet</a></td></tr>
+<tr><td>Push config</td><td><a href="html/feature-push-config.html">features/15-push-config.md</a></td><td>planned</td><td>Epic 12: Push config</td><td><a href="mockups/08-push-config.html">08-push-config</a></td></tr>
+</table></div>
+<h2 id="architecture-stack">Architecture &amp; stack</h2>
+<div class="diagram"><pre class="mermaid">flowchart LR
+  subgraph Browser
+    P[Pages: Jinja2 + htmx]
+    WS[Web Serial / Web Bluetooth]
+  end
+  subgraph Server[FastAPI process]
+    R[Routers /api/v1]
+    G[Config generator]
+    Q[Build queue]
+    W[Build worker]
+    REG[Registry generator]
+    FU[Firmware updater]
+    C[Cleanup task]
+    DB[(SQLite)]
+  end
+  FS[(Firmware sources on disk)]
+  BC[(Build cache)]
+  GH[api.github.com / api.meshtastic.org]
+  P -- form, HTTP --&gt; R
+  R --&gt; G
+  R --&gt; Q --&gt; W
+  W -- pio run -e variant --&gt; FS
+  W -- artifacts --&gt; BC
+  W -- progress stream SSE --&gt; P
+  FU -- release zipball --&gt; GH
+  FU --&gt; FS
+  REG -- pio project config --&gt; FS
+  R --&gt; DB
+  C --&gt; BC
+  P -- artifact --&gt; WS -- flash / push config --&gt; D[Device]</pre></div>
+<p>The diagram shows the target architecture after the planned epics. Today the build worker runs only while a progress stream is open, the cleanup task does not exist, and the database is not used (see <code>features/02-firmware-builder.md</code>).</p>
+<div class="table-wrap"><table>
+<tr><th>Component</th><th>Choice</th><th>Why</th></tr>
+<tr><td>Web server</td><td>FastAPI + uvicorn, one process (<code>--workers 1</code>)</td><td>Built. Async builds and SSE. One process keeps the build queue in memory without a broker.</td></tr>
+<tr><td>Pages</td><td>Jinja2 templates + htmx 2 + htmx SSE extension, Bootstrap 5.3</td><td>Chosen in the interview: no JavaScript build step. htmx is loaded today but not used. ADR 0002.</td></tr>
+<tr><td>Browser flashing</td><td>ESP Web Tools 10.x / esptool-js 0.7 (Apache-2.0), vendored</td><td>Apache-2.0 is compatible with GPL-3.0. The official Web Flasher uses esptool-js.</td></tr>
+<tr><td>Push config</td><td><code>@meshtastic/core</code> + <code>@meshtastic/transport-web-serial</code> (GPL-3.0, JSR), or <code>meshtastic-sdk</code> JS when it reaches 0.3.0</td><td>The only maintained client libraries. Choice deferred to a spike in Epic 12.</td></tr>
+<tr><td>Data store</td><td>SQLite through aiosqlite</td><td>Built (schema only). Zero setup for a self-hoster. ADR 0003.</td></tr>
+<tr><td>Firmware build</td><td>PlatformIO Core 6.2 (<code>pioarduino</code> core for ESP32 on firmware 2.8)</td><td>Upstream build system. Source: <code>meshtastic/gh-action-firmware</code>.</td></tr>
+<tr><td>Packaging</td><td><code>pyproject.toml</code> + hatchling today; uv + <code>uv.lock</code> planned</td><td>Interview choice (stack modernization).</td></tr>
+<tr><td>Runtime</td><td>Python 3.11 today (Docker); Python 3.13 planned</td><td><code>asyncio.timeout</code> needs 3.11. <code>meshtastic</code> python requires <code>&lt;3.15</code>.</td></tr>
+<tr><td>Deploy</td><td>Docker Compose, self-hosted. No hosted instance.</td><td>Interview answer: not deployed.</td></tr>
+<tr><td>Protobuf decode</td><td><code>meshtastic</code> python package (GPL-3.0)</td><td>Decodes channel URLs and CLI YAML. Allowed by the GPL-3.0 relicense (ADR 0004).</td></tr>
+</table></div>
+<h2 id="data-model">Data model</h2>
+<div class="diagram"><pre class="mermaid">erDiagram
+  FIRMWARE_SOURCE ||--o{ VARIANT : "registry of"
+  FIRMWARE_SOURCE ||--o{ BUILD : "compiled from"
+  VARIANT ||--o{ BUILD : "compiled for"
+  PROFILE ||--o{ FLEET : "base config of"
+  FLEET ||--o{ FLEET_DEVICE : contains
+  FLEET ||--o{ FLEET_RUN : "built by"
+  FLEET_RUN ||--o{ BUILD : produces
+  FLEET_DEVICE ||--o| BUILD : "one per run"
+  BUILD }o--o| CACHE_ENTRY : "served from"</pre></div>
+<p><strong>Built today</strong> (<code>mtfwbuilder/database.py:8-30</code>). The project creates two tables at startup. No code reads or writes them.</p>
+<div class="table-wrap"><table>
+<tr><th>Entity</th><th>Fields</th><th>Notes</th></tr>
+<tr><td><code>builds</code></td><td><code>id</code> TEXT PK, <code>variant</code>, <code>architecture</code>, <code>firmware_format</code> TEXT NOT NULL, <code>status</code> TEXT NOT NULL default <code>queued</code>, <code>firmware_path</code>, <code>build_log</code>, <code>error_message</code> TEXT, <code>created_at</code> default now, <code>completed_at</code></td><td>Unused. Builds live in memory (<code>app.state.active_builds</code>).</td></tr>
+<tr><td><code>config_profiles</code></td><td><code>id</code> INTEGER PK, <code>name</code> TEXT NOT NULL, <code>config_json</code> TEXT NOT NULL, <code>created_at</code>, <code>updated_at</code></td><td>Unused. <code>name</code> is not unique.</td></tr>
+</table></div>
+<p>The registry is a YAML file today (<code>devices/variants.yaml</code>, 150 entries, fields <code>id</code>, <code>name</code>, <code>manufacturer</code>, <code>architecture</code>, <code>pio_platform</code>).</p>
+<p><strong>Planned.</strong> Each planned feature file states its own fields and migration.</p>
+<div class="table-wrap"><table>
+<tr><th>Entity</th><th>Owner feature</th><th>Key fields</th><th>Lifecycle</th></tr>
+<tr><td>FIRMWARE_SOURCE</td><td>firmware-versions</td><td><code>version</code> PK, <code>channel</code> (stable/alpha/pinned), <code>path</code>, <code>installed_at</code>, <code>status</code></td><td>installing → ready → removed</td></tr>
+<tr><td>VARIANT</td><td>generated-registry</td><td><code>env</code> + <code>version</code> PK, <code>display_name</code>, <code>manufacturer</code>, <code>architecture</code>, <code>support_level</code>, <code>hw_model</code>, <code>image</code>, <code>requires_dfu</code></td><td>regenerated when a firmware source becomes ready</td></tr>
+<tr><td>BUILD</td><td>build-pipeline-repair</td><td><code>id</code> (random, 128-bit), <code>version</code>, <code>variant</code>, <code>status</code>, <code>config_hash</code>, <code>created_at</code>, <code>completed_at</code>, <code>error_message</code>, <code>fleet_run_id</code></td><td>queued → compiling → linking → packaging → complete / failed / cancelled → expired</td></tr>
+<tr><td>CACHE_ENTRY</td><td>fleet-builds</td><td><code>config_hash</code> PK, <code>artifact_paths</code>, <code>created_at</code>, <code>last_used_at</code></td><td>created on complete, removed by TTL</td></tr>
+<tr><td>PROFILE</td><td>fleet-builds</td><td><code>id</code>, <code>name</code> UNIQUE, <code>config_json</code> without secrets, <code>created_at</code>, <code>updated_at</code></td><td>created → updated → deleted</td></tr>
+<tr><td>FLEET</td><td>fleet-builds</td><td><code>id</code>, <code>name</code>, <code>profile_id</code></td><td>created → deleted</td></tr>
+<tr><td>FLEET_DEVICE</td><td>fleet-builds</td><td><code>id</code>, <code>fleet_id</code>, <code>label</code>, <code>variant</code>, <code>long_name</code>, <code>short_name</code>, <code>role</code>, <code>fixed_lat</code>, <code>fixed_lon</code>, <code>fixed_alt</code>, <code>admin_key</code></td><td>created → deleted</td></tr>
+<tr><td>FLEET_RUN</td><td>fleet-builds</td><td><code>id</code>, <code>fleet_id</code>, <code>version</code>, <code>status</code>, <code>created_at</code></td><td>queued → running → complete / partial / failed</td></tr>
+</table></div>
+<p>A build log is not stored in the database. Upstream PlatformIO prints the <code>-D</code> build flags, and those flags hold every secret (see <code>Risks</code>).</p>
+<div class="diagram"><pre class="mermaid">stateDiagram-v2
+  [*] --&gt; queued
+  queued --&gt; compiling
+  queued --&gt; cancelled
+  compiling --&gt; linking
+  linking --&gt; packaging
+  packaging --&gt; complete
+  compiling --&gt; failed
+  linking --&gt; failed
+  packaging --&gt; failed
+  compiling --&gt; cancelled
+  complete --&gt; expired
+  failed --&gt; expired
+  cancelled --&gt; expired
+  expired --&gt; [*]</pre></div>
+<p>This is the planned build lifecycle. The <code>scrub</code> step runs on every transition into <code>complete</code>, <code>failed</code> and <code>cancelled</code>.</p>
+<h2 id="cross-cutting-concerns">Cross-cutting concerns</h2>
+<p><strong>Authentication and authorization (built).</strong> The admin password is a bcrypt hash in <code>config.yaml</code>. <code>POST /admin/login</code> sets the cookie <code>mtfw_session</code>: an itsdangerous signature of the string <code>admin</code>, HttpOnly, SameSite=Lax, Secure unless <code>debug</code>, max age 3600 s. Only <code>/api/v1/update-firmware</code> and <code>/api/v1/cleanup</code> require it. The project has no CSRF token. A cookie with <code>Secure</code> set does not work on plain HTTP, so admin sign-in fails on a default Docker install (<code>mtfwbuilder/routers/admin.py:44-51</code>).</p>
+<p><strong>Planned auth changes</strong> (feature <code>frontend-htmx</code> and <code>build-pipeline-repair</code>):</p>
+<ul>
+<li>The <code>/admin</code> page shows a sign-in form when no session exists.
+</li>
+<li>The <code>Secure</code> flag follows the request scheme.
+</li>
+<li>Every state-changing admin form carries a CSRF token.
+</li>
+<li>Build ids are random, so one operator cannot guess another operator's build.
+</li>
+</ul>
+<p><strong>Validation.</strong> Today the routes read raw JSON. The pydantic models in <code>models.py</code> are not used. Planned: every route validates its body with a pydantic model, and every enum (region, modem preset, role, GPS mode) comes from one module that matches the upstream protobufs.</p>
+<p><strong>Errors.</strong> Today the config routes return HTTP 200 with <code>success: false</code> and the raw exception text. Planned: a validation error returns 422 with field errors. An internal error returns 500 with a generic message and logs the detail.</p>
+<p><strong>Secrets.</strong> A secret is never logged, never stored in the database, never kept in a cache entry, and never kept in browser storage after the page closes. The project scrubs the firmware source after every build. The build log sent to the page has every secret value replaced with <code>***</code>.</p>
+<p><strong>Logging.</strong> Standard <code>logging</code>, optional JSON format (<code>MTFW_LOG_JSON</code>). No <code>print()</code>.</p>
+<p><strong>Accessibility.</strong> Every input has a label. The progress stream region has <code>aria-live="polite"</code>. Every icon-only button has an <code>aria-label</code>. Colors meet WCAG AA contrast in light and dark themes.</p>
+<p><strong>i18n.</strong> English only. Not planned.</p>
+<p><strong>Performance.</strong> One build worker by default (<code>MTFW_BUILD_WORKERS</code>, default 1). A PlatformIO build of one ESP32 variant takes several minutes on first build and uses several GB of disk for toolchains. The build cache returns a repeated build in under one second.</p>
+<p><strong>Security headers.</strong> nginx sets them in production (<code>nginx/nginx.conf.example</code>). The app sets none. Planned: the app sets <code>X-Content-Type-Options</code>, <code>Referrer-Policy</code> and a Content-Security-Policy that allows only vendored scripts.</p>
+<h2 id="environments-config">Environments &amp; config</h2>
+<div class="table-wrap"><table>
+<tr><th>Environment</th><th>How it runs</th><th>Notes</th></tr>
+<tr><td>local dev</td><td><code>uvicorn mtfwbuilder.main:app --reload --port 5000</code></td><td>Firmware source must be installed from <code>/admin</code>.</td></tr>
+<tr><td>Docker</td><td><code>docker compose up -d</code></td><td>Port 5000. Volumes for firmware sources and PlatformIO toolchains.</td></tr>
+<tr><td>Docker + nginx</td><td><code>docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d</code></td><td>TLS on nginx. Needed for Web Serial on a LAN host.</td></tr>
+</table></div>
+<p>Settings come from <code>config.yaml</code> and from <code>MTFW_*</code> environment variables. Values in <code>config.yaml</code> win over environment variables (<code>mtfwbuilder/config.py:58-116</code>). The full list of names is in <code>docs/external.md</code>. Names only; no values are in this repository.</p>
+<p>Seed data: none. The registry and the firmware source come from upstream at runtime. Planned: a test fixture holds a small firmware source subset (a few variant <code>platformio.ini</code> files and <code>userPrefs.jsonc</code>) so tests run without a download.</p>
+<h2 id="testing-strategy">Testing strategy</h2>
+<ul>
+<li><strong>Unit:</strong> pytest, <code>asyncio_mode = "auto"</code>. 106 tests today: generator 39, build service
+</li>
+</ul>
+<p>26, registry 20, security 14, routes 7.</p>
+<ul>
+<li><strong>Contract tests (planned):</strong> the userPrefs keys the generator writes are a subset of
+</li>
+</ul>
+<p>the keys the fixture firmware source reads. The registry fixture matches <code>pio project config --json-output</code> output.</p>
+<ul>
+<li><strong>Integration (planned):</strong> route tests through httpx for every <code>/api/v1</code> route,
+</li>
+</ul>
+<p>including the progress stream. A fake <code>pio</code> executable stands in for PlatformIO.</p>
+<ul>
+<li><strong>E2E smoke (planned):</strong> Playwright loads each page, fills the config form, starts a
+</li>
+</ul>
+<p>build against the fake <code>pio</code>, and downloads the artifact.</p>
+<ul>
+<li><strong>Real build (planned, manual or scheduled CI):</strong> one real <code>pio run</code> of one ESP32 and
+</li>
+</ul>
+<p>one nRF52 variant.</p>
+<ul>
+<li>A change is done when <code>uv run pytest</code>, <code>uv run ruff check</code>, and `uv run ruff format
+</li>
+</ul>
+<p>--check<code> pass, and the E2E smoke passes for any change under </code>templates/<code> or </code>static/`.</p>
+<h2 id="epics">Epics</h2>
+<div class="table-wrap"><table>
+<tr><th>#</th><th>Epic</th><th>Goal</th><th>Feature files</th><th>Depends on</th><th>Exit criteria</th></tr>
+<tr><td>0</td><td>Foundation</td><td>CI, branch model, lint rules, test isolation, license, v1 removal</td><td>00-foundation</td><td>—</td><td>CI runs on each PR to <code>dev</code>. Tests do not write to the repository.</td></tr>
+<tr><td>1</td><td>Correct userPrefs</td><td>The generator writes only keys the firmware reads</td><td>05-userprefs-correctness</td><td>0</td><td>A contract test passes against the fixture firmware source.</td></tr>
+<tr><td>2</td><td>Build pipeline repair</td><td>A build runs to an artifact without a page attached, and scrubs on every path</td><td>06-build-pipeline-repair</td><td>0</td><td>A fake-pio build completes, and its artifact downloads. No userPrefs file remains.</td></tr>
+<tr><td>3</td><td>Frontend on htmx</td><td>The pages use the v2 API, the progress stream and admin sign-in</td><td>07-frontend-htmx</td><td>1, 2</td><td>The E2E smoke passes.</td></tr>
+<tr><td>4</td><td>Platform modernization</td><td>Python 3.13, uv, current dependencies, correct Docker volumes and nginx</td><td>08-platform-modernization</td><td>0</td><td><code>docker compose up</code> gives a working instance that keeps state across a restart.</td></tr>
+<tr><td>5</td><td>Firmware versions</td><td>Hold several firmware versions, choose one per build</td><td>09-firmware-versions</td><td>2</td><td>An admin installs stable and alpha. A build names its firmware version.</td></tr>
+<tr><td>6</td><td>Generated registry</td><td>The registry comes from the firmware source metadata</td><td>10-generated-registry</td><td>5</td><td><code>devices/variants.yaml</code> is deleted. The picker shows every <code>release</code> and <code>pr</code> variant.</td></tr>
+<tr><td>7</td><td>Config coverage</td><td>The form covers the upstream userPrefs keys</td><td>11-config-coverage</td><td>1, 3</td><td>Every in-scope key has a form control and a test.</td></tr>
+<tr><td>8</td><td>Channel share</td><td>Import and export channel URLs, QR codes and CLI YAML</td><td>12-channel-share</td><td>7</td><td>A round trip of a channel URL gives the same channels.</td></tr>
+<tr><td>9</td><td>Browser flashing</td><td>Flash ESP32-family artifacts from the page</td><td>13-browser-flashing</td><td>3</td><td>A Chrome page flashes a factory artifact to a connected ESP32.</td></tr>
+<tr><td>10</td><td>Profiles and build cache</td><td>Saved profiles and artifact reuse by config hash</td><td>14-fleet-builds (FR 1–9)</td><td>2, 7</td><td>A repeated build returns from the build cache.</td></tr>
+<tr><td>11</td><td>Fleet runs</td><td>One fleet run makes one build per device</td><td>14-fleet-builds (FR 10–20)</td><td>10</td><td>A fleet run of 3 devices gives 3 artifacts and one zip.</td></tr>
+<tr><td>12</td><td>Push config</td><td>Push a config to a device without a build</td><td>15-push-config</td><td>7, 9</td><td>A Chrome page sets channels on a connected device over Web Serial.</td></tr>
+</table></div>
+<h2 id="milestones">Milestones</h2>
+<ol>
+<li><strong>M1 — Works again</strong> (Epics 0–3). The documented flow works end to end on the
+</li>
+</ol>
+<p>firmware version that <code>releases/latest</code> returns. Shippable: tag <code>v2.1.0</code>.</p>
+<ol>
+<li><strong>M2 — Current upstream</strong> (Epics 4–7). Current stack, chosen firmware versions, a
+</li>
+</ol>
+<p>generated registry, and full config coverage. Shippable: tag <code>v3.0.0</code>.</p>
+<ol>
+<li><strong>M3 — Fewer steps</strong> (Epics 8–9). Channel share and browser flashing. Tag <code>v3.1.0</code>.
+</li>
+<li><strong>M4 — Fleets</strong> (Epics 10–11). Tag <code>v3.2.0</code>.
+</li>
+<li><strong>M5 — No compile</strong> (Epic 12). Tag <code>v3.3.0</code>.
+</li>
+</ol>
+<h2 id="assumptions" class="callout-h">Assumptions</h2>
+<ul>
+<li>The repair targets the firmware version that <code>releases/latest</code> returns
+</li>
+</ul>
+<p>(<code>v2.7.26.54e0d8d</code> on 2026-11-21). Firmware 2.8 support arrives with Epic 5.</p>
+<ul>
+<li>Python 3.13 is the target runtime. Python 3.14 is possible, but the <code>meshtastic</code>
+</li>
+</ul>
+<p>python package requires <code>&lt;3.15</code>, and 3.13 gives more margin.</p>
+<ul>
+<li>One build worker is the default. A homelab machine cannot run two ESP32 compiles at
+</li>
+</ul>
+<p>once without heavy swap.</p>
+<ul>
+<li>Builds by operators who are not signed in stay allowed. The instance is self-hosted
+</li>
+</ul>
+<p>and trusted.</p>
+<ul>
+<li>The fixture firmware source for tests is a hand-picked subset copied from upstream
+</li>
+</ul>
+<p>under GPL-3.0, which the relicense allows.</p>
+<ul>
+<li>Web Serial works only on HTTPS or <code>localhost</code>. The docs tell a LAN self-hoster to use
+</li>
+</ul>
+<p>the nginx overlay with TLS.</p>
+<ul>
+<li>The <code>meshtastic.org/e/#</code> channel URL format is stable across 2.7 and 2.8 firmware.
+</li>
+<li>Reconstructed ADRs (0001–0003) record choices made in 2025–2026. Their context is
+</li>
+</ul>
+<p>reconstructed from the code and commit log, not from records of the time.</p>
+<h2 id="risks-open-questions" class="callout-h">Risks &amp; open questions</h2>
+<p><strong>Contradictions between documents and code</strong> (the code is the fact):</p>
+<ol>
+<li>README says 62 variants. The registry holds 150. The README is stale since commit
+</li>
+</ol>
+<p><code>e575ce7</code>.</p>
+<ol>
+<li>README links a LICENSE file. No LICENSE file exists. <code>pyproject.toml</code> says MIT.
+</li>
+</ol>
+<p>Resolved in the interview: relicense to GPL-3.0 (ADR 0004).</p>
+<ol>
+<li>README says the database stores build history and profiles. No code reads or writes
+</li>
+</ol>
+<p>the database.</p>
+<ol>
+<li>README says the frontend uses htmx. No template uses an <code>hx-</code> attribute.
+</li>
+<li>README describes real-time build progress. The build page never opens the progress
+</li>
+</ol>
+<p>stream, and it calls v1 URLs.</p>
+<ol>
+<li>README says the admin panel needs the admin password. The page has no sign-in form.
+</li>
+<li>README says builds clean up after 1 hour. No periodic task exists.
+</li>
+<li>README says secrets are scrubbed from artifacts. Scrub runs on success only, and
+</li>
+</ol>
+<p><code>.elf</code> and object files keep the values.</p>
+<ol>
+<li>README says uploads are validated as JSON. Only size and UTF-8 are checked.
+</li>
+<li>CONTRIBUTING says the <code>id</code> must match a PlatformIO environment. 71 ids do not.
+</li>
+<li><code>pyproject.toml</code> and CONTRIBUTING say Python 3.10+. The code needs 3.11
+</li>
+</ol>
+<p>(<code>asyncio.timeout</code>, <code>build_service.py:80</code>).</p>
+<ol>
+<li>The README volume table names paths the app does not write to
+</li>
+</ol>
+<p>(<code>docker-compose.yml</code>; see <code>features/02-firmware-builder.md</code>).</p>
+<ol>
+<li><code>docker.env.example</code> and <code>docker-deploy.sh cleanup</code> use v1 names and routes.
+</li>
+</ol>
+<p><strong>Risks:</strong></p>
+<ul>
+<li><strong>Router roles are not factory defaults.</strong> Upstream replaces a userPrefs role of
+</li>
+</ul>
+<p><code>ROUTER</code>, <code>ROUTER_LATE</code> or <code>LOST_AND_FOUND</code> with <code>CLIENT</code> (<code>src/mesh/NodeDB.cpp:1180-1188</code>). A fleet of routers needs push config (Epic 12) after the flash. Features 11 and 14 reject those roles with a clear message.</p>
+<ul>
+<li><strong>Secrets in build logs.</strong> Upstream <code>bin/platformio-custom.py</code> prints every <code>-D</code>
+</li>
+</ul>
+<p>flag, and the flags hold PSKs and passwords. The progress stream sends the last 100 log lines. Mitigation: mask in feature 06.</p>
+<ul>
+<li><strong>Upstream churn.</strong> Upstream changes userPrefs keys, artifact names and toolchains
+</li>
+</ul>
+<p>without notice. Mitigation: contract tests against the fixture firmware source, and a scheduled CI job against upstream <code>develop</code>.</p>
+<ul>
+<li><strong>JS client library in flux.</strong> <code>meshtastic/js</code> is archived. <code>meshtastic-sdk</code> JS is
+</li>
+</ul>
+<p>"snapshot only until 0.3.0". Epic 12 starts with a spike to choose.</p>
+<ul>
+<li><strong>Disk use.</strong> Each firmware version plus its toolchains uses several GB. Mitigation: an
+</li>
+</ul>
+<p>admin removes firmware versions from the firmware sources page.</p>
+<ul>
+<li><strong>ESP32 2.8 toolchain.</strong> Firmware 2.8 uses the pioarduino platform and fetches ESP-IDF
+</li>
+</ul>
+<p>components at build time. Network errors fail builds. Mitigation: retry, as upstream <code>bin/build-esp32.sh</code> does.</p>
+<p><strong>Open questions:</strong> none block approval.</p>
+<h2 id="changelog">Changelog</h2>
+<ul>
+<li>2026-11-21 — Draft written by <code>/project-inherit</code> from a full repository survey, two
+</li>
+</ul>
+<p>upstream research spikes, and three interview rounds.</p>
+<ul>
+<li>2026-11-21 — Review round 1: approved. Corrections before approval: the admin key
+</li>
+</ul>
+<p>key name (<code>USERPREFS_USE_ADMIN_KEY_&lt;n&gt;</code> holds the key), router roles rejected as factory defaults, an interim registry id fix in Epic 2, and the <code>.gitignore</code> <code>firmware/</code> pattern.</p><nav class="pager">
+<span></span>
+<a href="html/page-inherit-reconciliation.html">Inherit reconciliation and research &rarr;</a>
+</nav>
+</main>
+</div>
+<script src="assets/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true,theme:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'default'});</script>
+<script type="application/json" id="rv-embedded">[]</script>
+<script>
+(function(){
+  'use strict';
+  var PAGE = document.body.getAttribute('data-page');
+  // storage key carries the spec's slug: file:// pages can share one
+  // localStorage pool, and two specs must never share a comment store
+  var RVKEY = 'spec-review:' + (document.body.getAttribute('data-rvkey') || 'spec');
+  var EMBED = [];
+  var embedEl = document.getElementById('rv-embedded');
+  if (embedEl) { try { EMBED = JSON.parse(embedEl.textContent); } catch(e){} }
+  function loadLocal(){ try { return JSON.parse(localStorage.getItem(RVKEY)) || {comments:[], deleted:[]}; } catch(e){ return {comments:[], deleted:[]}; } }
+  function saveLocal(s){ try { localStorage.setItem(RVKEY, JSON.stringify(s)); } catch(e){} }
+  function cid(c){ return c.page + '|' + c.section + '|' + (c.date||'') + '|' + c.body.slice(0,24); }
+  function allComments(){
+    var s = loadLocal(), map = {};
+    EMBED.forEach(function(c){ map[cid(c)] = c; });
+    s.comments.forEach(function(c){ map[cid(c)] = c; });
+    s.deleted.forEach(function(id){ delete map[id]; });
+    return Object.keys(map).map(function(k){ return map[k]; });
+  }
+  function upsert(c){
+    var s = loadLocal(), id = cid(c);
+    s.comments = s.comments.filter(function(x){ return cid(x) !== id; });
+    s.comments.push(c);
+    s.deleted = s.deleted.filter(function(x){ return x !== id; });
+    saveLocal(s); refresh();
+  }
+  function remove(c){
+    var s = loadLocal(), id = cid(c);
+    s.comments = s.comments.filter(function(x){ return cid(x) !== id; });
+    if (EMBED.some(function(x){ return cid(x) === id; })) s.deleted.push(id);
+    saveLocal(s); refresh();
+  }
+  function today(){ return new Date().toISOString().slice(0,10); }
+  function exportMd(){
+    var lines = ['# Review comments', '',
+      '<!-- Exported from the spec review layer. Save this file as',
+      '     docs/specs/review-comments.md and re-run render-spec.py to embed',
+      '     every comment under its section for the next review round. -->', ''];
+    allComments().sort(function(a,b){
+      return (a.page+a.section).localeCompare(b.page+b.section);
+    }).forEach(function(c){
+      lines.push('## [' + c.page + '] ' + (c.section||''));
+      lines.push('status: ' + (c.status||'open'));
+      lines.push('date: ' + (c.date||today()));
+      lines.push(c.body); lines.push('');
+    });
+    var blob = new Blob([lines.join('\n')], {type:'text/markdown'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'review-comments.md';
+    a.click(); URL.revokeObjectURL(a.href);
+  }
+  function importMd(file){
+    var reader = new FileReader();
+    reader.onload = function(){
+      var text = String(reader.result);
+      var blocks = text.split(/^## /m).slice(1);
+      blocks.forEach(function(b){
+        var head = b.match(/^\[([^\]]+)\]\s*(\S*)/);
+        if (!head) return;
+        var status = (b.match(/^status:\s*(\S+)/m)||[])[1] || 'open';
+        var date = (b.match(/^date:\s*(\S+)/m)||[])[1] || today();
+        var body = b.replace(/^\[[^\]]*\]\s*\S*\s*\n/, '')
+                    .replace(/^status:.*\n?/m,'').replace(/^date:.*\n?/m,'').trim();
+        if (body) upsert({page:head[1], section:head[2]||'', status:status, date:date, body:body});
+      });
+      refresh();
+    };
+    reader.readAsText(file);
+  }
+  function commentBox(c){
+    var div = document.createElement('div');
+    div.className = 'rv-comment' + (c.status === 'resolved' ? ' rv-resolved' : '');
+    var head = document.createElement('div'); head.className = 'rv-head';
+    head.textContent = '💬 ' + (c.date||'') + ' · ' + (c.status||'open');
+    var tog = document.createElement('button');
+    tog.textContent = c.status === 'resolved' ? 'reopen' : 'resolve';
+    tog.onclick = function(){ remove(c); c = Object.assign({}, c, {status: c.status === 'resolved' ? 'open' : 'resolved'}); upsert(c); };
+    var del = document.createElement('button'); del.textContent = 'delete';
+    del.onclick = function(){ if (confirm('Delete this comment?')) remove(c); };
+    head.appendChild(tog); head.appendChild(del);
+    var body = document.createElement('div'); body.className = 'rv-body';
+    body.textContent = c.body;
+    div.appendChild(head); div.appendChild(body);
+    return div;
+  }
+  function editor(section, after){
+    var wrap = document.createElement('div');
+    wrap.className = 'rv-comment rv-editor';
+    var ta = document.createElement('textarea');
+    ta.placeholder = 'Comment on this section…';
+    var actions = document.createElement('div'); actions.className = 'rv-actions';
+    var save = document.createElement('button'); save.textContent = 'Save';
+    save.onclick = function(){
+      if (ta.value.trim()) upsert({page:PAGE, section:section, status:'open', date:today(), body:ta.value.trim()});
+      wrap.remove();
+    };
+    var cancel = document.createElement('button'); cancel.textContent = 'Cancel';
+    cancel.className = 'rv-cancel'; cancel.onclick = function(){ wrap.remove(); };
+    actions.appendChild(save); actions.appendChild(cancel);
+    wrap.appendChild(ta); wrap.appendChild(actions);
+    after.insertAdjacentElement('afterend', wrap);
+    ta.focus();
+  }
+  // --- headings, inline buttons ---
+  var mainH1 = document.querySelector('main h1');
+  if (mainH1 && !mainH1.id) { mainH1.id = 'page-title'; }
+  var headings = Array.prototype.slice.call(
+    document.querySelectorAll('main h1[id], main h2[id], main h3[id], main h4[id]'));
+  headings.forEach(function(h){
+    var b = document.createElement('button');
+    b.className = 'rv-add'; b.textContent = '💬 comment'; b.title = 'Comment on this section';
+    b.onclick = function(){ editor(h.id, h); };
+    h.appendChild(b);
+  });
+  function headingTitle(h){
+    var t = h.childNodes[0] ? h.childNodes[0].textContent : h.textContent;
+    return t.trim();
+  }
+  function titleFor(section){
+    var el = section && document.getElementById(section);
+    return el ? headingTitle(el) : (section || '(page)');
+  }
+
+  // --- drawer ---
+  var drawer = document.createElement('div');
+  drawer.id = 'rv-drawer';
+  drawer.innerHTML =
+    '<header><strong>Review</strong> <span class="rv-count"></span></header>' +
+    '<div class="rv-compose">' +
+    '<div class="rv-live">Commenting on the section in view:</div>' +
+    '<label for="rv-sec"></label><select id="rv-sec"></select>' +
+    '<textarea id="rv-text" placeholder="Type as you read… (Ctrl+Enter saves)"></textarea>' +
+    '<div style="margin-top:.4rem; display:flex; gap:.5rem;">' +
+    '<button class="rv-primary" id="rv-save">Save comment</button>' +
+    '<button id="rv-clear">Clear</button></div></div>' +
+    '<div class="rv-list"></div>' +
+    '<footer><button id="rv-export">Export .md</button>' +
+    '<button id="rv-import">Import</button>' +
+    '<span class="rv-otherpages"></span></footer>';
+  document.body.appendChild(drawer);
+  var toggle = document.createElement('button');
+  toggle.id = 'rv-toggle';
+  toggle.onclick = function(){
+    document.body.classList.toggle('rv-open');
+    try { localStorage.setItem(RVKEY + ':open', document.body.classList.contains('rv-open') ? '1' : ''); } catch(e){}
+  };
+  document.body.appendChild(toggle);
+  try { if (localStorage.getItem(RVKEY + ':open')) document.body.classList.add('rv-open'); } catch(e){}
+
+  var sel = drawer.querySelector('#rv-sec');
+  headings.forEach(function(h){
+    var opt = document.createElement('option');
+    opt.value = h.id; opt.textContent = headingTitle(h);
+    sel.appendChild(opt);
+  });
+  var followScroll = true;
+  sel.onchange = function(){ followScroll = false; };
+
+  // scroll spy: pick the last heading above the upper third of the viewport
+  function currentSection(){
+    var line = window.innerHeight * 0.33, best = headings[0];
+    for (var i = 0; i < headings.length; i++) {
+      if (headings[i].getBoundingClientRect().top <= line) best = headings[i];
+    }
+    return best ? best.id : '';
+  }
+  window.addEventListener('scroll', function(){
+    if (!followScroll) return;
+    var s = currentSection();
+    if (s && sel.value !== s) sel.value = s;
+  }, {passive:true});
+  // typing pins the target section so a stray scroll can't retarget the comment
+  drawer.querySelector('#rv-text').addEventListener('input', function(){
+    if (this.value.trim()) followScroll = false;
+    else followScroll = true;
+  });
+
+  function saveFromDrawer(){
+    var ta = drawer.querySelector('#rv-text');
+    if (!ta.value.trim()) return;
+    upsert({page:PAGE, section:sel.value, status:'open', date:today(), body:ta.value.trim()});
+    ta.value = ''; followScroll = true;
+  }
+  drawer.querySelector('#rv-save').onclick = saveFromDrawer;
+  drawer.querySelector('#rv-text').addEventListener('keydown', function(e){
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') saveFromDrawer();
+  });
+  drawer.querySelector('#rv-clear').onclick = function(){
+    drawer.querySelector('#rv-text').value = ''; followScroll = true;
+  };
+  drawer.querySelector('#rv-export').onclick = exportMd;
+  var fileIn = document.createElement('input');
+  fileIn.type = 'file'; fileIn.accept = '.md,text/markdown'; fileIn.style.display = 'none';
+  fileIn.onchange = function(){ if (fileIn.files[0]) importMd(fileIn.files[0]); };
+  drawer.appendChild(fileIn);
+  drawer.querySelector('#rv-import').onclick = function(){ fileIn.click(); };
+
+  function drawerItem(c){
+    var div = document.createElement('div');
+    div.className = 'rv-item' + (c.status === 'resolved' ? ' rv-resolved' : '');
+    var where = document.createElement('div'); where.className = 'rv-where';
+    where.textContent = titleFor(c.section);
+    var text = document.createElement('div'); text.className = 'rv-text';
+    text.textContent = c.body;
+    var meta = document.createElement('div'); meta.className = 'rv-meta';
+    meta.textContent = (c.date||'') + ' · ' + (c.status||'open');
+    var tog = document.createElement('button');
+    tog.textContent = c.status === 'resolved' ? 'reopen' : 'resolve';
+    tog.onclick = function(e){ e.stopPropagation(); remove(c);
+      upsert(Object.assign({}, c, {status: c.status === 'resolved' ? 'open' : 'resolved'})); };
+    var del = document.createElement('button'); del.textContent = 'delete';
+    del.onclick = function(e){ e.stopPropagation();
+      if (confirm('Delete this comment?')) remove(c); };
+    meta.appendChild(tog); meta.appendChild(del);
+    div.appendChild(where); div.appendChild(text); div.appendChild(meta);
+    div.onclick = function(){
+      var el = c.section && document.getElementById(c.section);
+      if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
+    };
+    return div;
+  }
+
+  function refresh(){
+    document.querySelectorAll('.rv-comment:not(.rv-editor)').forEach(function(el){ el.remove(); });
+    var all = allComments();
+    var mine = all.filter(function(c){ return c.page === PAGE; });
+    mine.forEach(function(c){
+      var target = c.section && document.getElementById(c.section);
+      var anchor = target || mainH1 || document.body.querySelector('main') || document.body;
+      anchor.insertAdjacentElement('afterend', commentBox(c));
+    });
+    var open = all.filter(function(c){ return c.status !== 'resolved'; }).length;
+    toggle.textContent = '💬 Review (' + open + ')';
+    drawer.querySelector('.rv-count').textContent =
+      open + ' open / ' + all.length + ' total';
+    var list = drawer.querySelector('.rv-list');
+    list.innerHTML = '';
+    mine.slice().reverse().forEach(function(c){ list.appendChild(drawerItem(c)); });
+    var others = {};
+    all.forEach(function(c){ if (c.page !== PAGE) others[c.page] = (others[c.page]||0) + 1; });
+    var otherKeys = Object.keys(others);
+    drawer.querySelector('.rv-otherpages').textContent = otherKeys.length
+      ? 'Other pages: ' + otherKeys.map(function(k){ return k + ' (' + others[k] + ')'; }).join(', ')
+      : '';
+  }
+  refresh();
+  var s0 = currentSection();
+  if (s0) sel.value = s0;
+})();
+</script>
+</body>
+</html>

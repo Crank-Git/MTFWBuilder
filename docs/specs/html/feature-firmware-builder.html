@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MTFWBuilder — Feature: Firmware builder</title>
+<style>
+:root { --bg:#ffffff; --fg:#1a1a24; --muted:#5a5a68; --line:#e3e3ea; --accent:#3452c8;
+        --card:#f6f6f9; --warn-bg:#fff7e8; --warn-line:#e8b34a; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#14141b; --fg:#e8e8ee; --muted:#9a9aa8; --line:#2c2c38; --accent:#8ea6ff;
+          --card:#1c1c26; --warn-bg:#2a2318; --warn-line:#a87c2a; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--fg);
+       font:16px/1.6 system-ui,-apple-system,sans-serif; }
+.layout { display:flex; min-height:100vh; }
+aside.site { width:17rem; flex:none; border-right:1px solid var(--line);
+             padding:1.2rem 1rem 3rem; position:sticky; top:0; height:100vh;
+             overflow-y:auto; background:var(--card); }
+aside.site h2 { font-size:.8rem; text-transform:uppercase; letter-spacing:.06em;
+                color:var(--muted); margin:1.2rem 0 .3rem; border:none; padding:0; }
+aside.site ul { list-style:none; margin:0; padding:0; }
+aside.site li { margin:.15rem 0; }
+aside.site a { text-decoration:none; color:var(--fg); font-size:.92rem;
+               display:block; padding:.15rem .5rem; border-radius:6px; }
+aside.site a:hover { background:var(--bg); }
+aside.site a.current { background:var(--accent); color:#fff; }
+aside.site a.sub { padding-left:1.3rem; font-size:.84rem; color:var(--muted); }
+aside.site .brand { font-weight:700; font-size:1.05rem; }
+main { max-width:60rem; margin:0 auto; padding:2rem 1.5rem 6rem; min-width:0; flex:1; }
+h1,h2,h3,h4 { line-height:1.25; }
+h1 { font-size:2rem; margin:.2rem 0; }
+h2 { border-bottom:1px solid var(--line); padding-bottom:.3rem; margin-top:2.5rem; }
+a { color:var(--accent); }
+code { background:var(--card); padding:.1em .35em; border-radius:4px; font-size:.9em; }
+pre.code { background:var(--card); border:1px solid var(--line); border-radius:8px;
+           padding:1rem; overflow-x:auto; }
+pre.code code { background:none; padding:0; }
+.table-wrap { overflow-x:auto; }
+table { border-collapse:collapse; margin:1rem 0; min-width:50%; }
+th,td { border:1px solid var(--line); padding:.4rem .7rem; text-align:left; }
+th { background:var(--card); }
+blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:.2rem 1rem;
+             color:var(--muted); }
+.meta { color:var(--muted); margin-bottom:2rem; }
+.badge { display:inline-block; padding:.1rem .6rem; border-radius:999px;
+         border:1px solid var(--accent); color:var(--accent); font-size:.85rem; }
+.diagram { background:var(--card); border:1px solid var(--line); border-radius:8px;
+           padding:1rem; margin:1rem 0; overflow-x:auto; }
+.diagram pre.mermaid { margin:0; }
+.diagram.raw::before { content:"diagram source (assets/mermaid.min.js not vendored)";
+                       display:block; color:var(--muted); font-size:.8rem;
+                       margin-bottom:.5rem; }
+.callout-h, .callout-h ~ p, .callout-h ~ ul { background:var(--warn-bg); }
+.callout-h { border-left:4px solid var(--warn-line); padding:.3rem .8rem; }
+.mockup { margin:1.5rem 0; }
+.mockup iframe { width:100%; height:32rem; border:1px solid var(--line);
+                 border-radius:8px; background:#fff; }
+nav.pager { display:flex; justify-content:space-between; margin-top:3rem;
+            border-top:1px solid var(--line); padding-top:1rem; }
+@media (max-width: 900px) {
+  .layout { display:block; }
+  aside.site { width:auto; height:auto; position:static; border-right:none;
+               border-bottom:1px solid var(--line); }
+}
+h1[id]:hover .rv-add, h2[id]:hover .rv-add, h3[id]:hover .rv-add,
+h4[id]:hover .rv-add { opacity:1; }
+.rv-add { opacity:0; margin-left:.5rem; font-size:.75rem; cursor:pointer;
+          border:1px solid var(--accent); color:var(--accent); background:none;
+          border-radius:6px; padding:0 .45rem; vertical-align:middle;
+          transition:opacity .15s; }
+.rv-comment { border:1px solid var(--warn-line); border-left-width:4px;
+              background:var(--warn-bg); border-radius:8px; padding:.6rem .9rem;
+              margin:.8rem 0; font-size:.92rem; }
+.rv-comment.rv-resolved { opacity:.6; border-left-color:var(--line); }
+.rv-comment .rv-head { display:flex; gap:.6rem; align-items:center;
+                       color:var(--muted); font-size:.8rem; margin-bottom:.3rem; }
+.rv-comment .rv-head button { font-size:.75rem; cursor:pointer; background:none;
+                              border:1px solid var(--line); border-radius:6px;
+                              color:var(--muted); padding:0 .4rem; }
+.rv-comment .rv-body { white-space:pre-wrap; }
+.rv-editor textarea { width:100%; min-height:5rem; background:var(--bg);
+                      color:var(--fg); border:1px solid var(--line);
+                      border-radius:6px; padding:.5rem; font:inherit; }
+.rv-editor .rv-actions { margin-top:.4rem; display:flex; gap:.5rem; }
+.rv-editor button { cursor:pointer; border-radius:6px; padding:.2rem .8rem;
+                    border:1px solid var(--accent); background:var(--accent);
+                    color:#fff; }
+.rv-editor button.rv-cancel { background:none; color:var(--accent); }
+#rv-toggle { position:fixed; right:1rem; bottom:1rem; z-index:60;
+             background:var(--accent); color:#fff; border:none; cursor:pointer;
+             border-radius:999px; padding:.5rem 1rem; font-size:.85rem;
+             box-shadow:0 2px 10px rgba(0,0,0,.2); }
+#rv-drawer { position:fixed; top:0; right:0; bottom:0; width:21rem; z-index:55;
+             background:var(--card); border-left:1px solid var(--line);
+             display:flex; flex-direction:column; transform:translateX(100%);
+             transition:transform .2s ease; box-shadow:-4px 0 16px rgba(0,0,0,.12); }
+body.rv-open #rv-drawer { transform:none; }
+body.rv-open .layout { padding-right:21rem; }
+#rv-drawer header { padding:.8rem 1rem .5rem; border-bottom:1px solid var(--line); }
+#rv-drawer header .rv-count { color:var(--muted); font-size:.8rem; }
+#rv-drawer .rv-compose { padding:.8rem 1rem; border-bottom:1px solid var(--line); }
+#rv-drawer .rv-compose label { display:block; font-size:.75rem;
+                               color:var(--muted); margin-bottom:.25rem; }
+#rv-drawer .rv-compose select { width:100%; margin-bottom:.4rem;
+             background:var(--bg); color:var(--fg); border:1px solid var(--line);
+             border-radius:6px; padding:.3rem; font:inherit; font-size:.85rem; }
+#rv-drawer .rv-compose textarea { width:100%; min-height:5.5rem;
+             background:var(--bg); color:var(--fg); border:1px solid var(--line);
+             border-radius:6px; padding:.5rem; font:inherit; font-size:.9rem; }
+#rv-drawer .rv-compose .rv-live { font-size:.72rem; color:var(--muted); }
+#rv-drawer .rv-list { flex:1; overflow-y:auto; padding:.6rem 1rem; }
+#rv-drawer .rv-item { border:1px solid var(--line); border-left:3px solid
+             var(--warn-line); border-radius:8px; padding:.45rem .6rem;
+             margin-bottom:.6rem; font-size:.82rem; cursor:pointer; }
+#rv-drawer .rv-item.rv-resolved { opacity:.55; border-left-color:var(--line); }
+#rv-drawer .rv-item .rv-where { color:var(--accent); font-size:.72rem; }
+#rv-drawer .rv-item .rv-meta { color:var(--muted); font-size:.72rem;
+                               display:flex; gap:.5rem; align-items:center; }
+#rv-drawer .rv-item .rv-meta button { font-size:.7rem; cursor:pointer;
+             background:none; border:1px solid var(--line); border-radius:5px;
+             color:var(--muted); padding:0 .35rem; }
+#rv-drawer .rv-item .rv-text { white-space:pre-wrap; margin:.15rem 0; }
+#rv-drawer footer { padding:.6rem 1rem; border-top:1px solid var(--line);
+                    display:flex; gap:.5rem; flex-wrap:wrap; }
+#rv-drawer footer button, #rv-drawer .rv-compose button {
+  cursor:pointer; border:1px solid var(--accent); background:none;
+  color:var(--accent); border-radius:6px; padding:.2rem .7rem; font-size:.8rem; }
+#rv-drawer .rv-compose button.rv-primary { background:var(--accent); color:#fff; }
+#rv-drawer .rv-otherpages { color:var(--muted); font-size:.75rem;
+                            margin:.4rem 0 0; }
+@media (max-width: 1200px) { body.rv-open .layout { padding-right:0; } }
+</style>
+</head>
+<body data-page="feature-firmware-builder" data-rvkey="mtfwbuilder">
+<div class="layout">
+<aside class="site"><a class="brand" href="../spec.html">MTFWBuilder</a>
+<h2>Spec</h2><ul>
+<li><a href="../spec.html">Overview &amp; index</a></li>
+</ul>
+<h2>Pages</h2><ul>
+<li><a href="page-inherit-reconciliation.html">Inherit reconciliation and research</a></li>
+</ul>
+<h2>Features</h2><ul>
+<li><a href="feature-foundation.html">Foundation</a></li>
+<li><a href="feature-config-generator.html">Config generator</a></li>
+<li><a class="current" href="feature-firmware-builder.html">Firmware builder</a></li>
+<li><a href="feature-device-registry.html">Device registry</a></li>
+<li><a href="feature-admin.html">Admin</a></li>
+<li><a href="feature-userprefs-correctness.html">userPrefs correctness</a></li>
+<li><a href="feature-build-pipeline-repair.html">Build pipeline repair</a></li>
+<li><a href="feature-frontend-htmx.html">Frontend on htmx</a></li>
+<li><a href="feature-platform-modernization.html">Platform modernization</a></li>
+<li><a href="feature-firmware-versions.html">Firmware versions</a></li>
+<li><a href="feature-generated-registry.html">Generated registry</a></li>
+<li><a href="feature-config-coverage.html">Config coverage</a></li>
+<li><a href="feature-channel-share.html">Channel share</a></li>
+<li><a href="feature-browser-flashing.html">Browser flashing</a></li>
+<li><a href="feature-fleet-builds.html">Fleet builds</a></li>
+<li><a href="feature-push-config.html">Push config</a></li>
+</ul></aside>
+<main>
+<h1>Feature: Firmware builder</h1>
+<p class="meta">— &nbsp; <span class="badge">built</span></p>
+<h3 id="firmware-builder-purpose">Purpose</h3>
+<p>The firmware builder compiles one variant with one userPrefs file, and gives the operator the artifact. This file describes the code at commit <code>bd15bb1</code>.</p>
+<h3 id="firmware-builder-user-stories">User stories</h3>
+<ul>
+<li>As an operator, I want to choose a variant and start a build, so that I get firmware
+</li>
+</ul>
+<p>with my factory defaults.</p>
+<ul>
+<li>As an operator, I want to see build progress, so that I know the build is running.
+</li>
+</ul>
+<h3 id="firmware-builder-functional-requirements">Functional requirements</h3>
+<p>Observed behaviour:</p>
+<ul>
+<li>FR-firmware-builder-1 — <code>GET /firmware-builder</code> renders the page with variants
+</li>
+</ul>
+<p>grouped by manufacturer (<code>routers/pages.py:15-35</code>).</p>
+<ul>
+<li>FR-firmware-builder-2 — <code>POST /api/v1/build-firmware</code> takes form fields <code>variant</code>,
+</li>
+</ul>
+<p><code>config_source</code> (<code>current</code> or <code>upload</code>), <code>config_json</code>, <code>stored_config</code>, a file <code>userPrefs</code> (≤ 64 KB) and <code>custom_filename</code> (<code>routers/firmware_builder.py:22-92</code>).</p>
+<ul>
+<li>FR-firmware-builder-3 — The route stores a build context in
+</li>
+</ul>
+<p><code>app.state.active_builds</code> and returns <code>{success, build_id, message, progress_url}</code>. It does not start the build.</p>
+<ul>
+<li>FR-firmware-builder-4 — <code>GET /api/v1/build-progress/{build_id}</code> starts the build and
+</li>
+</ul>
+<p>streams SSE <code>status</code> events, then one <code>log</code> event with the last 100 log lines (<code>firmware_builder.py:95-130</code>).</p>
+<ul>
+<li>FR-firmware-builder-5 — The build runs `pio run -e &lt;variant.id&gt; --jobs &lt;min(cpu,8)&gt;
+</li>
+</ul>
+<p>--disable-auto-clean<code> in the firmware source, with no shell (</code>services/build_service.py:126-138`).</p>
+<ul>
+<li>FR-firmware-builder-6 — An <code>asyncio.Semaphore(1)</code> allows one build at a time
+</li>
+</ul>
+<p>(<code>build_service.py:29</code>).</p>
+<ul>
+<li>FR-firmware-builder-7 — A build times out after <code>build_timeout_seconds</code> (900)
+</li>
+</ul>
+<p>(<code>build_service.py:80-87</code>).</p>
+<ul>
+<li>FR-firmware-builder-8 — The build copies <code>.pio/build/&lt;env&gt;/firmware.&lt;bin|uf2&gt;</code> and, on
+</li>
+</ul>
+<p>ESP32, <code>firmware.factory.bin</code> to <code>temp_dir/&lt;build_id&gt;/</code> (<code>build_service.py:194-223</code>).</p>
+<ul>
+<li>FR-firmware-builder-9 — <code>GET /api/v1/download-firmware/{build_id}</code> sends the artifact,
+</li>
+</ul>
+<p>prefers the factory file on ESP32, and deletes the build directory after the send (<code>firmware_builder.py:133-206</code>).</p>
+<ul>
+<li>FR-firmware-builder-10 — <code>POST /api/v1/build-firmware</code> has a rate limit of 5 per
+</li>
+</ul>
+<p>minute per client address.</p>
+<h3 id="firmware-builder-user-flows">User flows</h3>
+<div class="diagram"><pre class="mermaid">sequenceDiagram
+  participant O as Operator page
+  participant R as Router
+  participant B as Build service
+  participant P as pio
+  O-&gt;&gt;R: POST /build-firmware (v1 URL)
+  R--&gt;&gt;O: 404
+  Note over O: Page expects data.download_url, never opens the progress stream
+  O-&gt;&gt;R: (if fixed) POST /api/v1/build-firmware
+  R--&gt;&gt;O: build_id, progress_url
+  O-&gt;&gt;R: GET /api/v1/build-progress/id (SSE)
+  R-&gt;&gt;B: build_firmware()
+  B-&gt;&gt;P: pio run -e variant
+  P--&gt;&gt;B: log lines
+  B--&gt;&gt;O: status events
+  B-&gt;&gt;B: look for firmware.bin (not found on current upstream)
+  B--&gt;&gt;O: failed</pre></div>
+<ol>
+<li>The operator selects a variant and selects Build.
+</li>
+<li>The page posts to <code>/build-firmware</code>. The v2 app does not serve that URL
+</li>
+</ol>
+<p>(<code>templates/firmware_builder.html:433</code>).</p>
+<ol>
+<li>If the URL were correct, the page still waits for <code>download_url</code> and never opens the
+</li>
+</ol>
+<p>progress stream. No build starts.</p>
+<ol>
+<li>If a client opens the progress stream, the build starts.
+</li>
+<li>If the client disconnects, the build is cancelled.
+</li>
+<li>When <code>pio</code> finishes, the build looks for <code>firmware.bin</code>. Upstream names the file
+</li>
+</ol>
+<p><code>firmware-&lt;env&gt;-&lt;version&gt;.bin</code> since PR #8248 (December 2025), so the build fails.</p>
+<h3 id="firmware-builder-screens-states">Screens &amp; states</h3>
+<p>Screen: <code>templates/firmware_builder.html</code>. <code>templates/partials/build_progress.html</code> holds a full SSE progress component, but no route or template renders it.</p>
+<div class="table-wrap"><table>
+<tr><th>State</th><th>Handled?</th></tr>
+<tr><td>Queued</td><td>No (fake staged messages on 1.2 s timers, <code>firmware_builder.html:348-388</code>).</td></tr>
+<tr><td>Progress</td><td>No real progress.</td></tr>
+<tr><td>Failed</td><td>Shows the wrong text "The build was successful, but there was an error downloading" on network errors (<code>:481</code>).</td></tr>
+<tr><td>Firmware source missing</td><td>Only in the stream, which the page does not open.</td></tr>
+</table></div>
+<h3 id="firmware-builder-behaviour-rules">Behaviour rules</h3>
+<ul>
+<li>The page appends a second <code>config_source=json</code> (<code>firmware_builder.html:409</code>). Starlette
+</li>
+</ul>
+<p>reads the last value, so the server would take the upload branch.</p>
+<ul>
+<li>The page guesses UF2 versus BIN from a hard-coded list, not from the registry.
+</li>
+<li>The build writes the userPrefs file to <code>firmware/userPrefs.jsonc</code> and
+</li>
+</ul>
+<p><code>firmware/configs/userPrefs.jsonc</code>. Upstream reads only the root copy.</p>
+<ul>
+<li>Build ids are <code>build_&lt;epoch&gt;_&lt;pid&gt;_&lt;counter&gt;</code> and are predictable
+</li>
+</ul>
+<p>(<code>build_service.py:253-257</code>).</p>
+<ul>
+<li><code>custom_filename</code> is read and not used.
+</li>
+</ul>
+<h3 id="firmware-builder-data-touched">Data touched</h3>
+<ul>
+<li>Memory: <code>app.state.active_builds</code> (30-minute expiry, swept only on the next POST).
+</li>
+<li>Disk: <code>temp_dir/&lt;build_id&gt;/</code>, <code>firmware/userPrefs.jsonc</code>, <code>firmware/.pio/build/&lt;env&gt;/</code>.
+</li>
+<li>Database: none, although a <code>builds</code> table exists.
+</li>
+</ul>
+<h3 id="firmware-builder-interfaces">Interfaces</h3>
+<div class="table-wrap"><table>
+<tr><th>Method</th><th>Path</th><th>Response</th></tr>
+<tr><td>POST</td><td><code>/api/v1/build-firmware</code></td><td>200 <code>{success, build_id, message, progress_url}</code>; 400 bad input; 429 rate limit</td></tr>
+<tr><td>GET</td><td><code>/api/v1/build-progress/{build_id}</code></td><td>SSE <code>status</code> and <code>log</code> events; 404 unknown id</td></tr>
+<tr><td>GET</td><td><code>/api/v1/download-firmware/{build_id}?variant=&amp;filename=</code></td><td>file; 400 path traversal; 404 missing</td></tr>
+<tr><td>GET</td><td><code>/api/v1/system-info</code></td><td><code>{success, version, last_updated}</code></td></tr>
+</table></div>
+<h3 id="firmware-builder-edge-cases-failures">Edge cases &amp; failures</h3>
+<ul>
+<li>On failure, <code>_run_pio_build</code> reports <code>failed</code> but the caller continues to the extract
+</li>
+</ul>
+<p>step and reports a second <code>failed</code> (<code>build_service.py:167-175</code>).</p>
+<ul>
+<li>Scrub runs only after a successful extract (<code>build_service.py:226</code>). After a failure,
+</li>
+</ul>
+<p>timeout or cancel, the userPrefs file with every secret stays in the firmware source.</p>
+<ul>
+<li>Even on success, <code>firmware.elf</code>, <code>.map</code> and object files under <code>.pio/build/&lt;env&gt;</code> keep
+</li>
+</ul>
+<p>the compiled values.</p>
+<ul>
+<li>A browser reconnect of the progress stream gets 404, because the stream removes the
+</li>
+</ul>
+<p>build context when it ends.</p>
+<ul>
+<li>A build abandoned before the stream opens leaves an empty directory.
+</li>
+<li>An upload that is not UTF-8 raises an unhandled decode error (500).
+</li>
+<li>The admin firmware update can delete the firmware source while a build runs.
+</li>
+</ul>
+<h3 id="firmware-builder-acceptance-criteria">Acceptance criteria</h3>
+<p>Not applicable: built behaviour. See <code>06-build-pipeline-repair.md</code>.</p>
+<h3 id="firmware-builder-out-of-scope">Out of scope</h3>
+<p>Build queue limits, build history, build cache.</p>
+<h3 id="firmware-builder-open-questions" class="callout-h">Open questions</h3><nav class="pager">
+<a href="feature-config-generator.html">&larr; Feature: Config generator</a>
+<a href="feature-device-registry.html">Feature: Device registry &rarr;</a>
+</nav>
+</main>
+</div>
+<script src="../assets/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true,theme:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'default'});</script>
+<script type="application/json" id="rv-embedded">[]</script>
+<script>
+(function(){
+  'use strict';
+  var PAGE = document.body.getAttribute('data-page');
+  // storage key carries the spec's slug: file:// pages can share one
+  // localStorage pool, and two specs must never share a comment store
+  var RVKEY = 'spec-review:' + (document.body.getAttribute('data-rvkey') || 'spec');
+  var EMBED = [];
+  var embedEl = document.getElementById('rv-embedded');
+  if (embedEl) { try { EMBED = JSON.parse(embedEl.textContent); } catch(e){} }
+  function loadLocal(){ try { return JSON.parse(localStorage.getItem(RVKEY)) || {comments:[], deleted:[]}; } catch(e){ return {comments:[], deleted:[]}; } }
+  function saveLocal(s){ try { localStorage.setItem(RVKEY, JSON.stringify(s)); } catch(e){} }
+  function cid(c){ return c.page + '|' + c.section + '|' + (c.date||'') + '|' + c.body.slice(0,24); }
+  function allComments(){
+    var s = loadLocal(), map = {};
+    EMBED.forEach(function(c){ map[cid(c)] = c; });
+    s.comments.forEach(function(c){ map[cid(c)] = c; });
+    s.deleted.forEach(function(id){ delete map[id]; });
+    return Object.keys(map).map(function(k){ return map[k]; });
+  }
+  function upsert(c){
+    var s = loadLocal(), id = cid(c);
+    s.comments = s.comments.filter(function(x){ return cid(x) !== id; });
+    s.comments.push(c);
+    s.deleted = s.deleted.filter(function(x){ return x !== id; });
+    saveLocal(s); refresh();
+  }
+  function remove(c){
+    var s = loadLocal(), id = cid(c);
+    s.comments = s.comments.filter(function(x){ return cid(x) !== id; });
+    if (EMBED.some(function(x){ return cid(x) === id; })) s.deleted.push(id);
+    saveLocal(s); refresh();
+  }
+  function today(){ return new Date().toISOString().slice(0,10); }
+  function exportMd(){
+    var lines = ['# Review comments', '',
+      '<!-- Exported from the spec review layer. Save this file as',
+      '     docs/specs/review-comments.md and re-run render-spec.py to embed',
+      '     every comment under its section for the next review round. -->', ''];
+    allComments().sort(function(a,b){
+      return (a.page+a.section).localeCompare(b.page+b.section);
+    }).forEach(function(c){
+      lines.push('## [' + c.page + '] ' + (c.section||''));
+      lines.push('status: ' + (c.status||'open'));
+      lines.push('date: ' + (c.date||today()));
+      lines.push(c.body); lines.push('');
+    });
+    var blob = new Blob([lines.join('\n')], {type:'text/markdown'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'review-comments.md';
+    a.click(); URL.revokeObjectURL(a.href);
+  }
+  function importMd(file){
+    var reader = new FileReader();
+    reader.onload = function(){
+      var text = String(reader.result);
+      var blocks = text.split(/^## /m).slice(1);
+      blocks.forEach(function(b){
+        var head = b.match(/^\[([^\]]+)\]\s*(\S*)/);
+        if (!head) return;
+        var status = (b.match(/^status:\s*(\S+)/m)||[])[1] || 'open';
+        var date = (b.match(/^date:\s*(\S+)/m)||[])[1] || today();
+        var body = b.replace(/^\[[^\]]*\]\s*\S*\s*\n/, '')
+                    .replace(/^status:.*\n?/m,'').replace(/^date:.*\n?/m,'').trim();
+        if (body) upsert({page:head[1], section:head[2]||'', status:status, date:date, body:body});
+      });
+      refresh();
+    };
+    reader.readAsText(file);
+  }
+  function commentBox(c){
+    var div = document.createElement('div');
+    div.className = 'rv-comment' + (c.status === 'resolved' ? ' rv-resolved' : '');
+    var head = document.createElement('div'); head.className = 'rv-head';
+    head.textContent = '💬 ' + (c.date||'') + ' · ' + (c.status||'open');
+    var tog = document.createElement('button');
+    tog.textContent = c.status === 'resolved' ? 'reopen' : 'resolve';
+    tog.onclick = function(){ remove(c); c = Object.assign({}, c, {status: c.status === 'resolved' ? 'open' : 'resolved'}); upsert(c); };
+    var del = document.createElement('button'); del.textContent = 'delete';
+    del.onclick = function(){ if (confirm('Delete this comment?')) remove(c); };
+    head.appendChild(tog); head.appendChild(del);
+    var body = document.createElement('div'); body.className = 'rv-body';
+    body.textContent = c.body;
+    div.appendChild(head); div.appendChild(body);
+    return div;
+  }
+  function editor(section, after){
+    var wrap = document.createElement('div');
+    wrap.className = 'rv-comment rv-editor';
+    var ta = document.createElement('textarea');
+    ta.placeholder = 'Comment on this section…';
+    var actions = document.createElement('div'); actions.className = 'rv-actions';
+    var save = document.createElement('button'); save.textContent = 'Save';
+    save.onclick = function(){
+      if (ta.value.trim()) upsert({page:PAGE, section:section, status:'open', date:today(), body:ta.value.trim()});
+      wrap.remove();
+    };
+    var cancel = document.createElement('button'); cancel.textContent = 'Cancel';
+    cancel.className = 'rv-cancel'; cancel.onclick = function(){ wrap.remove(); };
+    actions.appendChild(save); actions.appendChild(cancel);
+    wrap.appendChild(ta); wrap.appendChild(actions);
+    after.insertAdjacentElement('afterend', wrap);
+    ta.focus();
+  }
+  // --- headings, inline buttons ---
+  var mainH1 = document.querySelector('main h1');
+  if (mainH1 && !mainH1.id) { mainH1.id = 'page-title'; }
+  var headings = Array.prototype.slice.call(
+    document.querySelectorAll('main h1[id], main h2[id], main h3[id], main h4[id]'));
+  headings.forEach(function(h){
+    var b = document.createElement('button');
+    b.className = 'rv-add'; b.textContent = '💬 comment'; b.title = 'Comment on this section';
+    b.onclick = function(){ editor(h.id, h); };
+    h.appendChild(b);
+  });
+  function headingTitle(h){
+    var t = h.childNodes[0] ? h.childNodes[0].textContent : h.textContent;
+    return t.trim();
+  }
+  function titleFor(section){
+    var el = section && document.getElementById(section);
+    return el ? headingTitle(el) : (section || '(page)');
+  }
+
+  // --- drawer ---
+  var drawer = document.createElement('div');
+  drawer.id = 'rv-drawer';
+  drawer.innerHTML =
+    '<header><strong>Review</strong> <span class="rv-count"></span></header>' +
+    '<div class="rv-compose">' +
+    '<div class="rv-live">Commenting on the section in view:</div>' +
+    '<label for="rv-sec"></label><select id="rv-sec"></select>' +
+    '<textarea id="rv-text" placeholder="Type as you read… (Ctrl+Enter saves)"></textarea>' +
+    '<div style="margin-top:.4rem; display:flex; gap:.5rem;">' +
+    '<button class="rv-primary" id="rv-save">Save comment</button>' +
+    '<button id="rv-clear">Clear</button></div></div>' +
+    '<div class="rv-list"></div>' +
+    '<footer><button id="rv-export">Export .md</button>' +
+    '<button id="rv-import">Import</button>' +
+    '<span class="rv-otherpages"></span></footer>';
+  document.body.appendChild(drawer);
+  var toggle = document.createElement('button');
+  toggle.id = 'rv-toggle';
+  toggle.onclick = function(){
+    document.body.classList.toggle('rv-open');
+    try { localStorage.setItem(RVKEY + ':open', document.body.classList.contains('rv-open') ? '1' : ''); } catch(e){}
+  };
+  document.body.appendChild(toggle);
+  try { if (localStorage.getItem(RVKEY + ':open')) document.body.classList.add('rv-open'); } catch(e){}
+
+  var sel = drawer.querySelector('#rv-sec');
+  headings.forEach(function(h){
+    var opt = document.createElement('option');
+    opt.value = h.id; opt.textContent = headingTitle(h);
+    sel.appendChild(opt);
+  });
+  var followScroll = true;
+  sel.onchange = function(){ followScroll = false; };
+
+  // scroll spy: pick the last heading above the upper third of the viewport
+  function currentSection(){
+    var line = window.innerHeight * 0.33, best = headings[0];
+    for (var i = 0; i < headings.length; i++) {
+      if (headings[i].getBoundingClientRect().top <= line) best = headings[i];
+    }
+    return best ? best.id : '';
+  }
+  window.addEventListener('scroll', function(){
+    if (!followScroll) return;
+    var s = currentSection();
+    if (s && sel.value !== s) sel.value = s;
+  }, {passive:true});
+  // typing pins the target section so a stray scroll can't retarget the comment
+  drawer.querySelector('#rv-text').addEventListener('input', function(){
+    if (this.value.trim()) followScroll = false;
+    else followScroll = true;
+  });
+
+  function saveFromDrawer(){
+    var ta = drawer.querySelector('#rv-text');
+    if (!ta.value.trim()) return;
+    upsert({page:PAGE, section:sel.value, status:'open', date:today(), body:ta.value.trim()});
+    ta.value = ''; followScroll = true;
+  }
+  drawer.querySelector('#rv-save').onclick = saveFromDrawer;
+  drawer.querySelector('#rv-text').addEventListener('keydown', function(e){
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') saveFromDrawer();
+  });
+  drawer.querySelector('#rv-clear').onclick = function(){
+    drawer.querySelector('#rv-text').value = ''; followScroll = true;
+  };
+  drawer.querySelector('#rv-export').onclick = exportMd;
+  var fileIn = document.createElement('input');
+  fileIn.type = 'file'; fileIn.accept = '.md,text/markdown'; fileIn.style.display = 'none';
+  fileIn.onchange = function(){ if (fileIn.files[0]) importMd(fileIn.files[0]); };
+  drawer.appendChild(fileIn);
+  drawer.querySelector('#rv-import').onclick = function(){ fileIn.click(); };
+
+  function drawerItem(c){
+    var div = document.createElement('div');
+    div.className = 'rv-item' + (c.status === 'resolved' ? ' rv-resolved' : '');
+    var where = document.createElement('div'); where.className = 'rv-where';
+    where.textContent = titleFor(c.section);
+    var text = document.createElement('div'); text.className = 'rv-text';
+    text.textContent = c.body;
+    var meta = document.createElement('div'); meta.className = 'rv-meta';
+    meta.textContent = (c.date||'') + ' · ' + (c.status||'open');
+    var tog = document.createElement('button');
+    tog.textContent = c.status === 'resolved' ? 'reopen' : 'resolve';
+    tog.onclick = function(e){ e.stopPropagation(); remove(c);
+      upsert(Object.assign({}, c, {status: c.status === 'resolved' ? 'open' : 'resolved'})); };
+    var del = document.createElement('button'); del.textContent = 'delete';
+    del.onclick = function(e){ e.stopPropagation();
+      if (confirm('Delete this comment?')) remove(c); };
+    meta.appendChild(tog); meta.appendChild(del);
+    div.appendChild(where); div.appendChild(text); div.appendChild(meta);
+    div.onclick = function(){
+      var el = c.section && document.getElementById(c.section);
+      if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
+    };
+    return div;
+  }
+
+  function refresh(){
+    document.querySelectorAll('.rv-comment:not(.rv-editor)').forEach(function(el){ el.remove(); });
+    var all = allComments();
+    var mine = all.filter(function(c){ return c.page === PAGE; });
+    mine.forEach(function(c){
+      var target = c.section && document.getElementById(c.section);
+      var anchor = target || mainH1 || document.body.querySelector('main') || document.body;
+      anchor.insertAdjacentElement('afterend', commentBox(c));
+    });
+    var open = all.filter(function(c){ return c.status !== 'resolved'; }).length;
+    toggle.textContent = '💬 Review (' + open + ')';
+    drawer.querySelector('.rv-count').textContent =
+      open + ' open / ' + all.length + ' total';
+    var list = drawer.querySelector('.rv-list');
+    list.innerHTML = '';
+    mine.slice().reverse().forEach(function(c){ list.appendChild(drawerItem(c)); });
+    var others = {};
+    all.forEach(function(c){ if (c.page !== PAGE) others[c.page] = (others[c.page]||0) + 1; });
+    var otherKeys = Object.keys(others);
+    drawer.querySelector('.rv-otherpages').textContent = otherKeys.length
+      ? 'Other pages: ' + otherKeys.map(function(k){ return k + ' (' + others[k] + ')'; }).join(', ')
+      : '';
+  }
+  refresh();
+  var s0 = currentSection();
+  if (s0) sel.value = s0;
+})();
+</script>
+</body>
+</html>
