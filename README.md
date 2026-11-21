@@ -203,7 +203,8 @@ docker compose restart mtfwbuilder
 - After a successful build, the project **scrubs** the userPrefs file and the firmware files from the firmware source. A failed build does not scrub yet, and `.elf` and object files keep the secret values (planned fix: `build-pipeline-repair`).
 - Build directories **isolated** per build, cleaned after download
 - All subprocess calls use **parameterized arguments** (no `shell=True`)
-- **Rate limiting** on login (10/min) and build (5/min) endpoints
+- **Rate limiting** on the login and build endpoints. The defaults are `10/minute` (`MTFW_LOGIN_RATE_LIMIT`) and `5/minute` (`MTFW_BUILD_RATE_LIMIT`).
+- Behind a proxy, set `MTFW_TRUSTED_PROXIES` to the proxy addresses or subnets, comma-separated. The rate limiter then reads `X-Forwarded-For` from those proxies. The default is empty: the limiter counts the peer address.
 - File uploads **checked** for size (64KB max) and UTF-8 encoding only
 - **Path traversal protection** on firmware download endpoint
 
