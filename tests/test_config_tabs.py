@@ -1,4 +1,7 @@
-"""Tests for the tab layout of the config form (feature 11, Screens & states, FR-config-coverage-15 and -17)."""
+"""Tests for the tab layout of the config form (feature 11, Screens & states, FR-config-coverage-15 and -17).
+
+The eleventh tab, Modules, is from feature module-settings, FR 1.
+"""
 
 import json
 import re
@@ -18,6 +21,7 @@ TABS = (
     ("event", "Event"),
     ("mesh-beacon", "Mesh beacon"),
     ("advanced", "Advanced"),
+    ("modules", "Modules"),
 )
 
 # One key of each tab, so a test can find out if an include is in the correct tab pane.
@@ -85,7 +89,7 @@ async def _page(client) -> tuple[str, _Tree]:
 
 
 @pytest.mark.asyncio
-async def test_config_form_has_the_ten_tabs_of_the_spec_in_order(client):
+async def test_config_form_has_the_eleven_tabs_of_the_spec_in_order(client):
     _, tree = await _page(client)
     tablist = tree.by_id("configTabList")
     assert tablist["attrs"]["role"] == "tablist"
@@ -99,8 +103,8 @@ async def test_config_form_has_the_ten_tabs_of_the_spec_in_order(client):
 async def test_only_the_first_tab_is_selected_and_in_the_tab_order(client):
     _, tree = await _page(client)
     tabs = [e for e in tree.where(role="tab") if "configTabList" in e["parents"]]
-    assert [e["attrs"]["aria-selected"] for e in tabs] == ["true"] + ["false"] * 9
-    assert [e["attrs"]["tabindex"] for e in tabs] == ["0"] + ["-1"] * 9
+    assert [e["attrs"]["aria-selected"] for e in tabs] == ["true"] + ["false"] * 10
+    assert [e["attrs"]["tabindex"] for e in tabs] == ["0"] + ["-1"] * 10
 
 
 @pytest.mark.asyncio

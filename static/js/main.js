@@ -404,7 +404,8 @@ function showField(field) {
 function updateTabLabels() {
     document.querySelectorAll('#configTabList [role="tab"]').forEach(tab => {
         const pane = document.getElementById(tab.getAttribute('aria-controls'));
-        const fieldsets = Array.from(pane.querySelectorAll('fieldset[data-userprefs-key]'));
+        // A module field writes no userPrefs key, so its fieldset carries `data-module-field` instead.
+        const fieldsets = Array.from(pane.querySelectorAll('fieldset[data-userprefs-key], fieldset[data-module-field]'));
         tab.querySelector('.tab-count').textContent = String(fieldsets.filter(hasValue).length);
         const errors = Array.from(pane.querySelectorAll('.field-error'));
         tab.querySelector('.tab-error-dot').hidden = !errors.some(slot => slot.textContent.trim() !== '');

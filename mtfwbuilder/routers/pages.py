@@ -17,7 +17,13 @@ from mtfwbuilder.auth import (
 )
 from mtfwbuilder.database import find_firmware_source, list_firmware_sources, list_variants
 from mtfwbuilder.htmx import is_htmx
-from mtfwbuilder.models import CHANNEL_SLOTS, ProfileRequest
+from mtfwbuilder.models import (
+    CHANNEL_SLOTS,
+    MODULE_BOOL_FIELDS,
+    MODULE_ENUMS,
+    MODULE_NUMBER_LIMITS,
+    ProfileRequest,
+)
 from mtfwbuilder.routers.firmware_builder import panel_context
 from mtfwbuilder.routers.profiles import is_admin
 from mtfwbuilder.services import fleets, profiles
@@ -71,6 +77,9 @@ async def index(request: Request, build: str | None = None):
         "packet_signature_policy_options": meshtastic_enums.PACKET_SIGNATURE_POLICIES.options(),
         "router_role_message": meshtastic_enums.ROUTER_ROLE_MESSAGE,
         "tz_posix_table": POSIX_TZ_BY_ZONE,
+        "module_bool_fields": MODULE_BOOL_FIELDS,
+        "module_enums": MODULE_ENUMS,
+        "module_number_limits": MODULE_NUMBER_LIMITS,
         # A version with status `registry failed` stays in the selector, so the picker can say that its list failed.
         "firmware_sources": [
             s for s in await list_firmware_sources(database_path) if s["status"] in ("ready", "registry failed")
