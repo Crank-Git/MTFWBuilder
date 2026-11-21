@@ -6,6 +6,7 @@ Two firmware sources are installed. Each is a copy of the fixture firmware sourc
 """
 
 import json
+import os
 import re
 import shutil
 from pathlib import Path
@@ -15,6 +16,7 @@ from httpx import ASGITransport, AsyncClient
 
 from mtfwbuilder.database import record_firmware_source
 from mtfwbuilder.models import CHANNEL_SLOTS
+from mtfwbuilder.services import userprefs_keys
 from mtfwbuilder.services.jsonc_generator import (
     KEY_FIELDS,
     VERSION_GATED_KEYS,
@@ -95,6 +97,25 @@ def test_scan_file_stays_the_key_scan_after_a_build_replaces_userprefs_jsonc(tmp
     (source_dir / "userPrefs.jsonc").write_text('{"USERPREFS_MESH_BEACON_MESSAGE": "x"}')
 
     assert ensure_key_scan(source_dir) == first
+
+
+def test_scan_writes_the_whole_scan_file_in_one_rename(tmp_path, monkeypatch):
+    source_dir = tmp_path / OLD
+    shutil.copytree(FIXTURE_DIR, source_dir)
+    renames = []
+    real_replace = os.replace
+
+    def record_replace(src, dst):
+        # The temporary file holds the whole scan file before the rename, so a reader sees all of it or nothing.
+        renames.append((Path(dst), json.loads(Path(src).read_text())))
+        real_replace(src, dst)
+
+    monkeypatch.setattr(userprefs_keys.os, "replace", record_replace)
+
+    scan = ensure_key_scan(source_dir)
+
+    assert [(dst, set(stored["keys"])) for dst, stored in renames] == [(source_dir / SCAN_FILE, scan.keys)]
+    assert sorted(path.name for path in source_dir.iterdir() if path.name.startswith(".")) == [SCAN_FILE]
 
 
 def test_firmware_source_without_src_has_no_key_scan(tmp_path):

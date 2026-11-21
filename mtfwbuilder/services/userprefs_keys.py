@@ -7,7 +7,9 @@ The firmware reads a key only where a preprocessor line or code in `src/` names 
 import asyncio
 import json
 import logging
+import os
 import re
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -93,11 +95,23 @@ def ensure_key_scan(source_dir: Path) -> KeyScan | None:
         keys = sorted(read_keys(source_dir) if has_jsonc else _source_keys(source_dir))
         header = source_dir / _ENUM_HEADER
         enum_values = sorted(set(_ENUM_VALUE.findall(header.read_text()))) if header.is_file() else None
-        scan_file.write_text(json.dumps({"keys": keys, "enum_values": enum_values}))
+        _write_scan_file(scan_file, {"keys": keys, "enum_values": enum_values})
     else:
         logger.warning(f"The firmware source {source_dir} has no src/ directory, so the form shows every key")
         return None
     return KeyScan(source_dir.name, frozenset(keys), None if enum_values is None else frozenset(enum_values))
+
+
+def _write_scan_file(scan_file: Path, data: dict) -> None:
+    """Write `data` as JSON to `scan_file` through a temporary file in the same directory and one rename.
+
+    A request can read the scan file while the scan of another request writes it.
+    `os.replace` is atomic on one file system, so a reader sees the old file, no file or the whole new file.
+    """
+    descriptor, temporary = tempfile.mkstemp(dir=scan_file.parent, prefix=f"{SCAN_FILE}.", suffix=".tmp")
+    with os.fdopen(descriptor, "w") as file:
+        json.dump(data, file)
+    os.replace(temporary, scan_file)
 
 
 async def find_key_scan(database_path: Path, version: str | None = None) -> KeyScan | None:
