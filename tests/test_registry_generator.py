@@ -216,12 +216,34 @@ def test_generate_registry_raises_registry_failed_for_output_that_is_not_json(tm
         generate_registry(tmp_path)
 
 
-def test_generate_registry_raises_registry_failed_for_a_hw_model_that_is_not_a_number(tmp_path, fake_pio):
-    config = [_env("odd", custom_meshtastic_hw_model="ten")]
+def test_env_with_a_hw_model_that_is_not_a_number_gets_no_hw_model(caplog):
+    [entry] = registry_entries([_env("odd", custom_meshtastic_hw_model="ten")])
+
+    assert entry["env"] == "odd"
+    assert entry["hw_model"] is None
+    assert "odd" in caplog.text
+    assert "custom_meshtastic_hw_model" in caplog.text
+
+
+def test_env_with_a_value_of_a_wrong_type_gives_no_entry(caplog):
+    config = [_env("odd", custom_meshtastic_requires_dfu=["true", "false"]), _env("heltec-v4")]
+
+    assert [entry["env"] for entry in registry_entries(config)] == ["heltec-v4"]
+    assert "odd" in caplog.text
+
+
+def test_generate_registry_with_bad_values_in_two_envs_holds_every_other_env(tmp_path, fake_pio):
+    config = [
+        *PROJECT_CONFIG,
+        _env("odd-hw-model", custom_meshtastic_hw_model="ten"),
+        _env("odd-flag", custom_meshtastic_has_mui=["true"]),
+    ]
     (tmp_path / ".fake-pio-config.json").write_text(json.dumps(config))
 
-    with pytest.raises(RegistryFailed, match="unexpected value"):
-        generate_registry(tmp_path)
+    entries = _by_env(generate_registry(tmp_path))
+
+    assert set(entries) == _fixture_envs() | {"odd-hw-model"}
+    assert entries["odd-hw-model"]["hw_model"] is None
 
 
 def test_generate_registry_raises_registry_failed_for_json_that_is_not_a_section_list(tmp_path, fake_pio):

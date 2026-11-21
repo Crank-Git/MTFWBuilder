@@ -86,8 +86,10 @@ def read_project_config(source_dir: Path) -> list:
 def registry_entries(config: list) -> list[dict]:
     """Return one registry entry for each env section of `config`, in config order, without native envs.
 
-    `config` has the shape of the `read_project_config` result. An env without a `-I variants/<arch>` flag gets
-    no entry and a log line, because no flash method and no artifact name fits it.
+    `config` has the shape of the `read_project_config` result. These envs get no entry and a log line:
+
+    - An env without a `-I variants/<arch>` flag, because no flash method and no artifact name fits it.
+    - An env with a value of a wrong type, so one bad upstream env does not fail the registry of the firmware version.
     """
     entries = []
     for section, options in config:
@@ -99,12 +101,14 @@ def registry_entries(config: list) -> list[dict]:
         if architecture is None:
             logger.warning(f"The registry skips env {env}: no build flag names its architecture")
         elif architecture != "native":
-            entries.append(_entry(env, architecture, values))
+            try:
+                entries.append(_entry(env, architecture, values))
+            except (TypeError, ValueError, AttributeError) as e:
+                logger.warning(f"The registry skips env {env}: a value has an unexpected type: {e}")
     return entries
 
 
 def _entry(env: str, architecture: str, values: dict) -> dict:
-    hw_model = values.get("custom_meshtastic_hw_model")
     return {
         "env": env,
         "display_name": values.get("custom_meshtastic_display_name") or env,
@@ -112,7 +116,7 @@ def _entry(env: str, architecture: str, values: dict) -> dict:
         "architecture": architecture,
         # Upstream `bin/generate_ci_matrix.py` builds an env without `board_level` in each release build.
         "support_level": values.get("board_level") or "release",
-        "hw_model": int(hw_model) if hw_model else None,
+        "hw_model": _hw_model(env, values.get("custom_meshtastic_hw_model")),
         "hw_model_slug": values.get("custom_meshtastic_hw_model_slug") or None,
         "image": _first(values.get("custom_meshtastic_images")),
         "requires_dfu": _flag(values.get("custom_meshtastic_requires_dfu"), default=False),
@@ -122,6 +126,18 @@ def _entry(env: str, architecture: str, values: dict) -> dict:
         # The spec shows a badge only for `custom_meshtastic_actively_supported = false`.
         "actively_supported": _flag(values.get("custom_meshtastic_actively_supported"), default=True),
     }
+
+
+def _hw_model(env: str, value: str | None) -> int | None:
+    """Return the hardware model number of the env, or None when the value is empty or not an integer."""
+    if not value:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        # The hardware model is optional metadata, so the env stays in the registry without it.
+        logger.warning(f"The registry stores no hw_model for env {env}: custom_meshtastic_hw_model is {value!r}")
+        return None
 
 
 def _architecture(build_flags: list[str]) -> str | None:
