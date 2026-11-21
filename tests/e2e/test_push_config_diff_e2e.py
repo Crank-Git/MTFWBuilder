@@ -68,6 +68,18 @@ SECTIONS_JS = """() => [...document.querySelectorAll('#push-diff-sections [data-
 }))"""
 
 
+def record_requests(page: Page) -> list:
+    """Return a list that gets each request of `page`."""
+    requests = []
+
+    # Playwright sets an attribute on the listener, so a bound method of a list cannot be the listener.
+    def record(request) -> None:
+        requests.append(request)
+
+    page.on("request", record)
+    return requests
+
+
 def create_profile(page: Page, url: str, name: str, config: dict, headers: dict | None = None) -> dict:
     body = {"name": name, "config": config, "stores_secrets": headers is not None}
     response = page.request.post(f"{url}/api/v1/profiles", data=body, headers=headers)
@@ -176,8 +188,7 @@ def test_diff_masks_the_psk_and_password_values(page: Page, live_server: str):
 
 
 def test_must_reenter_secret_shows_a_prompt_and_stays_in_the_page(page: Page, live_server: str):
-    requests = []
-    page.on("request", requests.append)
+    requests = record_requests(page)
     config = {"channels_to_write": "1", "channel_0[psk]": base64.b64encode(OTHER_KEY).decode()}
     profile = create_profile(page, live_server, "Secret not stored", config)
     assert profile["must_reenter"] == ["channel_0[psk]"]
@@ -217,8 +228,7 @@ def test_invalid_reentered_key_shows_an_error_and_no_diff_row(page: Page, live_s
 
 
 def test_no_page_request_to_the_server_holds_device_data(page: Page, live_server: str):
-    requests = []
-    page.on("request", requests.append)
+    requests = record_requests(page)
     create_profile(page, live_server, "Request check", PROFILE)
 
     connect(page, live_server, "Request check")

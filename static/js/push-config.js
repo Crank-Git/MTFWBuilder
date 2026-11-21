@@ -435,8 +435,6 @@ function renderDiff() {
   const pending = reenterRows(state.profile).some(row => !state.secrets.has(row.form));
   el('push-diff').hidden = sections.length === 0;
   el('push-no-changes').hidden = sections.length > 0 || pending;
-  // TODO(#74): Enable Push when a section is selected and the operator entered each secret.
-  el('push-send').disabled = true;
 }
 
 function secretInput(row) {
