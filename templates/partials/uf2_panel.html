@@ -1,0 +1,26 @@
+{# The flash instructions of a complete build that is not ESP32 family (FR-browser-flashing-10). #}
+{% if build.variant.flash_method == "uf2" %}
+<section class="card mb-2" id="uf2-panel">
+    <div class="card-body">
+        <h2 class="h5 card-title">Flash with a UF2 file</h2>
+        <ol class="mb-0" id="uf2-steps">
+            <li id="uf2-step-1">
+                {%- for artifact, url in artifacts if artifact.kind == "uf2" %}Download the UF2 file:
+                <a href="{{ url }}" download data-flash-download id="uf2-download"><i class="bi bi-download me-1"></i>{{ artifact.name }}</a>
+                {%- else %}This build has no UF2 file.
+                {%- endfor %}
+            </li>
+            {% if build.variant.architecture == "nrf52840" %}
+            <li id="uf2-step-2">Connect the device with USB.</li>
+            <li id="uf2-step-3">Press the reset button two times quickly. A USB drive appears.</li>
+            <li id="uf2-step-4">Copy the .uf2 file to the drive. The device restarts when the copy ends.</li>
+            {% else %}
+            <li id="uf2-step-2">Hold the BOOTSEL button while you connect the device with USB. A USB drive appears.</li>
+            <li id="uf2-step-3">Copy the .uf2 file to the drive. The device restarts when the copy ends.</li>
+            {% endif %}
+        </ol>
+    </div>
+</section>
+{% else %}
+<p class="text-muted mb-2" id="download-only">The browser cannot flash this device. Flash the artifact with the tool of the device vendor.</p>
+{% endif %}

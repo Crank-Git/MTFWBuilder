@@ -165,7 +165,12 @@ async def test_complete_build_shows_every_step_done_and_the_factory_artifact_fir
     assert ctx.status == "complete", ctx.error
     panel = _parse(resp.text)
     assert panel.steps() == dict.fromkeys(["queued", "compiling", "linking", "packaging", "complete"], "done")
-    links = [attrs["href"] for tag, attrs in panel.elements if tag == "a" and "/artifacts/" in attrs.get("href", "")]
+    # The flash panel repeats the artifact links, so the test reads the artifact table only.
+    links = [
+        attrs["href"]
+        for tag, attrs in panel.elements
+        if tag == "a" and "/artifacts/" in attrs.get("href", "") and "data-flash-download" not in attrs
+    ]
     assert links[0] == f"/api/v1/builds/{ctx.build_id}/artifacts/firmware-heltec-v3-2.7.26.54e0d8d.factory.bin"
     assert len(links) == len(ctx.artifacts)
     assert "sse-connect" not in resp.text
