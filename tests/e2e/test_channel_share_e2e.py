@@ -187,14 +187,14 @@ def test_broken_url_shows_the_server_message_and_keeps_the_form_unchanged(page: 
 
 def test_yaml_file_shows_the_not_applied_list_and_apply_fills_the_long_name(page: Page, live_server: str, tmp_path):
     module_config = localonly_pb2.LocalModuleConfig()
-    module_config.serial.enabled = True
+    module_config.audio.codec2_enabled = True
     export = tmp_path / "config.yaml"
     export.write_text(export_yaml(module_config=module_config, owner="Alice", channel_url=channel_url(event_set())))
     page.goto(f"{live_server}/")
 
     page.set_input_files("#channelShareFile", str(export))
 
-    expect(page.locator("#channelShareNotApplied")).to_contain_text("module_config.serial")
+    expect(page.locator("#channelShareNotApplied")).to_contain_text("module_config.audio")
     expect(page.locator("#channelSharePreview tbody tr").nth(0)).to_contain_text("Event")
     expect(page.locator("#ownerLongName")).to_have_value("")
     page.click("#channelShareApply")
@@ -332,6 +332,28 @@ def test_url_with_region_unset_empties_the_region_field(page: Page, live_server:
 
     open_tab(page, "lora")
     expect(page.locator("#loraRegion")).to_have_value("")
+
+
+def test_yaml_serial_section_fills_the_modules_tab_after_apply(page: Page, live_server: str, tmp_path):
+    module_config = localonly_pb2.LocalModuleConfig()
+    module_config.serial.enabled = True
+    module_config.serial.mode = module_config.serial.Serial_Mode.NMEA
+    module_config.serial.baud = module_config.serial.Serial_Baud.BAUD_38400
+    module_config.serial.rxd = 44
+    export = tmp_path / "config.yaml"
+    export.write_text(export_yaml(module_config=module_config))
+    page.goto(f"{live_server}/")
+
+    page.set_input_files("#channelShareFile", str(export))
+    expect(page.locator("#channelShareApply")).to_be_visible()
+    page.click("#channelShareApply")
+
+    open_tab(page, "modules")
+    expect(page.locator("#module-serial_enabled")).to_have_value("true")
+    expect(page.locator("#module-serial_mode")).to_have_value("NMEA")
+    expect(page.locator("#module-serial_baud")).to_have_value("BAUD_38400")
+    expect(page.locator("#module-serial_rxd")).to_have_value("44")
+    expect(page.locator("#module-serial_echo")).to_have_value("false")
 
 
 def test_yaml_lora_section_without_tx_enabled_turns_tx_off(page: Page, live_server: str, tmp_path):

@@ -42,6 +42,8 @@ features:
     file: features/14-fleet-builds.md
   - id: push-config
     file: features/15-push-config.md
+  - id: module-settings
+    file: features/16-module-settings.md
 pages:
   - id: inherit-reconciliation
     file: pages/inherit-reconciliation.md
@@ -143,6 +145,7 @@ the header of `userPrefs.jsonc` in `meshtastic/firmware` `develop@fe89ac1`.
 | ES module | noun | A JavaScript file that the browser loads with `import`. The project vendors ES modules in `static/vendor/`. | ESM bundle, module (alone) |
 | import map | noun | A `<script type="importmap">` element that maps a bare import name to a URL. | module map |
 | SSE | noun | Server-Sent Events: a one-way HTTP stream from server to browser. | websocket |
+| module setting | noun | A field of one of the 7 `module_config` sections that have no userPrefs key. A profile holds it, a build writes no key for it, and push config sends it. | module config field |
 
 ## Goals
 
@@ -193,22 +196,23 @@ changes what firmware versions the instance holds. The project has no other role
 
 | Feature set | Spec file | Status | Epic | Mockups |
 |---|---|---|---|---|
-| Foundation | [features/00-foundation.md](features/00-foundation.md) | planned | Epic 0: Foundation | — |
+| Foundation | [features/00-foundation.md](features/00-foundation.md) | built | Epic 0: Foundation | — |
 | Config generator | [features/01-config-generator.md](features/01-config-generator.md) | built | — | — |
 | Firmware builder | [features/02-firmware-builder.md](features/02-firmware-builder.md) | built | — | — |
-| Device registry | [features/03-device-registry.md](features/03-device-registry.md) | built | — | — |
+| Device registry | [features/03-device-registry.md](features/03-device-registry.md) | retired | — | — |
 | Admin | [features/04-admin.md](features/04-admin.md) | built | — | — |
-| userPrefs correctness | [features/05-userprefs-correctness.md](features/05-userprefs-correctness.md) | planned | Epic 1: Correct userPrefs | — |
-| Build pipeline repair | [features/06-build-pipeline-repair.md](features/06-build-pipeline-repair.md) | planned | Epic 2: Build pipeline repair | — |
-| Frontend on htmx | [features/07-frontend-htmx.md](features/07-frontend-htmx.md) | planned | Epic 3: Frontend on htmx | [01-build-page](mockups/01-build-page.html) |
-| Platform modernization | [features/08-platform-modernization.md](features/08-platform-modernization.md) | planned | Epic 4: Platform modernization | — |
-| Firmware versions | [features/09-firmware-versions.md](features/09-firmware-versions.md) | planned | Epic 5: Firmware versions | [02-firmware-sources](mockups/02-firmware-sources.html) |
-| Generated registry | [features/10-generated-registry.md](features/10-generated-registry.md) | planned | Epic 6: Generated registry | [03-device-picker](mockups/03-device-picker.html) |
-| Config coverage | [features/11-config-coverage.md](features/11-config-coverage.md) | planned | Epic 7: Config coverage | [04-config-form](mockups/04-config-form.html) |
-| Channel share | [features/12-channel-share.md](features/12-channel-share.md) | planned | Epic 8: Channel share | [05-channel-share](mockups/05-channel-share.html) |
-| Browser flashing | [features/13-browser-flashing.md](features/13-browser-flashing.md) | planned | Epic 9: Browser flashing | [06-flash](mockups/06-flash.html) |
-| Fleet builds | [features/14-fleet-builds.md](features/14-fleet-builds.md) | planned | Epic 10: Profiles and build cache, Epic 11: Fleet runs | [07-fleet](mockups/07-fleet.html) |
-| Push config | [features/15-push-config.md](features/15-push-config.md) | planned | Epic 12: Push config | [08-push-config](mockups/08-push-config.html) |
+| userPrefs correctness | [features/05-userprefs-correctness.md](features/05-userprefs-correctness.md) | built | Epic 1: Correct userPrefs | — |
+| Build pipeline repair | [features/06-build-pipeline-repair.md](features/06-build-pipeline-repair.md) | built | Epic 2: Build pipeline repair | — |
+| Frontend on htmx | [features/07-frontend-htmx.md](features/07-frontend-htmx.md) | built | Epic 3: Frontend on htmx | [01-build-page](mockups/01-build-page.html) |
+| Platform modernization | [features/08-platform-modernization.md](features/08-platform-modernization.md) | built | Epic 4: Platform modernization | — |
+| Firmware versions | [features/09-firmware-versions.md](features/09-firmware-versions.md) | built | Epic 5: Firmware versions | [02-firmware-sources](mockups/02-firmware-sources.html) |
+| Generated registry | [features/10-generated-registry.md](features/10-generated-registry.md) | built | Epic 6: Generated registry | [03-device-picker](mockups/03-device-picker.html) |
+| Config coverage | [features/11-config-coverage.md](features/11-config-coverage.md) | built | Epic 7: Config coverage | [04-config-form](mockups/04-config-form.html) |
+| Channel share | [features/12-channel-share.md](features/12-channel-share.md) | built | Epic 8: Channel share | [05-channel-share](mockups/05-channel-share.html) |
+| Browser flashing | [features/13-browser-flashing.md](features/13-browser-flashing.md) | built | Epic 9: Browser flashing | [06-flash](mockups/06-flash.html) |
+| Fleet builds | [features/14-fleet-builds.md](features/14-fleet-builds.md) | built | Epic 10: Profiles and build cache, Epic 11: Fleet runs | [07-fleet](mockups/07-fleet.html) |
+| Push config | [features/15-push-config.md](features/15-push-config.md) | built | Epic 12: Push config | [08-push-config](mockups/08-push-config.html) |
+| Module settings | [features/16-module-settings.md](features/16-module-settings.md) | issued | Epic 13: Module settings | [09-module-settings](mockups/09-module-settings.html) |
 
 ## Architecture & stack
 
@@ -437,6 +441,7 @@ Planned: a test fixture holds a small firmware source subset (a few variant
 | 10 | Profiles and build cache | Saved profiles and artifact reuse by config hash | 14-fleet-builds (FR 1–9) | 2, 7 | A repeated build returns from the build cache. |
 | 11 | Fleet runs | One fleet run makes one build per device | 14-fleet-builds (FR 10–20) | 10 | A fleet run of 3 devices gives 3 artifacts and one zip. |
 | 12 | Push config | Push a config to a device without a build | 15-push-config | 7, 9 | A Chrome page sets channels on a connected device over Web Serial. |
+| 13 | Module settings | Profiles hold the 7 module sections that have no userPrefs key, and push config sends them | 16-module-settings | 12 | A push with a profile that sets the serial mode changes the serial mode of a fake device. |
 
 ## Milestones
 
@@ -447,6 +452,7 @@ Planned: a test fixture holds a small firmware source subset (a few variant
 3. **M3 — Fewer steps** (Epics 8–9). Channel share and browser flashing. Tag `v3.1.0`.
 4. **M4 — Fleets** (Epics 10–11). Tag `v3.2.0`.
 5. **M5 — No compile** (Epic 12). Tag `v3.3.0`.
+6. **M6 — Module settings** (Epic 13). Tag `v3.4.0`.
 
 ## Assumptions
 
@@ -726,6 +732,18 @@ Written by `/spec-to-issues` on 2026-11-21.
 | FR-push-config-10 | #74 |
 | FR-push-config-12 | #74 |
 
+### Epic 13: Module settings (second planning wave, 2026-11-21)
+
+| Epic | Issue | Sub-issues |
+|---|---|---|
+| Epic 13: Module settings | #188 | #189, #190, #191 |
+
+| FR | Issues |
+|---|---|
+| FR-module-settings-1, -2, -3, -4, -7 | #190 |
+| FR-module-settings-5, -6, -11, -12 | #189 |
+| FR-module-settings-8, -9, -10 | #191 |
+
 ## Changelog
 
 - 2026-11-21 — Draft written by `/project-inherit` from a full repository survey, two
@@ -748,3 +766,6 @@ Written by `/spec-to-issues` on 2026-11-21.
 - 2026-11-21 — Epic 11 shipped (#176). PM decisions from the batch review: a fleet run has a random public id, and the fleet page lists no past runs (the operator keeps the run URL). Fleet runs obey the rate limit and the build queue limit, and one fleet runs one fleet run at a time. Fleet device admin keys are the admin's public keys: the project stores them encrypted and puts them in every build (ADR 0007).
 - 2026-11-21 — Epic 9 shipped (#135). Owner rulings: Epic 9 merged without the manual hardware check, because no device was available. The check is #177, and #177 also holds the manual check of Epic 12. The flash panel shows for each ESP32 family member (`flash_method` is `web-serial`). Owner ruling on #139: the picker shows no device images, because the meshtastic/web-flasher images are proprietary. Owner ruling on #158: a config that holds a secret is never cached.
 - 2026-11-21 — Epic 12 shipped (#186). Owner rulings: build on `@meshtastic/core` 2.6.7, pinned, with three vendored ES modules and an import map (ADR 0008). FR-push-config-10 is deferred (#182), and the protobufs in core 2.6.7 lack `status_message` and `traffic_management`. PM decisions from the batch review: push config never sends managed mode, admin keys come only from the profile, and the test hook needs `MTFW_PUSH_TEST_HOOKS`. The manual device push is in #177.
+- 2026-11-21 — `/spec-update` change: new planned feature `module-settings` (16) and Epic 13. It restores FR-push-config-10 (owner ruling on #182). Owner rulings: the 7 module sections go in profiles and in a new Modules tab, the pin fields are optional, and `nag_timeout` comes from `ringtone_nag_secs`. The owner approved this round on 2026-11-21.
+- 2026-11-21 — Epic 13 batch review (#188): `ringtone_nag_secs` now has a cap of 65535, because the firmware field `nag_timeout` holds no more. An older profile with a larger value fails validation, and the operator edits that profile.
+- 2026-11-21 — Epic 13 shipped (#198). PM decisions from the batch review: a push keeps the device fields that core 2.6.7 does not know, and build form field errors have no pydantic prefix (#195). The CLI YAML import of the module sections waits for the owner (#196).

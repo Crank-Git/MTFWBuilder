@@ -206,6 +206,25 @@ def test_ringtone_nag_secs_that_is_not_a_whole_number_is_a_field_error(seconds):
     assert error_messages(exc.value, "ringtone_nag_secs")
 
 
+# Push config sends the value as `nag_timeout`, which protobufs v2.7.8 `module_config.options` gives `int_size:16`.
+def test_ringtone_nag_secs_above_65535_is_a_field_error():
+    with pytest.raises(ValidationError) as exc:
+        ConfigRequest(ringtone_nag_secs="65536")
+    assert error_messages(exc.value, "ringtone_nag_secs") == [
+        "Value error, the value is not a whole number from 0 to 65535"
+    ]
+
+
+async def test_build_page_limits_the_ringtone_nag_seconds_input_to_65535(client):
+    html = (await client.get("/")).text
+
+    assert 'name="ringtone_nag_secs" min="0" max="65535"' in html
+
+
+def test_ringtone_nag_secs_of_65535_is_valid():
+    assert ConfigRequest(ringtone_nag_secs="65535").ringtone_nag_secs == "65535"
+
+
 # Firmware v2.7.26 output
 
 

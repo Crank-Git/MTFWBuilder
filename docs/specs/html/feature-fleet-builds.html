@@ -158,6 +158,7 @@ body.rv-open .layout { padding-right:21rem; }
 <li><a href="feature-browser-flashing.html">Browser flashing</a></li>
 <li><a class="current" href="feature-fleet-builds.html">Fleet builds</a></li>
 <li><a href="feature-push-config.html">Push config</a></li>
+<li><a href="feature-module-settings.html">Module settings</a></li>
 </ul></aside>
 <main>
 <h1>Feature: Fleet builds</h1>
@@ -267,6 +268,7 @@ body.rv-open .layout { padding-right:21rem; }
 </li>
 </ul>
 <p>version, artifact names and config hash. It holds no secret.</p>
+<p>A fleet run passes the module settings of the profile through to each fleet device unchanged, and its builds write no key for them (FR-module-settings-12).</p>
 <h3 id="fleet-builds-user-flows">User flows</h3>
 <div class="diagram"><pre class="mermaid">flowchart TD
   A[Config form] --&gt; B[Save as profile]

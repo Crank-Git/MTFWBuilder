@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Module settings — MTFWBuilder mockup</title><style>
+:root{--bg:#f6f7f9;--panel:#fff;--fg:#1b1f24;--muted:#5b6470;--line:#d9dde3;--acc:#2f7d4f;--acc-fg:#fff;--warn-bg:#fff4d6;--warn-fg:#6b4e00;--err-bg:#fde2e2;--err-fg:#8a1c1c;--ok-bg:#dff3e6;--ok-fg:#1d5c35;--info-bg:#e3eefc;--info-fg:#1d4677;--code:#eef0f3}
+@media (prefers-color-scheme:dark){:root{--bg:#121417;--panel:#1b1e23;--fg:#e6e8eb;--muted:#9aa3ad;--line:#2e333a;--acc:#4fb57a;--acc-fg:#0d1a12;--warn-bg:#3a3010;--warn-fg:#f3d98a;--err-bg:#3d1616;--err-fg:#f5b0b0;--ok-bg:#15301f;--ok-fg:#9fe0b6;--info-bg:#152740;--info-fg:#a9c8f0;--code:#23272d}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+.mock{background:var(--warn-bg);color:var(--warn-fg);text-align:center;font-size:12px;padding:4px 8px;letter-spacing:.02em}
+header{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+header b{font-size:17px}header nav{margin-left:auto;display:flex;gap:14px;flex-wrap:wrap}header nav a{color:var(--muted);text-decoration:none}header nav a.on{color:var(--acc);font-weight:600}
+main{max-width:1040px;margin:0 auto;padding:20px 16px;display:grid;gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+.card h2{margin:0 0 10px;font-size:16px}.card h3{margin:12px 0 6px;font-size:14px}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+label{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
+input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);font:inherit}
+textarea{min-height:90px;font-family:ui-monospace,Menlo,monospace;font-size:13px}
+button,.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--fg);font:inherit;cursor:pointer;text-decoration:none}
+.primary{background:var(--acc);color:var(--acc-fg);border-color:var(--acc);font-weight:600}.danger{color:var(--err-fg);border-color:var(--err-fg)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.badge{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.b-release{background:var(--ok-bg);color:var(--ok-fg);border-color:transparent}.b-pr{background:var(--info-bg);color:var(--info-fg);border-color:transparent}.b-extra{background:var(--warn-bg);color:var(--warn-fg);border-color:transparent}
+.note{padding:10px 12px;border-radius:8px;font-size:14px}.n-warn{background:var(--warn-bg);color:var(--warn-fg)}.n-info{background:var(--info-bg);color:var(--info-fg)}.n-err{background:var(--err-bg);color:var(--err-fg)}.n-ok{background:var(--ok-bg);color:var(--ok-fg)}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:middle}th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.03em}
+.tbl{overflow-x:auto}code,pre{font-family:ui-monospace,Menlo,monospace;font-size:13px;background:var(--code);border-radius:4px}code{padding:1px 4px}pre{padding:10px;overflow:auto;margin:6px 0}
+.steps{display:flex;gap:0;list-style:none;padding:0;margin:8px 0;flex-wrap:wrap}.steps li{flex:1;min-width:90px;text-align:center;font-size:13px;padding:8px 4px;border-bottom:3px solid var(--line);color:var(--muted)}.steps li.done{border-color:var(--acc);color:var(--fg)}.steps li.cur{border-color:var(--acc);color:var(--acc);font-weight:600}
+.bar{height:10px;background:var(--code);border-radius:999px;overflow:hidden}.bar>i{display:block;height:100%;background:var(--acc)}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto}.tabs button{border:none;border-bottom:2px solid transparent;border-radius:0;background:none;color:var(--muted);white-space:nowrap}.tabs button.on{color:var(--acc);border-color:var(--acc);font-weight:600}
+.muted{color:var(--muted);font-size:13px}.chip{border-radius:999px;padding:4px 12px;font-size:13px}.chip.on{background:var(--acc);color:var(--acc-fg);border-color:var(--acc)}
+.st-ok{color:var(--ok-fg)}.st-run{color:var(--info-fg)}.st-fail{color:var(--err-fg)}.st-wait{color:var(--muted)}
+</style></head><body>
+</head><body>
+<div class="mock">Mockup — guidance, not a contract</div>
+<header><b>MTFWBuilder</b><nav><a class="on" href="#">Build</a><a href="#">Profiles</a><a href="#">Fleets</a><a href="#">Push config</a></nav></header>
+<main>
+<div class="card">
+<div class="tabs"><button>Device</button><button>Channels</button><button>LoRa</button><button>Position</button><button>Network</button><button>Telemetry</button><button>Security</button><button>Event</button><button>Mesh beacon</button><button>Advanced</button><button class="on">Modules</button></div>
+<p class="note n-info" style="margin-top:12px">These settings are not compiled into the firmware. Push config sends them to a connected device.</p>
+
+<h3>Serial</h3>
+<div class="grid">
+<div><label>Enabled</label><select><option value="">Keep device value</option><option>true</option><option>false</option></select></div>
+<div><label>Mode</label><select><option value="">Keep device value</option><option>DEFAULT</option><option>SIMPLE</option><option>PROTO</option><option>TEXTMSG</option><option>NMEA</option><option>CALTOPO</option><option>WS85</option><option>VE_DIRECT</option></select></div>
+<div><label>Baud</label><select><option value="">Keep device value</option><option>BAUD_DEFAULT</option><option>BAUD_9600</option><option>BAUD_115200</option></select></div>
+<div><label>Timeout (ms)</label><input placeholder="Keep device value"></div>
+<div><label>RX pin (hardware)</label><input placeholder="Keep device value"><div class="muted">Leave empty to keep the pin of the device. A wrong pin can drive the wrong GPIO.</div></div>
+<div><label>TX pin (hardware)</label><input placeholder="Keep device value"></div>
+</div>
+
+<h3>Store and forward</h3>
+<div class="grid">
+<div><label>Enabled</label><select><option value="">Keep device value</option><option>true</option><option>false</option></select></div>
+<div><label>Server</label><select><option value="">Keep device value</option><option>true</option><option>false</option></select></div>
+<div><label>Records</label><input placeholder="Keep device value"></div>
+<div><label>History return max</label><input placeholder="Keep device value"></div>
+</div>
+
+<h3>Neighbor info</h3>
+<div class="grid">
+<div><label>Enabled</label><select><option value="">Keep device value</option><option selected>true</option><option>false</option></select></div>
+<div><label>Update interval (s)</label><input value="3600"><div class="note n-err" style="margin-top:6px">The firmware uses at least 14400 seconds (4 hours).</div></div>
+</div>
+
+<p class="muted">Range test, External notification, Detection sensor and Paxcounter cards follow, with the fields of the Behaviour rules table.</p>
+</div>
+
+<div class="card">
+<h2>Push config — diff, module sections</h2>
+<div class="tbl"><table>
+<tr><th></th><th>Section</th><th>Field</th><th>Device</th><th>Profile</th></tr>
+<tr><td><input type="checkbox" checked style="width:auto"></td><td>moduleConfig.serial</td><td>mode</td><td>DEFAULT</td><td>NMEA</td></tr>
+<tr><td></td><td></td><td>rxd</td><td>0</td><td>44</td></tr>
+<tr><td colspan="5"><div class="note n-warn">This changes a pin. Check that the profile fits this board.</div></td></tr>
+<tr><td><input type="checkbox" checked style="width:auto"></td><td>moduleConfig.storeForward</td><td>enabled</td><td>false</td><td>true</td></tr>
+</table></div>
+</div>
+</main></body></html>
