@@ -13,6 +13,8 @@ router = APIRouter(prefix="/api/v1", tags=["profiles"])
 
 # A profile name is free text, and a quote or a path separator in the file name breaks the header or the download.
 _UNSAFE_FILE_NAME = re.compile(r"[^A-Za-z0-9_.-]")
+# A response with stored secrets must not stay in the browser cache, because browser storage holds no secret.
+NO_STORE = {"Cache-Control": "no-store"}
 
 
 def _not_found(profile_id: int) -> HTTPException:
@@ -28,14 +30,16 @@ def _is_admin(request: Request) -> bool:
     return bool(token) and validate_session_token(token, request.app.state.settings)
 
 
-async def _require_admin_to_store_secrets(request: Request) -> None:
+async def _require_admin_for_secrets(request: Request) -> None:
     """Raise 403 unless the request has an admin session and a valid CSRF token.
 
     Raises:
         HTTPException: 403 when the admin session is absent or expired, or the CSRF token is invalid.
     """
     if not _is_admin(request):
-        raise HTTPException(status_code=403, detail="An admin session is required to store secrets in a profile")
+        raise HTTPException(
+            status_code=403, detail="An admin session is required to store or remove the secrets of a profile"
+        )
     await require_csrf(request)
 
 
@@ -55,8 +59,21 @@ async def get_profiles(request: Request):
     return await profiles.list_profiles(request.app.state.settings.database_path)
 
 
+def _check_secrets_change(saved_stores: bool, body: ProfileUpdate) -> bool:
+    """Return True when the change stores or removes secrets, so it needs an admin session.
+
+    Raises:
+        HTTPException: 422 when the change turns on `stores_secrets` without a config, because no secret comes in.
+    """
+    if body.stores_secrets and body.config is None and not saved_stores:
+        error = {"loc": ["body", "config"], "msg": "a config is required to turn on stores_secrets", "type": "missing"}
+        raise HTTPException(status_code=422, detail=[error])
+    stores = saved_stores if body.stores_secrets is None else body.stores_secrets
+    return (stores or saved_stores) and (body.config is not None or body.stores_secrets is not None)
+
+
 @router.post("/profiles", status_code=201, response_model=Profile)
-async def post_profile(body: ProfileRequest, request: Request):
+async def post_profile(body: ProfileRequest, request: Request, response: Response):
     """Save the config as a profile (FR-fleet-builds-1 to -3).
 
     Without `stores_secrets`, the save removes the secrets, and `must_reenter` names each removed field. With
@@ -67,7 +84,8 @@ async def post_profile(body: ProfileRequest, request: Request):
     - 422 with field errors when `ConfigRequest` rejects the config.
     """
     if body.stores_secrets:
-        await _require_admin_to_store_secrets(request)
+        await _require_admin_for_secrets(request)
+    response.headers.update(NO_STORE)
     settings = request.app.state.settings
     try:
         profile_id = await profiles.create_profile(settings.database_path, settings.secret_key, body)
@@ -77,7 +95,7 @@ async def post_profile(body: ProfileRequest, request: Request):
 
 
 @router.get("/profiles/{profile_id}", response_model=Profile)
-async def get_profile(profile_id: int, request: Request):
+async def get_profile(profile_id: int, request: Request, response: Response):
     """Return the profile, or 404 when no profile has the id.
 
     The profile holds its stored secrets only for an admin session. Without one, `must_reenter` names the
@@ -87,32 +105,34 @@ async def get_profile(profile_id: int, request: Request):
     profile = await _load(request, profile_id)
     if profile is None:
         raise _not_found(profile_id)
+    response.headers.update(NO_STORE)
     return profile
 
 
 @router.put("/profiles/{profile_id}", response_model=Profile)
-async def put_profile(profile_id: int, body: ProfileUpdate, request: Request):
+async def put_profile(profile_id: int, body: ProfileUpdate, request: Request, response: Response):
     """Rename the profile, replace its config, change its store secrets option, or more of them (FR-fleet-builds-4).
 
     A new config replaces the saved config in full. Returns:
 
-    - 403 when the change stores secrets without an admin session and a valid CSRF token.
+    - 403 when the change stores or removes secrets without an admin session and a valid CSRF token.
     - 404 when no profile has the id.
     - 409 when another profile has the new name.
+    - 422 when the change turns on `stores_secrets` without a config.
     """
     settings = request.app.state.settings
     saved = await profiles.get_profile(settings.database_path, profile_id, None)
     if saved is None:
         raise _not_found(profile_id)
-    stores = saved["stores_secrets"] if body.stores_secrets is None else body.stores_secrets
-    if stores and (body.config is not None or body.stores_secrets):
-        await _require_admin_to_store_secrets(request)
+    if _check_secrets_change(saved["stores_secrets"], body):
+        await _require_admin_for_secrets(request)
     try:
         found = await profiles.update_profile(settings.database_path, settings.secret_key, profile_id, body)
     except profiles.DuplicateProfileName:
         raise _duplicate(body.name) from None
     if not found:
         raise _not_found(profile_id)
+    response.headers.update(NO_STORE)
     return await _load(request, profile_id)
 
 
