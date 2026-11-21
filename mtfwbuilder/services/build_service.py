@@ -341,15 +341,18 @@ class BuildQueue:
             del self._builds[build_id]
 
 
-async def progress_events(ctx: BuildContext):
+async def progress_events(ctx: BuildContext, log_from: int | None = None):
     """Yield the SSE events of the progress stream for one build.
 
     The first event is the current build status. Then the stream sends each change of the
     build status and each new log line. The stream ends after the build ends. A closed
     stream has no effect on the build.
+
+    `log_from` is the index of the first log line to send. Without it, the stream sends only
+    the lines that come after the connect.
     """
     sent_status = None
-    log_index = len(ctx.build_log)
+    log_index = len(ctx.build_log) if log_from is None else log_from
     while True:
         # Hold the event before the read, so a change during a yield is not lost.
         changed = ctx.changed

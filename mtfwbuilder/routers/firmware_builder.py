@@ -2,8 +2,9 @@
 
 import json
 import logging
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from pydantic import ValidationError
@@ -95,7 +96,8 @@ def panel_context(ctx: build_service.BuildContext) -> dict:
         "build": ctx,
         "steps": steps,
         "artifacts": [(a, build_service.artifact_url(ctx.build_id, a.name)) for a in artifacts],
-        "progress_url": progress_url(ctx.build_id),
+        # The panel shows the stored log lines, so the stream starts at the next line.
+        "progress_url": f"{progress_url(ctx.build_id)}?log_from={len(ctx.build_log)}",
         "source_missing": ctx.error == build_service.FIRMWARE_SOURCE_MISSING,
     }
 
@@ -169,12 +171,16 @@ def _upload_error(message: str) -> RequestValidationError:
 
 
 @router.get("/build-progress/{build_id}")
-async def build_progress(build_id: str, request: Request):
-    """Return the progress stream of the build: the current build status, its changes, and new log lines."""
+async def build_progress(build_id: str, request: Request, log_from: Annotated[int | None, Query(ge=0)] = None):
+    """Return the progress stream of the build: the current build status, its changes, and new log lines.
+
+    `log_from` is the index of the first log line to send. Without it, the stream sends only the lines
+    after the connect. Returns 404 for an unknown build, and 422 for a negative `log_from`.
+    """
     ctx = request.app.state.build_queue.get(build_id)
     if ctx is None:
         raise HTTPException(status_code=404, detail="Build not found")
-    return EventSourceResponse(build_service.progress_events(ctx))
+    return EventSourceResponse(build_service.progress_events(ctx, log_from))
 
 
 @router.get("/builds/{build_id}")

@@ -105,7 +105,7 @@ async def test_htmx_build_returns_202_with_a_panel_on_the_progress_stream(app, c
     panel = _parse(resp.text)
     stream = next(attrs for _, attrs in panel.elements if "sse-connect" in attrs)
     assert stream["hx-ext"] == "sse"
-    assert stream["sse-connect"] == f"/api/v1/build-progress/{ctx.build_id}"
+    assert stream["sse-connect"] == f"/api/v1/build-progress/{ctx.build_id}?log_from=0"
     state = panel.by_id("build-state")
     assert state["hx-get"] == f"/api/v1/builds/{ctx.build_id}"
     assert state["hx-trigger"] == "sse:status"
@@ -299,7 +299,11 @@ async def test_reload_during_a_build_shows_the_same_build_id_and_its_current_ste
     assert ctx.build_id in resp.text
     assert page.steps()["compiling"] == "current"
     stream = next(attrs for _, attrs in page.elements if "sse-connect" in attrs)
-    assert stream["sse-connect"] == f"/api/v1/build-progress/{ctx.build_id}"
+    # The stream starts after the lines that the page shows, so a line from before the connect is not lost.
+    log = resp.text.split('id="build-log"', 1)[1].split(">", 1)[1].split("</pre>", 1)[0]
+    shown = len(log.splitlines())
+    assert shown > 0
+    assert stream["sse-connect"] == f"/api/v1/build-progress/{ctx.build_id}?log_from={shown}"
 
 
 async def test_reload_with_an_unknown_build_id_says_the_build_is_not_found(client):
