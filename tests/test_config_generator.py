@@ -1,8 +1,22 @@
 """Tests for JSONC configuration generator."""
 
+import base64
 import json
+import re
+from pathlib import Path
+
+import pytest
 
 from mtfwbuilder.services.jsonc_generator import generate_jsonc
+
+ADMIN_KEY = bytes(range(32))
+ADMIN_KEY_ARRAY = "{ " + ", ".join(f"0x{b:02x}" for b in ADMIN_KEY) + " }"
+GPS_TEMPLATE = Path(__file__).resolve().parents[1] / "templates" / "includes" / "gps_config.html"
+
+
+def byte_count(byte_array: str) -> int:
+    """Return the count of `0x..` items in a `{ 0x.. }` byte array."""
+    return len(byte_array.strip("{ }").split(","))
 
 
 class TestBasicFields:
@@ -119,6 +133,17 @@ class TestPSK:
         result = json.loads(generate_jsonc(data))
         assert result["USERPREFS_CHANNEL_0_PSK"] == "{ 0xde, 0xad, 0xbe, 0xef }"
 
+    def test_base64_psk_gives_byte_array(self):
+        data = {"channels_to_write": "1", "channel_0[psk]": "AQ=="}
+        result = json.loads(generate_jsonc(data))
+        assert result["USERPREFS_CHANNEL_0_PSK"] == "{ 0x01 }"
+
+    def test_base64_psk_with_double_slash_gives_array_without_double_slash(self):
+        psk = base64.b64encode(bytes([0xFF] * 16)).decode()
+        assert "//" in psk
+        result = json.loads(generate_jsonc({"channels_to_write": "1", "channel_0[psk]": psk}))
+        assert result["USERPREFS_CHANNEL_0_PSK"] == "{ " + ", ".join(["0xff"] * 16) + " }"
+
 
 class TestLoRaConfig:
     """Tests for LoRa radio configuration."""
@@ -162,6 +187,13 @@ class TestGPSConfig:
         data = {"gps_enabled": "true", "gps_mode": "ENABLED"}
         result = json.loads(generate_jsonc(data))
         assert result["USERPREFS_CONFIG_GPS_MODE"] == "ENABLED"
+
+    def test_gps_mode_list_matches_the_gps_mode_enum(self):
+        """The form offers the three `GpsMode` values that the firmware source names (FR-userprefs-correctness-13)."""
+        prefix = "meshtastic_Config_PositionConfig_GpsMode_"
+        select = re.search(r'<select[^>]*name="gps_mode".*?</select>', GPS_TEMPLATE.read_text(), re.DOTALL)
+        values = re.findall(r'<option value="([^"]+)"', select[0])
+        assert values == [prefix + mode for mode in ("DISABLED", "ENABLED", "NOT_PRESENT")]
 
     def test_fixed_position(self):
         data = {
@@ -253,24 +285,67 @@ class TestNetworkConfig:
 
 
 class TestAdminKeys:
-    """Tests for admin key configuration."""
+    """Tests for admin key configuration (FR-userprefs-correctness-3)."""
 
-    def test_single_admin_key(self):
-        data = {"admin_key_0": "base64key=="}
+    def test_base64_admin_key_gives_use_admin_key_0_with_32_byte_array(self):
+        data = {"admin_key_0": base64.b64encode(ADMIN_KEY).decode()}
         result = json.loads(generate_jsonc(data))
-        assert result["USERPREFS_ADMIN_KEY_0"] == "base64key=="
+        assert result["USERPREFS_USE_ADMIN_KEY_0"] == ADMIN_KEY_ARRAY
+        assert byte_count(result["USERPREFS_USE_ADMIN_KEY_0"]) == 32
+        assert "USERPREFS_ADMIN_KEY_0" not in result
 
-    def test_multiple_admin_keys(self):
-        data = {"admin_key_0": "key0", "admin_key_1": "key1", "admin_key_2": "key2"}
+    def test_hex_admin_key_gives_32_byte_array(self):
+        result = json.loads(generate_jsonc({"admin_key_0": ADMIN_KEY.hex()}))
+        assert result["USERPREFS_USE_ADMIN_KEY_0"] == ADMIN_KEY_ARRAY
+
+    def test_byte_array_admin_key_gives_the_same_array(self):
+        result = json.loads(generate_jsonc({"admin_key_0": ADMIN_KEY_ARRAY}))
+        assert result["USERPREFS_USE_ADMIN_KEY_0"] == ADMIN_KEY_ARRAY
+
+    def test_base64_admin_key_with_double_slash_gives_array_without_double_slash(self):
+        key = base64.b64encode(bytes([0xFF] * 32)).decode()
+        assert "//" in key
+        result = json.loads(generate_jsonc({"admin_key_0": key}))
+        assert result["USERPREFS_USE_ADMIN_KEY_0"] == "{ " + ", ".join(["0xff"] * 32) + " }"
+
+    def test_three_admin_keys_give_three_use_admin_keys(self):
+        data = {f"admin_key_{i}": bytes([i] * 32).hex() for i in range(3)}
         result = json.loads(generate_jsonc(data))
-        assert result["USERPREFS_ADMIN_KEY_0"] == "key0"
-        assert result["USERPREFS_ADMIN_KEY_1"] == "key1"
-        assert result["USERPREFS_ADMIN_KEY_2"] == "key2"
+        for i in range(3):
+            assert result[f"USERPREFS_USE_ADMIN_KEY_{i}"] == "{ " + ", ".join([f"0x{i:02x}"] * 32) + " }"
+            assert f"USERPREFS_ADMIN_KEY_{i}" not in result
 
     def test_empty_admin_key_omitted(self):
-        data = {"admin_key_0": ""}
+        result = json.loads(generate_jsonc({"admin_key_0": ""}))
+        assert "USERPREFS_USE_ADMIN_KEY_0" not in result
+
+    @pytest.mark.parametrize("key", [bytes(31).hex(), base64.b64encode(bytes(16)).decode(), "not a key"])
+    def test_admin_key_that_is_not_32_bytes_raises_value_error(self, key):
+        with pytest.raises(ValueError):
+            generate_jsonc({"admin_key_0": key})
+
+
+class TestOtherAdvancedSettings:
+    """Tests for the button pin and event mode (FR-userprefs-correctness-9)."""
+
+    def test_enabled_button_pin_gives_button_pin_key(self):
+        result = json.loads(generate_jsonc({"button_pin": "36", "button_pin_enabled": "true"}))
+        assert result["USERPREFS_BUTTON_PIN"] == "36"
+
+    @pytest.mark.parametrize("enabled", ["false", None])
+    def test_button_pin_without_enable_box_writes_no_key(self, enabled):
+        data = {"button_pin": "36"} | ({"button_pin_enabled": enabled} if enabled else {})
         result = json.loads(generate_jsonc(data))
-        assert "USERPREFS_ADMIN_KEY_0" not in result
+        assert "USERPREFS_BUTTON_PIN" not in result
+
+    def test_enabled_empty_button_pin_writes_no_key(self):
+        result = json.loads(generate_jsonc({"button_pin": "", "button_pin_enabled": "true"}))
+        assert "USERPREFS_BUTTON_PIN" not in result
+
+    @pytest.mark.parametrize("mode", ["0", "1"])
+    def test_event_mode_gives_event_mode_key(self, mode):
+        result = json.loads(generate_jsonc({"event_mode": mode}))
+        assert result["USERPREFS_EVENT_MODE"] == mode
 
 
 class TestOEMConfig:

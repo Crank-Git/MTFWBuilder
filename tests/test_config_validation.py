@@ -141,3 +141,34 @@ async def test_valid_channel_fields_reach_the_userprefs_file(client):
     assert parsed["USERPREFS_CHANNEL_0_NAME"] == "Primary"
     assert parsed["USERPREFS_CHANNEL_0_PSK"] == "{ 0x01 }"
     assert parsed["USERPREFS_CHANNEL_0_UPLINK_ENABLED"] == "true"
+
+
+DOUBLE_SLASH_ADMIN_KEY = base64.b64encode(bytes([0xFF] * 32)).decode()
+DOUBLE_SLASH_PSK = base64.b64encode(bytes([0xFF] * 16)).decode()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("route", CONFIG_ROUTES)
+@pytest.mark.parametrize("key", [bytes(31).hex(), base64.b64encode(bytes(16)).decode(), "{}", "not a key"])
+async def test_admin_key_that_is_not_32_bytes_returns_422_for_that_field(client, route, key):
+    resp = await client.post(route, json={"admin_key_1": key})
+    assert resp.status_code == 422
+    assert "admin_key_1" in error_fields(resp)
+
+
+@pytest.mark.asyncio
+async def test_base64_admin_key_with_double_slash_reaches_the_file_as_a_byte_array(client):
+    assert "//" in DOUBLE_SLASH_ADMIN_KEY
+    resp = await client.post("/api/v1/preview", json={"admin_key_0": DOUBLE_SLASH_ADMIN_KEY})
+    assert resp.status_code == 200
+    parsed = json.loads(resp.json()["content"])
+    assert parsed["USERPREFS_USE_ADMIN_KEY_0"] == "{ " + ", ".join(["0xff"] * 32) + " }"
+
+
+@pytest.mark.asyncio
+async def test_base64_psk_with_double_slash_reaches_the_file_as_a_byte_array(client):
+    assert "//" in DOUBLE_SLASH_PSK
+    resp = await client.post("/api/v1/preview", json={"channels_to_write": "1", "channel_0[psk]": DOUBLE_SLASH_PSK})
+    assert resp.status_code == 200
+    parsed = json.loads(resp.json()["content"])
+    assert parsed["USERPREFS_CHANNEL_0_PSK"] == "{ " + ", ".join(["0xff"] * 16) + " }"

@@ -7,6 +7,10 @@ The firmware ignores an unknown key without an error.
 import json
 from typing import Any
 
+from mtfwbuilder.key_bytes import ADMIN_KEY_LENGTH, byte_array, decode_key
+
+ADMIN_KEY_SLOTS = 3
+
 
 def generate_jsonc(config_data: dict[str, Any]) -> str:
     """Generate a userPrefs.jsonc string from form data."""
@@ -29,6 +33,7 @@ def generate_jsonc(config_data: dict[str, Any]) -> str:
     _process_admin_keys(config_data, output)
     _process_network_config(config_data, output)
     _process_oem_config(config_data, output)
+    _process_other_settings(config_data, output)
 
     return json.dumps(output, indent=2)
 
@@ -67,13 +72,10 @@ def _process_channel_config(config_data: dict, output: dict, channel_index: int)
 
 
 def _process_channel_psk(psk_value: str, output: dict, channel_index: int) -> None:
-    """Process and format Pre-Shared Key for a channel."""
-    psk = psk_value.strip()
-    if psk.startswith("{") and psk.endswith("}"):
-        output[f"USERPREFS_CHANNEL_{channel_index}_PSK"] = psk
-    elif psk:
-        psk_bytes = [f"0x{psk[i : i + 2]}" for i in range(0, len(psk), 2)]
-        output[f"USERPREFS_CHANNEL_{channel_index}_PSK"] = "{ " + ", ".join(psk_bytes) + " }"
+    """Write a hex, `{ 0x.. }` or base64 PSK as a `{ 0x.. }` byte array."""
+    psk = decode_key(psk_value)
+    if psk:
+        output[f"USERPREFS_CHANNEL_{channel_index}_PSK"] = byte_array(psk)
 
 
 def _process_lora_config(config_data: dict, output: dict) -> None:
@@ -117,9 +119,21 @@ def _process_gps_config(config_data: dict, output: dict) -> None:
 
 
 def _process_admin_keys(config_data: dict, output: dict) -> None:
-    """Process admin keys (up to 3 keys supported)."""
-    for i in range(3):
-        _set_if_present(config_data, output, f"admin_key_{i}", f"USERPREFS_ADMIN_KEY_{i}")
+    """Write each admin key as `USERPREFS_USE_ADMIN_KEY_<n>` with a 32-byte `{ 0x.. }` array.
+
+    Upstream copies 32 bytes from the array, so a shorter array reads past its end.
+
+    Raises:
+        ValueError: An admin key is not hex, base64 or a `{ 0x.. }` list of 32 bytes.
+    """
+    for i in range(ADMIN_KEY_SLOTS):
+        value = config_data.get(f"admin_key_{i}")
+        if not value:
+            continue
+        key = decode_key(value)
+        if len(key) != ADMIN_KEY_LENGTH:
+            raise ValueError(f"admin_key_{i} is not {ADMIN_KEY_LENGTH} bytes")
+        output[f"USERPREFS_USE_ADMIN_KEY_{i}"] = byte_array(key)
 
 
 def _process_network_config(config_data: dict, output: dict) -> None:
@@ -159,3 +173,10 @@ def _process_oem_config(config_data: dict, output: dict) -> None:
     _set_if_present(config_data, output, "oem_image_width", "USERPREFS_OEM_IMAGE_WIDTH")
     _set_if_present(config_data, output, "oem_image_height", "USERPREFS_OEM_IMAGE_HEIGHT")
     _set_if_present(config_data, output, "oem_image_data", "USERPREFS_OEM_IMAGE_DATA")
+
+
+def _process_other_settings(config_data: dict, output: dict) -> None:
+    """Write the button pin and the event mode from the advanced settings."""
+    if config_data.get("button_pin_enabled") == "true":
+        _set_if_present(config_data, output, "button_pin", "USERPREFS_BUTTON_PIN")
+    _set_if_present(config_data, output, "event_mode", "USERPREFS_EVENT_MODE")
