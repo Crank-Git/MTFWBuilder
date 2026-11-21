@@ -7,6 +7,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from mtfwbuilder.time_zones import to_posix_tz
+
 CHANNEL_SLOTS = 8
 PSK_LENGTHS = (0, 1, 16, 32)
 
@@ -145,6 +147,17 @@ class ConfigRequest(_UserPrefsFields):
             else:
                 nested[key] = value
         return nested
+
+    @field_validator("tz_string")
+    @classmethod
+    def _check_tz_string(cls, value: str | None) -> str | None:
+        """Reject a value that is not an IANA time zone or a POSIX TZ string.
+
+        The value stays unchanged, because the generator also converts input that no model checks.
+        """
+        if value:
+            to_posix_tz(value)
+        return value
 
     @field_validator("channels_to_write")
     @classmethod

@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 from mtfwbuilder.services.jsonc_generator import generate_jsonc
 
 
@@ -27,9 +29,18 @@ class TestBasicFields:
         result = json.loads(generate_jsonc({"owner_long_name": "Test Node"}))
         assert result["USERPREFS_CONFIG_OWNER_LONG_NAME"] == "Test Node"
 
-    def test_timezone(self):
-        result = json.loads(generate_jsonc({"tz_string": "EST5EDT"}))
-        assert result["USERPREFS_TZ_STRING"] == "EST5EDT"
+    def test_iana_time_zone_gives_its_posix_tz_string(self):
+        result = json.loads(generate_jsonc({"tz_string": "America/New_York"}))
+        assert result["USERPREFS_TZ_STRING"] == "EST5EDT,M3.2.0,M11.1.0"
+
+    @pytest.mark.parametrize("posix", ["CET-1CEST,M3.5.0,M10.5.0/3", "<+0545>-5:45", "AEST-10AEDT,M10.1.0,M4.1.0/3"])
+    def test_posix_tz_string_passes_through_unchanged(self, posix):
+        result = json.loads(generate_jsonc({"tz_string": posix}))
+        assert result["USERPREFS_TZ_STRING"] == posix
+
+    def test_unknown_time_zone_raises_value_error(self):
+        with pytest.raises(ValueError, match="time zone"):
+            generate_jsonc({"tz_string": "Mars/Olympus_Mons"})
 
     def test_bluetooth_pin(self):
         result = json.loads(generate_jsonc({"bluetooth_fixed_pin": "123456"}))
