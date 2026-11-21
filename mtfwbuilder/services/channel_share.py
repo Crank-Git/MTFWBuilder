@@ -131,13 +131,37 @@ _DEFAULT_PSK = b"\x01"
 _DEFAULT_POSITION_PRECISION = 13
 # Upstream `NodeDB.cpp` sets `HOP_RELIABLE`, and the config form has no hop limit field.
 _DEFAULT_HOP_LIMIT = 3
+_MAX_UINT32 = 0xFFFFFFFF
+NOT_UINT32_MESSAGE = f"the value is not a whole number from 0 to {_MAX_UINT32}"
 
 
-def _settings(channel: ChannelConfig | None) -> channel_pb2.ChannelSettings:
+class InvalidExportField(ValueError):
+    """A config field that the channel URL holds as a `uint32` is not a whole number in the `uint32` range."""
+
+    def __init__(self, location: tuple[str, ...]):
+        super().__init__(NOT_UINT32_MESSAGE)
+        self.location = location
+
+
+def _uint32(value: str | None, default: int, location: tuple[str, ...]) -> int:
+    """Return `value` as a number, or `default` when `value` is empty.
+
+    Raises:
+        InvalidExportField: `value` is not a whole number in the `uint32` range.
+    """
+    if not value:
+        return default
+    # `ConfigRequest` does not check these fields, and protobuf rejects a number outside the `uint32` range.
+    if not (value.isascii() and value.isdigit() and int(value) <= _MAX_UINT32):
+        raise InvalidExportField(location)
+    return int(value)
+
+
+def _settings(slot: int, channel: ChannelConfig | None) -> channel_pb2.ChannelSettings:
     """Return the settings that the firmware gives a written channel slot with the fields of `channel`."""
     channel = channel or ChannelConfig()
     is_muted = channel.muted == "true"
-    precision = int(channel.precision) if channel.precision else _DEFAULT_POSITION_PRECISION
+    precision = _uint32(channel.precision, _DEFAULT_POSITION_PRECISION, (f"channel_{slot}", "precision"))
     # An empty `module_settings` message adds two bytes, so the URL of an imported channel changes.
     module_settings = channel_pb2.ModuleSettings(position_precision=precision, is_muted=is_muted)
     return channel_pb2.ChannelSettings(
@@ -160,7 +184,7 @@ def _lora(config: ConfigRequest) -> config_pb2.Config.LoRaConfig:
     if config.lora_modem_preset:
         # The package enum stops at `NARROW_SLOW`, but the field takes any number.
         lora.modem_preset = _PRESET_NAMES.index(config.lora_modem_preset.removeprefix(MODEM_PRESETS.c_prefix))
-    lora.channel_num = int(config.lora_channel_num or 0)
+    lora.channel_num = _uint32(config.lora_channel_num, 0, ("lora_channel_num",))
     lora.tx_power = int(config.lora_tx_power or 0)
     lora.tx_enabled = config.lora_tx_disabled != "true"
     lora.ignore_mqtt = config.lora_ignore_mqtt == "true"
@@ -173,9 +197,13 @@ def encode_channel_url(config: ConfigRequest) -> str:
 
     The URL holds the channel slots that `channels_to_write` counts, in the form of upstream `Node.getURL`.
     A field that the config leaves empty takes the firmware default.
+
+    Raises:
+        InvalidExportField: A channel precision or the LoRa channel number is not a `uint32` number.
     """
+    slots = range(int(config.channels_to_write))
     channel_set = apponly_pb2.ChannelSet(
-        settings=[_settings(getattr(config, f"channel_{slot}")) for slot in range(int(config.channels_to_write))],
+        settings=[_settings(slot, getattr(config, f"channel_{slot}")) for slot in slots],
         lora_config=_lora(config),
     )
     fragment = base64.urlsafe_b64encode(channel_set.SerializeToString()).decode("ascii").rstrip("=")

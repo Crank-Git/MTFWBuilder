@@ -12,6 +12,7 @@ from mtfwbuilder.services.channel_share import (
     INVALID_URL_MESSAGE,
     MAX_EXPORT_BYTES,
     InvalidChannelUrl,
+    InvalidExportField,
     InvalidExportFile,
     decode_channel_url,
     encode_channel_url,
@@ -63,5 +64,8 @@ async def export_channel_url(body: ConfigRequest) -> ChannelUrlExport:
     """
     if int(body.channels_to_write) == 0:
         raise RequestValidationError([field_error(("channels_to_write",), NO_CHANNEL_MESSAGE)])
-    url = encode_channel_url(body)
+    try:
+        url = encode_channel_url(body)
+    except InvalidExportField as error:
+        raise RequestValidationError([field_error(error.location, str(error))]) from None
     return ChannelUrlExport(url=url, qr_svg=qr_svg(url))

@@ -166,6 +166,20 @@ async def test_export_rejects_a_config_that_fails_validation(client):
     assert response.status_code == 422
 
 
+@pytest.mark.parametrize(
+    ("config", "location"),
+    [
+        ({"channel_0": {"precision": "high"}}, ["body", "channel_0", "precision"]),
+        ({"lora_enabled": "true", "lora_channel_num": "4294967296"}, ["body", "lora_channel_num"]),
+    ],
+)
+async def test_export_of_a_number_field_that_is_not_a_uint32_returns_422(client, config, location):
+    response = await client.post(EXPORT_URL, json=config)
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == location
+
+
 def _svg_modules(svg: str) -> set[tuple[int, int]]:
     """Return the `(column, row)` of each dark module that the `path` of a segno SVG draws."""
     path = ET.fromstring(svg).find("{http://www.w3.org/2000/svg}path")
