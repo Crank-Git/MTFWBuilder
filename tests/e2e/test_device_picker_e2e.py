@@ -77,3 +77,28 @@ def test_search_heltec_v4_then_choose_heltec_v4_builds_to_complete(page: Page, l
     expect(page.locator('[data-step="complete"]')).to_have_attribute("data-state", "done", timeout=15_000)
     expect(page.locator("#build-state tr", has_text=".factory.bin")).to_contain_text("heltec-v4")
     expect(page.locator("#build-state tr", has_text=".factory.bin")).to_contain_text(FIRMWARE_VERSION.removeprefix("v"))
+
+
+def test_version_switch_clears_a_chosen_env_that_the_new_version_lacks(page: Page, live_server: str):
+    page.goto(f"{live_server}/")
+    fill_config_form(page)
+    page.locator(f'{ROWS}[data-env="heltec-v4"]').click()
+    expect(page.locator("#variant")).to_have_value("heltec-v4")
+
+    page.select_option("#firmware_version", ALPHA_VERSION)
+
+    expect(page.locator("#variant")).to_have_value("")
+    expect(page.locator(f'{ROWS}[data-env="heltec-v4-r2"]')).to_be_visible()
+    expect(page.locator(f'{ROWS}[aria-pressed="true"]')).to_have_count(0)
+    expect(page.locator("#buildBtn")).to_be_disabled()
+
+
+def test_version_switch_keeps_a_chosen_env_that_the_new_version_holds(page: Page, live_server: str):
+    page.goto(f"{live_server}/")
+    page.locator(f'{ROWS}[data-env="rak4631"]').click()
+
+    page.select_option("#firmware_version", ALPHA_VERSION)
+
+    expect(page.locator(f'{ROWS}[data-env="heltec-v4-r2"]')).to_be_visible()
+    expect(page.locator("#variant")).to_have_value("rak4631")
+    expect(page.locator(f'{ROWS}[data-env="rak4631"]')).to_have_attribute("aria-pressed", "true")

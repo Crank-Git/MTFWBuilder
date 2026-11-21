@@ -106,6 +106,26 @@ document.addEventListener('htmx:afterSwap', function(evt) {
     }
 });
 
+// The picker list holds only the envs that match the filters, so the full registry of the new version decides.
+// A chosen env that the new version lacks gives a build of an env that the firmware source does not have.
+document.addEventListener('change', async function(evt) {
+    const version = evt.target;
+    const variant = document.getElementById('variant');
+    if (version.id !== 'firmware_version' || !variant || !variant.value || !version.value) {
+        return;
+    }
+    const query = new URLSearchParams({version: version.value, experimental: 'true'});
+    const response = await fetch(`/api/v1/variants?${query}`);
+    const registry = response.ok ? await response.json() : [];
+    // A second version change during the request makes this answer out of date.
+    if (version.value !== query.get('version') || registry.some(entry => entry.env === variant.value)) {
+        return;
+    }
+    variant.value = '';
+    variant.dispatchEvent(new Event('change'));
+    markChosenVariant();
+});
+
 document.addEventListener('click', function(evt) {
     const row = evt.target.closest('#device-results [data-env]');
     if (row) {
