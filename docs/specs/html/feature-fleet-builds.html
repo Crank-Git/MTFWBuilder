@@ -324,7 +324,7 @@ body.rv-open .layout { padding-right:21rem; }
 <li>The per-device role accepts only the roles of FR-config-coverage-4. A row with
 </li>
 </ul>
-<p><code>ROUTER</code>, <code>ROUTER_LATE</code> or <code>LOST_AND_FOUND</code> is a row error: "Router roles cannot be a factory default. Use Push config after flashing." The firmware would replace them with <code>CLIENT</code>.</p>
+<p><code>ROUTER</code>, <code>ROUTER_LATE</code> or <code>LOST_AND_FOUND</code> is a row error: "Router roles cannot be set as a factory default. Use Push config after flashing." The firmware would replace them with <code>CLIENT</code>.</p>
 <ul>
 <li>Short name: at most 4 characters. Long name: at most 25 bytes (firmware 2.8 limit).
 </li>
@@ -339,6 +339,7 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><td>GET/POST</td><td><code>/api/v1/profiles</code></td><td>list / 201</td></tr>
 <tr><td>GET/PUT/DELETE</td><td><code>/api/v1/profiles/{id}</code></td><td>profile / 200 / 204</td></tr>
 <tr><td>GET/POST</td><td><code>/api/v1/fleets</code></td><td>list / 201</td></tr>
+<tr><td>GET/PUT/DELETE</td><td><code>/api/v1/fleets/{id}</code></td><td>fleet / 200 / 204; 422 above <code>MTFW_MAX_FLEET_SIZE</code> devices</td></tr>
 <tr><td>PUT</td><td><code>/api/v1/fleets/{id}/devices</code></td><td>200; 422 with row errors</td></tr>
 <tr><td>POST</td><td><code>/api/v1/fleets/{id}/runs</code></td><td>202 <code>{run_id, progress_url}</code></td></tr>
 <tr><td>GET</td><td><code>/api/v1/fleet-runs/{id}</code></td><td>status per fleet device</td></tr>

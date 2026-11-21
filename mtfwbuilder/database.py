@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS builds (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     completed_at TIMESTAMP,
     config_hash TEXT,
-    firmware_version TEXT
+    firmware_version TEXT,
+    fleet_run_id INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS profiles (
@@ -80,12 +81,59 @@ CREATE TABLE IF NOT EXISTS cache_entries (
 );
 """
 
+# Migration steps for feature fleet-builds, one table each. SQLite enforces no foreign key without a PRAGMA, so a
+# fleet delete removes the rows of the other tables itself.
+FLEET_SCHEMAS = (
+    """
+CREATE TABLE IF NOT EXISTS fleets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    profile_id INTEGER NOT NULL,
+    firmware_version TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+""",
+    """
+CREATE TABLE IF NOT EXISTS fleet_devices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fleet_id INTEGER NOT NULL,
+    label TEXT NOT NULL,
+    variant TEXT,
+    long_name TEXT,
+    short_name TEXT,
+    role TEXT,
+    fixed_lat REAL,
+    fixed_lon REAL,
+    fixed_alt INTEGER,
+    admin_key_ciphertext TEXT
+)
+""",
+    """
+CREATE TABLE IF NOT EXISTS fleet_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fleet_id INTEGER NOT NULL,
+    firmware_version TEXT,
+    status TEXT NOT NULL DEFAULT 'queued',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+""",
+    """
+CREATE TABLE IF NOT EXISTS fleet_run_builds (
+    fleet_run_id INTEGER NOT NULL,
+    fleet_device_id INTEGER NOT NULL,
+    build_id TEXT,
+    PRIMARY KEY (fleet_run_id, fleet_device_id)
+)
+""",
+)
+
 # Migration for feature fleet-builds: `profiles` replaces `config_profiles`, which no code wrote, so it holds no rows.
 DROP_CONFIG_PROFILES = "DROP TABLE IF EXISTS config_profiles"
 
 # `CREATE TABLE IF NOT EXISTS` does not change a table that exists, so an older database gets these columns here.
 ADDED_COLUMNS = {
-    "builds": {"config_hash": "TEXT", "firmware_version": "TEXT"},
+    "builds": {"config_hash": "TEXT", "firmware_version": "TEXT", "fleet_run_id": "INTEGER"},
     "profiles": {"secrets_ciphertext": "TEXT"},
     "cache_entries": {"artifact_names": "TEXT"},
 }
@@ -141,6 +189,8 @@ async def init_db(settings: Settings) -> None:
     async with aiosqlite.connect(settings.database_path) as db:
         await db.executescript(SCHEMA)
         await db.executescript(CACHE_ENTRIES_SCHEMA)
+        for schema in FLEET_SCHEMAS:
+            await db.execute(schema)
         await db.execute(DROP_CONFIG_PROFILES)
         for table, added in ADDED_COLUMNS.items():
             cursor = await db.execute(f"PRAGMA table_info({table})")

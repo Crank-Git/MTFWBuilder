@@ -119,8 +119,8 @@ Mockup: [07-fleet](../mockups/07-fleet.html).
 - A fleet run with a profile that has "must re-enter" secrets asks for them once, for
   the whole fleet run. The project holds them in memory for that fleet run only.
 - The per-device role accepts only the roles of FR-config-coverage-4. A row with
-  `ROUTER`, `ROUTER_LATE` or `LOST_AND_FOUND` is a row error: "Router roles cannot be a
-  factory default. Use Push config after flashing." The firmware would replace them
+  `ROUTER`, `ROUTER_LATE` or `LOST_AND_FOUND` is a row error: "Router roles cannot be set
+  as a factory default. Use Push config after flashing." The firmware would replace them
   with `CLIENT`.
 - Short name: at most 4 characters. Long name: at most 25 bytes (firmware 2.8 limit).
 - Lat −90 to 90, lon −180 to 180, alt −1000 to 10000 m.
@@ -138,6 +138,7 @@ New tables (see spec `Data model`): `profiles` (replaces the unused `config_prof
 | GET/POST | `/api/v1/profiles` | list / 201 |
 | GET/PUT/DELETE | `/api/v1/profiles/{id}` | profile / 200 / 204 |
 | GET/POST | `/api/v1/fleets` | list / 201 |
+| GET/PUT/DELETE | `/api/v1/fleets/{id}` | fleet / 200 / 204; 422 above `MTFW_MAX_FLEET_SIZE` devices |
 | PUT | `/api/v1/fleets/{id}/devices` | 200; 422 with row errors |
 | POST | `/api/v1/fleets/{id}/runs` | 202 `{run_id, progress_url}` |
 | GET | `/api/v1/fleet-runs/{id}` | status per fleet device |

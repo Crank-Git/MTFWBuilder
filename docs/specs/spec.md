@@ -292,9 +292,10 @@ The registry was a YAML file at the inherit (`devices/variants.yaml`, 150 entrie
 | BUILD | build-pipeline-repair | `id` (random, 128-bit), `version`, `variant`, `status`, `config_hash`, `created_at`, `completed_at`, `error_message`, `fleet_run_id` | queued → compiling → linking → packaging → complete / failed / cancelled → expired |
 | CACHE_ENTRY | fleet-builds | `config_hash` PK, `firmware_version`, `variant`, `artifact_dir`, `artifact_names` (JSON list), `created_at`, `last_used_at` (Unix seconds) | created on complete without a secret, removed by TTL or when an artifact is missing |
 | PROFILE | fleet-builds | `id`, `name` UNIQUE, `config_json` without secrets, `must_reenter_json`, `stores_secrets`, `secrets_ciphertext` (Fernet token, nullable), `created_at`, `updated_at` | created → updated → deleted |
-| FLEET | fleet-builds | `id`, `name`, `profile_id` | created → deleted |
-| FLEET_DEVICE | fleet-builds | `id`, `fleet_id`, `label`, `variant`, `long_name`, `short_name`, `role`, `fixed_lat`, `fixed_lon`, `fixed_alt`, `admin_key` | created → deleted |
-| FLEET_RUN | fleet-builds | `id`, `fleet_id`, `version`, `status`, `created_at` | queued → running → complete / partial / failed |
+| FLEET | fleet-builds | `id`, `name`, `profile_id`, `firmware_version` (nullable: the default firmware source), `created_at`, `updated_at` | created → updated → deleted |
+| FLEET_DEVICE | fleet-builds | `id`, `fleet_id`, `label`, `variant`, `long_name`, `short_name`, `role`, `fixed_lat`, `fixed_lon`, `fixed_alt`, `admin_key_ciphertext` (Fernet token of the admin key, nullable, ADR 0007) | created → deleted |
+| FLEET_RUN | fleet-builds | `id`, `fleet_id`, `firmware_version`, `status`, `created_at` | queued → running → complete / partial / failed |
+| FLEET_RUN_BUILD | fleet-builds | `fleet_run_id` + `fleet_device_id` PK, `build_id` | One row for each fleet device in a fleet run. It links the fleet device to its build. |
 
 A build log is not stored in the database. Upstream PlatformIO prints the `-D` build
 flags, and those flags hold every secret (see `Risks`).
