@@ -1,7 +1,10 @@
 """Tests for authentication, sessions, and admin routes."""
 
+import time
+
 import pytest
 from httpx import ASGITransport, AsyncClient
+from itsdangerous import TimestampSigner
 
 from mtfwbuilder.auth import (
     SESSION_COOKIE,
@@ -9,27 +12,8 @@ from mtfwbuilder.auth import (
     validate_session_token,
     verify_password,
 )
-from mtfwbuilder.config import Settings, _hash_password, load_settings
-from mtfwbuilder.main import create_app
-
-
-def _make_client_app():
-    """Create app with manually initialized state (no lifespan).
-
-    Note: create_app() already mounts /static and sets templates.
-    We just need to set the state that the lifespan would provide.
-    """
-    app = create_app()
-    from mtfwbuilder.services.device_registry import DeviceRegistry
-    from mtfwbuilder.services.build_service import init_build_system
-
-    settings = load_settings()
-    app.state.settings = settings
-    app.state.device_registry = DeviceRegistry(settings.devices_file)
-    init_build_system(settings)
-    app.state.active_builds = {}
-
-    return app, settings
+from mtfwbuilder.config import Settings, _hash_password
+from tests.conftest import sign_in_admin
 
 
 class TestPasswordHashing:
@@ -72,63 +56,83 @@ class TestSessionTokens:
         assert not validate_session_token(token, settings2)
 
     def test_expired_token_rejected(self):
-        """A token validated with max_age shorter than its age is rejected."""
-        from itsdangerous import TimestampSigner
-
+        """A token older than session_max_age is rejected."""
         secret = "test-secret"
-        signer = TimestampSigner(secret)
-        token = signer.sign("admin").decode("utf-8")
+        signed_at = int(time.time()) - 10_000
 
-        # Valid with long max_age
-        settings_long = Settings(secret_key=secret, session_max_age=9999)
-        assert validate_session_token(token, settings_long)
+        class PastSigner(TimestampSigner):
+            # The token gets a fixed timestamp 10,000 seconds in the past, so its age
+            # is always larger than the 3,600-second limit below.
+            def get_timestamp(self) -> int:
+                return signed_at
 
-        # Tamper with the token to make it invalid (simulates expiry detection path)
-        bad_token = token[:-2] + "XX"
-        assert not validate_session_token(bad_token, settings_long)
+        token = PastSigner(secret).sign("admin").decode("utf-8")
+
+        # A limit larger than the age accepts the token, so only the age causes the rejection.
+        assert validate_session_token(token, Settings(secret_key=secret, session_max_age=99_999))
+        assert not validate_session_token(token, Settings(secret_key=secret, session_max_age=3600))
+
+    def test_tampered_signature_rejected(self):
+        """A token with one changed signature character is rejected."""
+        settings = Settings(secret_key="test-secret")
+        token = create_session_token(settings)
+        value, _, signature = token.rpartition(".")
+
+        # A middle character carries 6 full bits of the signature. The last character
+        # carries unused padding bits, so a change there can decode to the same bytes.
+        middle = len(signature) // 2
+        replacement = "B" if signature[middle] == "A" else "A"
+        bad_token = f"{value}.{signature[:middle]}{replacement}{signature[middle + 1 :]}"
+
+        assert bad_token != token
+        assert not validate_session_token(bad_token, settings)
 
 
 class TestAdminRoutes:
     """Tests for admin login/logout and protected routes."""
 
     @pytest.fixture
-    async def client(self):
-        app, settings = _make_client_app()
+    async def client(self, app):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as c:
             yield c
 
     @pytest.fixture
-    async def authed_client(self):
-        app, settings = _make_client_app()
+    async def authed_client(self, app, admin_password):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as c:
-            # Login with default password
-            resp = await c.post("/admin/login", data={"admin_key": "meshtastic"})
+            # Login with the fixture password
+            token = sign_in_admin(c, app.state.settings)
+            c.cookies.delete(SESSION_COOKIE)
+            resp = await c.post("/admin/login", data={"admin_key": admin_password, "csrf_token": token})
             assert resp.status_code == 303
             # Extract session cookie
             cookie = resp.cookies.get(SESSION_COOKIE)
             assert cookie is not None
             c.cookies.set(SESSION_COOKIE, cookie)
+            c.token = sign_in_admin(c, app.state.settings)
             yield c
 
     @pytest.mark.asyncio
-    async def test_login_valid_password(self):
-        app, settings = _make_client_app()
+    async def test_login_valid_password(self, app, admin_password):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as c:
-            resp = await c.post("/admin/login", data={"admin_key": "meshtastic"})
+            token = sign_in_admin(c, app.state.settings)
+            c.cookies.delete(SESSION_COOKIE)
+            resp = await c.post("/admin/login", data={"admin_key": admin_password, "csrf_token": token})
             assert resp.status_code == 303
             assert SESSION_COOKIE in resp.cookies
 
     @pytest.mark.asyncio
-    async def test_login_invalid_password(self, client):
-        resp = await client.post("/admin/login", data={"admin_key": "wrongpassword"})
+    async def test_login_invalid_password(self, app, client):
+        token = sign_in_admin(client, app.state.settings)
+        resp = await client.post("/admin/login", data={"admin_key": "wrongpassword", "csrf_token": token})
         assert resp.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_login_empty_password(self, client):
-        resp = await client.post("/admin/login", data={"admin_key": ""})
+    async def test_login_empty_password(self, app, client):
+        token = sign_in_admin(client, app.state.settings)
+        resp = await client.post("/admin/login", data={"admin_key": "", "csrf_token": token})
         assert resp.status_code == 401
 
     @pytest.mark.asyncio
@@ -138,22 +142,24 @@ class TestAdminRoutes:
 
     @pytest.mark.asyncio
     async def test_protected_route_with_auth(self, authed_client):
-        resp = await authed_client.post("/api/v1/cleanup")
+        resp = await authed_client.post("/api/v1/cleanup", data={"csrf_token": authed_client.token})
         assert resp.status_code == 200
         data = resp.json()
         assert data["success"] is True
 
     @pytest.mark.asyncio
-    async def test_logout_clears_session(self):
-        app, settings = _make_client_app()
+    async def test_logout_clears_session(self, app, admin_password):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as c:
             # Login
-            resp = await c.post("/admin/login", data={"admin_key": "meshtastic"})
+            token = sign_in_admin(c, app.state.settings)
+            c.cookies.delete(SESSION_COOKIE)
+            resp = await c.post("/admin/login", data={"admin_key": admin_password, "csrf_token": token})
             assert SESSION_COOKIE in resp.cookies
 
             # Logout
             c.cookies.set(SESSION_COOKIE, resp.cookies[SESSION_COOKIE])
-            resp = await c.post("/admin/logout")
+            token = sign_in_admin(c, app.state.settings)
+            resp = await c.post("/admin/logout", data={"csrf_token": token})
             assert resp.status_code == 303
             # Cookie should be deleted (set to empty/expired)

@@ -2,7 +2,7 @@
 id: build-pipeline-repair
 feature: Build pipeline repair
 epic: "Epic 2: Build pipeline repair"
-status: issued
+status: built
 issues: [16, 17, 18, 19, 20, 21]
 mockups: []
 ---
@@ -61,7 +61,7 @@ produces.
   one artifact. The name must be in the artifact list.
 - FR-build-pipeline-repair-19 — The fake `pio` test executable writes upstream-named
   artifacts, so the tests run without PlatformIO.
-- FR-build-pipeline-repair-20 — Until Epic 6 deletes it, every `id` in
+- FR-build-pipeline-repair-20 — (Done; superseded by Epic 6, #145, which deleted the file.) Until Epic 6 deleted it, every `id` in
   `devices/variants.yaml` is a PlatformIO environment name of the stable firmware
   version. The 71 wrong ids change to the env names in
   `pages/inherit-reconciliation.md` § Registry id map. Where one directory holds several
@@ -137,7 +137,7 @@ No new screens. Feature 07 renders the states.
 | Method | Path | Response |
 |---|---|---|
 | POST | `/api/v1/build-firmware` | 202 `{build_id, progress_url}`; 400; 422; 429; 503 queue full |
-| GET | `/api/v1/build-progress/{build_id}` | SSE events `status` `{status, message, progress}`, `log` `{line}`, `artifacts` `[...]`; 404 |
+| GET | `/api/v1/build-progress/{build_id}?log_from=<n>` | SSE events `status` `{status, message, progress}`, `log` `{line}`, `artifacts` `[...]`; 404; 422 negative `log_from`. Without `log_from`, the `log` events start after the connect. |
 | POST | `/api/v1/builds/{build_id}/cancel` | 200; 404; 409 already ended |
 | GET | `/api/v1/builds/{build_id}/artifacts` | 200 list; 404 |
 | GET | `/api/v1/builds/{build_id}/artifacts/{name}` | file; 404 |

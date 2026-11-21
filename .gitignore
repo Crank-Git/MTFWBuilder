@@ -59,7 +59,6 @@ env/
 ENV/
 .venv/
 .env/
-.python-version
 
 # ===========================================
 # Flask
@@ -94,7 +93,10 @@ flask_session/
 *.elf
 
 # Firmware source directory (downloaded)
-firmware/
+/firmware/
+
+# Data directory: firmware sources, artifacts, the database and config.yaml
+/data/
 
 # Build artifacts
 *.o
@@ -113,6 +115,8 @@ firmware_updater.log
 # Configuration files
 ReferenceConf.jsonc
 userPrefs.jsonc
+# The upstream copy in the firmware fixture holds no secret.
+!/tests/fixtures/firmware/userPrefs.jsonc
 
 # Version tracking
 firmware_version.txt

@@ -161,7 +161,7 @@ body.rv-open .layout { padding-right:21rem; }
 </ul></aside>
 <main>
 <h1>Feature: Firmware versions</h1>
-<p class="meta">Epic 5: Firmware versions &nbsp; <span class="badge">issued</span></p>
+<p class="meta">Epic 5: Firmware versions &nbsp; <span class="badge">built</span></p>
 <h3 id="firmware-versions-purpose">Purpose</h3>
 <p>The project holds several firmware versions at once. An operator chooses the firmware version for each build. Today the project holds one firmware source, always from <code>releases/latest</code>, and replaces it in place.</p>
 <h3 id="firmware-versions-user-stories">User stories</h3>
@@ -312,6 +312,8 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><td>GET</td><td><code>/api/v1/firmware/available</code></td><td>admin</td><td><code>{stable: [...], alpha: [...]}</code></td></tr>
 <tr><td>POST</td><td><code>/api/v1/firmware/install</code></td><td>admin</td><td>202 <code>{install_id, progress_url}</code>; 409 already installed</td></tr>
 <tr><td>DELETE</td><td><code>/api/v1/firmware/{version}</code></td><td>admin</td><td>204; 409 in use</td></tr>
+<tr><td>GET</td><td><code>/api/v1/firmware/install/{install_id}</code></td><td>admin</td><td>install status JSON, or the install panel for htmx</td></tr>
+<tr><td>GET</td><td><code>/api/v1/firmware/install/{install_id}/progress</code></td><td>admin</td><td>SSE install progress: <code>queued</code>, downloading, extracting, installing packages, <code>ready</code> / <code>failed</code></td></tr>
 </table></div>
 <p>External:</p>
 <ul>
@@ -353,7 +355,20 @@ body.rv-open .layout { padding-right:21rem; }
 </ul>
 <h3 id="firmware-versions-out-of-scope">Out of scope</h3>
 <p>Builds from a branch or a pull request of the firmware repository.</p>
-<h3 id="firmware-versions-open-questions" class="callout-h">Open questions</h3><h2>Mockups</h2><p>Mockups convey intent — the rough shape a user will see. An implementer may diverge where framework conventions, components, accessibility, or a better idea serve the feature's requirements; the FRs and acceptance criteria are the contract, not the pixels.</p><div class="mockup"><iframe src="../mockups/02-firmware-sources.html" loading="lazy"></iframe><p><a href="../mockups/02-firmware-sources.html" target="_blank">Open ../mockups/02-firmware-sources.html in new tab</a></p></div><nav class="pager">
+<h3 id="firmware-versions-open-questions" class="callout-h">Open questions</h3>
+<h3 id="firmware-versions-changes-at-the-batch-gate-132">Changes at the batch gate (#132)</h3>
+<ul>
+<li>Installs run one at a time; a second install shows <code>queued</code>.
+</li>
+<li>The default firmware version is the newest installed <code>stable</code>; with none installed, the newest installed version of any release channel. Versions compare by number.
+</li>
+<li>A pinned install of a revoked tag returns a <code>warning</code> field and shows it in the install panel.
+</li>
+<li>Every admin route takes the CSRF token as the <code>csrf_token</code> form field or the <code>X-CSRF-Token</code> header.
+</li>
+<li>Startup removes a tag directory with no record, a leftover import directory, and install staging directories.
+</li>
+</ul><h2>Mockups</h2><p>Mockups convey intent — the rough shape a user will see. An implementer may diverge where framework conventions, components, accessibility, or a better idea serve the feature's requirements; the FRs and acceptance criteria are the contract, not the pixels.</p><div class="mockup"><iframe src="../mockups/02-firmware-sources.html" loading="lazy"></iframe><p><a href="../mockups/02-firmware-sources.html" target="_blank">Open ../mockups/02-firmware-sources.html in new tab</a></p></div><nav class="pager">
 <a href="feature-platform-modernization.html">&larr; Feature: Platform modernization</a>
 <a href="feature-generated-registry.html">Feature: Generated registry &rarr;</a>
 </nav>

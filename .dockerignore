@@ -1,5 +1,6 @@
 # Git files
 .git
+.claude/
 .gitignore
 
 # Python cache and virtual environments
@@ -20,8 +21,12 @@ env/
 app.log
 firmware_updater.log
 
-# Firmware and build files (will be created in container)
-firmware/
+# State that a local run writes. The container keeps its state in the /data volume.
+/data/
+/firmware/
+/config.yaml
+/mtfwbuilder.db
+/firmware_version.txt
 .pio/
 *.uf2
 *.bin

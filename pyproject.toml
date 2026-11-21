@@ -7,23 +7,25 @@ name = "mtfwbuilder"
 version = "2.0.0"
 description = "Meshtastic firmware configuration generator and builder"
 readme = "README.md"
-license = {text = "MIT"}
-requires-python = ">=3.10"
+license = "GPL-3.0-or-later"
+requires-python = ">=3.13,<3.15"
 authors = [{ name = "Crank-Git" }]
 keywords = ["meshtastic", "firmware", "configuration", "platformio"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Framework :: FastAPI",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Embedded Systems",
 ]
 
 dependencies = [
-    "fastapi>=0.110.0",
-    "uvicorn[standard]>=0.27.0",
-    "jinja2>=3.1.2",
-    "pydantic>=2.5.0",
+    "fastapi>=0.165.0",
+    "uvicorn[standard]>=0.54.0",
+    "jinja2>=3.1.6",
+    "pydantic>=2.14.0",
     "pydantic-settings>=2.1.0",
     "python-multipart>=0.0.6",
     "aiosqlite>=0.19.0",
@@ -33,17 +35,22 @@ dependencies = [
     "requests>=2.31.0",
     "sse-starlette>=1.8.0",
     "slowapi>=0.1.9",
-    "platformio>=6.1.11",
+    "platformio>=6.2.0",
+    "meshtastic>=2.7.11",
+    "segno>=1.6.6",
+    "cryptography>=50.0.2",
 ]
 
-[project.optional-dependencies]
+# uv installs the dev group by default, so `uv sync` gives a full test environment.
+[dependency-groups]
 dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.23.0",
     "pytest-cov>=4.1.0",
     "httpx>=0.25.0",
-    "black>=23.7.0",
+    "pytest-playwright>=0.7.0",
     "ruff>=0.1.0",
+    "zxing-cpp>=3.1.1",
 ]
 
 [project.urls]
@@ -52,12 +59,23 @@ Issues = "https://github.com/Crank-Git/MTFWBuilder/issues"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
+markers = ["e2e: drives a real browser against a server process (needs `playwright install chromium`)"]
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py313"
 line-length = 120
+# The firmware fixture is upstream source, copied unchanged.
+extend-exclude = ["tests/fixtures/firmware"]
 
-[tool.black]
-line-length = 120
-target-version = ["py310"]
+[tool.ruff.lint]
+# An explicit list, because the ruff default rule set grows between releases.
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "C90", "PL"]
+
+[tool.ruff.lint.per-file-ignores]
+# A test compares a status code or a count with a literal, and a name adds nothing.
+"tests/**" = ["PLR2004"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10

@@ -2,7 +2,7 @@
 id: platform-modernization
 feature: Platform modernization
 epic: "Epic 4: Platform modernization"
-status: issued
+status: built
 issues: [28, 29, 30, 31, 32]
 mockups: []
 ---
@@ -21,7 +21,8 @@ stream works through nginx.
 
 ## Functional requirements
 
-- FR-platform-modernization-1 — `pyproject.toml` sets `requires-python = ">=3.13"`.
+- FR-platform-modernization-1 — `pyproject.toml` sets `requires-python = ">=3.13,<3.15"`.
+  The cap comes from the `meshtastic` python package, which requires Python `<3.15`.
 - FR-platform-modernization-2 — The project uses uv. `uv.lock` is committed.
 - FR-platform-modernization-3 — The dependency floors are at least: fastapi 0.165,
   pydantic 2.14, uvicorn 0.54, jinja2 3.1.6, platformio 6.2.0.

@@ -161,7 +161,7 @@ body.rv-open .layout { padding-right:21rem; }
 </ul></aside>
 <main>
 <h1>Feature: Platform modernization</h1>
-<p class="meta">Epic 4: Platform modernization &nbsp; <span class="badge">issued</span></p>
+<p class="meta">Epic 4: Platform modernization &nbsp; <span class="badge">built</span></p>
 <h3 id="platform-modernization-purpose">Purpose</h3>
 <p>Move the project to a current runtime and current dependencies. Fix the Docker volumes and the nginx config so that a self-hosted instance keeps its state and the progress stream works through nginx.</p>
 <h3 id="platform-modernization-user-stories">User stories</h3>
@@ -176,8 +176,11 @@ body.rv-open .layout { padding-right:21rem; }
 </ul>
 <h3 id="platform-modernization-functional-requirements">Functional requirements</h3>
 <ul>
-<li>FR-platform-modernization-1 — <code>pyproject.toml</code> sets <code>requires-python = "&gt;=3.13"</code>.
+<li>FR-platform-modernization-1 — <code>pyproject.toml</code> sets <code>requires-python = "&gt;=3.13,&lt;3.15"</code>.
 </li>
+</ul>
+<p>The cap comes from the <code>meshtastic</code> python package, which requires Python <code>&lt;3.15</code>.</p>
+<ul>
 <li>FR-platform-modernization-2 — The project uses uv. <code>uv.lock</code> is committed.
 </li>
 <li>FR-platform-modernization-3 — The dependency floors are at least: fastapi 0.165,

@@ -161,7 +161,7 @@ body.rv-open .layout { padding-right:21rem; }
 </ul></aside>
 <main>
 <h1>Feature: Build pipeline repair</h1>
-<p class="meta">Epic 2: Build pipeline repair &nbsp; <span class="badge">issued</span></p>
+<p class="meta">Epic 2: Build pipeline repair &nbsp; <span class="badge">built</span></p>
 <h3 id="build-pipeline-repair-purpose">Purpose</h3>
 <p>A build must run to an artifact without a page attached. A build must scrub every secret on every exit path. It must also find the artifacts that current upstream firmware produces.</p>
 <h3 id="build-pipeline-repair-user-stories">User stories</h3>
@@ -269,7 +269,7 @@ body.rv-open .layout { padding-right:21rem; }
 </ul>
 <p>artifacts, so the tests run without PlatformIO.</p>
 <ul>
-<li>FR-build-pipeline-repair-20 — Until Epic 6 deletes it, every <code>id</code> in
+<li>FR-build-pipeline-repair-20 — (Done; superseded by Epic 6, #145, which deleted the file.) Until Epic 6 deleted it, every <code>id</code> in
 </li>
 </ul>
 <p><code>devices/variants.yaml</code> is a PlatformIO environment name of the stable firmware version. The 71 wrong ids change to the env names in <code>pages/inherit-reconciliation.md</code> § Registry id map. Where one directory holds several envs, each env gets its own entry.</p>
@@ -350,7 +350,7 @@ body.rv-open .layout { padding-right:21rem; }
 <div class="table-wrap"><table>
 <tr><th>Method</th><th>Path</th><th>Response</th></tr>
 <tr><td>POST</td><td><code>/api/v1/build-firmware</code></td><td>202 <code>{build_id, progress_url}</code>; 400; 422; 429; 503 queue full</td></tr>
-<tr><td>GET</td><td><code>/api/v1/build-progress/{build_id}</code></td><td>SSE events <code>status</code> <code>{status, message, progress}</code>, <code>log</code> <code>{line}</code>, <code>artifacts</code> <code>[...]</code>; 404</td></tr>
+<tr><td>GET</td><td><code>/api/v1/build-progress/{build_id}?log_from=&lt;n&gt;</code></td><td>SSE events <code>status</code> <code>{status, message, progress}</code>, <code>log</code> <code>{line}</code>, <code>artifacts</code> <code>[...]</code>; 404; 422 negative <code>log_from</code>. Without <code>log_from</code>, the <code>log</code> events start after the connect.</td></tr>
 <tr><td>POST</td><td><code>/api/v1/builds/{build_id}/cancel</code></td><td>200; 404; 409 already ended</td></tr>
 <tr><td>GET</td><td><code>/api/v1/builds/{build_id}/artifacts</code></td><td>200 list; 404</td></tr>
 <tr><td>GET</td><td><code>/api/v1/builds/{build_id}/artifacts/{name}</code></td><td>file; 404</td></tr>

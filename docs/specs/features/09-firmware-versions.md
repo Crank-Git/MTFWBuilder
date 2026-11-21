@@ -2,7 +2,7 @@
 id: firmware-versions
 feature: Firmware versions
 epic: "Epic 5: Firmware versions"
-status: issued
+status: built
 issues: [33, 34, 35, 36, 37, 38]
 mockups: [mockups/02-firmware-sources.html]
 ---
@@ -116,6 +116,8 @@ existing `firmware/` tree and `firmware_version.txt` as one row.
 | GET | `/api/v1/firmware/available` | admin | `{stable: [...], alpha: [...]}` |
 | POST | `/api/v1/firmware/install` | admin | 202 `{install_id, progress_url}`; 409 already installed |
 | DELETE | `/api/v1/firmware/{version}` | admin | 204; 409 in use |
+| GET | `/api/v1/firmware/install/{install_id}` | admin | install status JSON, or the install panel for htmx |
+| GET | `/api/v1/firmware/install/{install_id}/progress` | admin | SSE install progress: `queued`, downloading, extracting, installing packages, `ready` / `failed` |
 
 External:
 - `https://api.meshtastic.org/github/firmware/list` — used by `meshtastic/web-flasher`.
@@ -146,3 +148,11 @@ External:
 Builds from a branch or a pull request of the firmware repository.
 
 ## Open questions
+
+## Changes at the batch gate (#132)
+
+- Installs run one at a time; a second install shows `queued`.
+- The default firmware version is the newest installed `stable`; with none installed, the newest installed version of any release channel. Versions compare by number.
+- A pinned install of a revoked tag returns a `warning` field and shows it in the install panel.
+- Every admin route takes the CSRF token as the `csrf_token` form field or the `X-CSRF-Token` header.
+- Startup removes a tag directory with no record, a leftover import directory, and install staging directories.

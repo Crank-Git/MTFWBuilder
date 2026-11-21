@@ -1,52 +1,73 @@
 <div class="config-section">
     <h3 class="section-title"><i class="bi bi-broadcast-pin text-success"></i>LoRa Configuration</h3>
     <div class="form-check form-switch mb-3">
+        <input type="hidden" name="lora_enabled" value="false">
         <input class="form-check-input" type="checkbox" id="loraEnabled" name="lora_enabled" value="true" checked>
         <label class="form-check-label" for="loraEnabled">Enable LoRa Configuration</label>
     </div>
     <div id="loraConfig">
         <div class="row mb-3">
-            <div class="col-md-6">
+            <fieldset class="col-md-6" data-userprefs-key="USERPREFS_CONFIG_LORA_REGION"{{ key_attrs("USERPREFS_CONFIG_LORA_REGION") }}>
                 <label for="loraRegion" class="form-label">LoRa Region</label>
                 <select class="form-select" id="loraRegion" name="lora_region">
-                    <option value="meshtastic_Config_LoRaConfig_RegionCode_US" selected>US</option>
-                    <option value="meshtastic_Config_LoRaConfig_RegionCode_EU_433">EU 433</option>
-                    <option value="meshtastic_Config_LoRaConfig_RegionCode_EU_868">EU 868</option>
-                    <option value="meshtastic_Config_LoRaConfig_RegionCode_CN">CN</option>
-                    <option value="meshtastic_Config_LoRaConfig_RegionCode_JP">JP</option>
-                    <option value="meshtastic_Config_LoRaConfig_RegionCode_ANZ">ANZ</option>
-                    <option value="meshtastic_Config_LoRaConfig_RegionCode_KR">KR</option>
-                    <option value="meshtastic_Config_LoRaConfig_RegionCode_TW">TW</option>
-                    <option value="meshtastic_Config_LoRaConfig_RegionCode_RU">RU</option>
-                    <option value="meshtastic_Config_LoRaConfig_RegionCode_IN">IN</option>
-                    <option value="meshtastic_Config_LoRaConfig_RegionCode_NZ_865">NZ 865</option>
-                    <option value="meshtastic_Config_LoRaConfig_RegionCode_TH">TH</option>
-                    <option value="meshtastic_Config_LoRaConfig_RegionCode_LORA_24">LORA 24</option>
+                    {% for value, label in region_options %}
+                    <option value="{{ value }}"{{ enum_attrs(value) }}{% if value == "meshtastic_Config_LoRaConfig_RegionCode_US" %} selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
                 </select>
-            </div>
-            <div class="col-md-6">
+                <div id="error-lora_region" class="field-error invalid-feedback d-block"></div>
+                <div class="form-text text-muted">The region sets the frequencies and the power limit that the device uses. <code class="small">USERPREFS_CONFIG_LORA_REGION</code></div>
+            </fieldset>
+            <fieldset class="col-md-6" data-userprefs-key="USERPREFS_LORACONFIG_MODEM_PRESET"{{ key_attrs("USERPREFS_LORACONFIG_MODEM_PRESET") }}>
                 <label for="loraModemPreset" class="form-label">Modem Preset</label>
                 <select class="form-select" id="loraModemPreset" name="lora_modem_preset">
-                    <option value="meshtastic_Config_LoRaConfig_ModemPreset_LONG_FAST" selected>Long Range & Fast</option>
-                    <option value="meshtastic_Config_LoRaConfig_ModemPreset_LONG_SLOW">Long Range & Slow</option>
-                    <option value="meshtastic_Config_LoRaConfig_ModemPreset_VERY_LONG_SLOW">Very Long Range & Slow</option>
-                    <option value="meshtastic_Config_LoRaConfig_ModemPreset_MEDIUM_SLOW">Medium Range & Slow</option>
-                    <option value="meshtastic_Config_LoRaConfig_ModemPreset_MEDIUM_FAST">Medium Range & Fast</option>
-                    <option value="meshtastic_Config_LoRaConfig_ModemPreset_SHORT_SLOW">Short Range & Slow</option>
-                    <option value="meshtastic_Config_LoRaConfig_ModemPreset_SHORT_FAST">Short Range & Fast</option>
+                    {% for value, label in modem_preset_options %}
+                    <option value="{{ value }}"{{ enum_attrs(value) }}{% if value == "meshtastic_Config_LoRaConfig_ModemPreset_LONG_FAST" %} selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
                 </select>
-            </div>
+                <div id="error-lora_modem_preset" class="field-error invalid-feedback d-block"></div>
+                <div class="form-text text-muted">All devices of one mesh use the same modem preset. <code class="small">USERPREFS_LORACONFIG_MODEM_PRESET</code></div>
+            </fieldset>
         </div>
         <div class="row mb-3">
-            <div class="col-md-6">
+            <fieldset class="col-md-6" data-userprefs-key="USERPREFS_LORACONFIG_CHANNEL_NUM"{{ key_attrs("USERPREFS_LORACONFIG_CHANNEL_NUM") }}>
                 <label for="loraChannelNum" class="form-label">Channel Number</label>
                 <input type="number" class="form-control" id="loraChannelNum" name="lora_channel_num" value="31">
-            </div>
-            <div class="col-md-6">
+                <div id="error-lora_channel_num" class="field-error invalid-feedback d-block"></div>
+                <div class="form-text text-muted">The frequency slot in the band of the region. 0 calculates the slot from the primary channel name. <code class="small">USERPREFS_LORACONFIG_CHANNEL_NUM</code></div>
+            </fieldset>
+            <fieldset class="col-md-6" data-userprefs-key="USERPREFS_CONFIG_LORA_IGNORE_MQTT"{{ key_attrs("USERPREFS_CONFIG_LORA_IGNORE_MQTT") }}>
                 <div class="form-check form-switch mt-4">
+                    <input type="hidden" name="lora_ignore_mqtt" value="false">
                     <input class="form-check-input" type="checkbox" id="loraIgnoreMqtt" name="lora_ignore_mqtt" value="true" checked>
                     <label class="form-check-label" for="loraIgnoreMqtt">Ignore MQTT (LoRa Only)</label>
                 </div>
+                <div class="form-text text-muted">The device ignores packets that came through MQTT. <code class="small">USERPREFS_CONFIG_LORA_IGNORE_MQTT</code></div>
+            </fieldset>
+        </div>
+        <div class="row mb-3">
+            <fieldset class="col-md-6" data-userprefs-key="USERPREFS_LORACONFIG_TX_POWER"{{ key_attrs("USERPREFS_LORACONFIG_TX_POWER") }}>
+                <label for="loraTxPower" class="form-label">TX Power (dBm)</label>
+                <input type="number" class="form-control" id="loraTxPower" name="lora_tx_power" min="0" max="30" placeholder="0" aria-describedby="loraTxPowerHelp">
+                <div id="error-lora_tx_power" class="field-error invalid-feedback d-block"></div>
+                <div id="loraTxPowerHelp" class="form-text text-muted">0 to 30. 0 selects the region maximum. <code class="small">USERPREFS_LORACONFIG_TX_POWER</code></div>
+            </fieldset>
+            <div class="col-md-6">
+                <fieldset class="mt-4" data-userprefs-key="USERPREFS_LORA_TX_DISABLED"{{ key_attrs("USERPREFS_LORA_TX_DISABLED") }}>
+                <div class="form-check form-switch">
+                    <input type="hidden" name="lora_tx_disabled" value="false">
+                    <input class="form-check-input" type="checkbox" id="loraTxDisabled" name="lora_tx_disabled" value="true" aria-describedby="loraTxDisabledHelp">
+                    <label class="form-check-label" for="loraTxDisabled">Disable LoRa TX</label>
+                </div>
+                <div id="loraTxDisabledHelp" class="form-text text-muted">The device receives but does not transmit. <code class="small">USERPREFS_LORA_TX_DISABLED</code></div>
+                </fieldset>
+                <fieldset class="mt-2" data-userprefs-key="USERPREFS_CONFIG_LORA_CONFIG_OK_TO_MQTT"{{ key_attrs("USERPREFS_CONFIG_LORA_CONFIG_OK_TO_MQTT") }}>
+                <div class="form-check form-switch">
+                    <input type="hidden" name="lora_config_ok_to_mqtt" value="false">
+                    <input class="form-check-input" type="checkbox" id="loraConfigOkToMqtt" name="lora_config_ok_to_mqtt" value="true" aria-describedby="loraConfigOkToMqttHelp">
+                    <label class="form-check-label" for="loraConfigOkToMqtt">OK to MQTT</label>
+                </div>
+                <div id="loraConfigOkToMqttHelp" class="form-text text-muted">Sets the ok_to_mqtt bit on outgoing packets. <code class="small">USERPREFS_CONFIG_LORA_CONFIG_OK_TO_MQTT</code></div>
+                </fieldset>
             </div>
         </div>
     </div>

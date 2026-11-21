@@ -219,31 +219,47 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><td>config</td><td>noun</td><td>The set of setting values that an operator enters for a device.</td><td>configuration, settings file, preferences</td></tr>
 <tr><td>userPrefs file</td><td>noun</td><td>The <code>userPrefs.jsonc</code> file the project writes from a config. The firmware build reads it.</td><td>prefs, jsonc</td></tr>
 <tr><td>userPrefs key</td><td>noun</td><td>One <code>USERPREFS_*</code> name in the userPrefs file.</td><td>define, flag, macro</td></tr>
+<tr><td>admin key</td><td>noun</td><td>The public key of a device that may change this device's config remotely. The firmware holds three.</td><td>admin password</td></tr>
+<tr><td>managed mode</td><td>noun</td><td>A device state in which the device rejects local config changes. Only an admin key holder changes the config.</td><td>locked mode</td></tr>
+<tr><td>mesh beacon</td><td>noun</td><td>A broadcast that a device sends on a schedule, with a message and an offered channel, modem preset and region.</td><td>advert, announcement</td></tr>
+<tr><td>frequency slot</td><td>noun</td><td>The 1-based number of one LoRa frequency in a region, the same number as <code>channel_num</code> in the LoRa config.</td><td>frequency index, slot number</td></tr>
 <tr><td>factory default</td><td>noun</td><td>A value the firmware applies on first boot and on factory reset only. Every userPrefs key is a factory default.</td><td>baked setting, locked setting</td></tr>
 <tr><td>firmware source</td><td>noun</td><td>One extracted copy of the <code>meshtastic/firmware</code> source tree at one firmware version.</td><td>firmware tree, repo copy</td></tr>
 <tr><td>firmware version</td><td>noun</td><td>One upstream release tag, for example <code>v2.7.26.54e0d8d</code>.</td><td>release, tag (alone)</td></tr>
+<tr><td>release channel</td><td>noun</td><td>The upstream release track of a firmware version: <code>stable</code> or <code>alpha</code>, or <code>pinned</code> for an exact tag.</td><td>channel (alone), track</td></tr>
+<tr><td>install</td><td>verb</td><td>To download a firmware source and its packages onto the server. Never used for a device.</td><td>download, fetch</td></tr>
 <tr><td>channel</td><td>noun</td><td>A Meshtastic channel: index 0–7, name, PSK, precision, uplink, downlink, muted.</td><td>room, group</td></tr>
 <tr><td>PSK</td><td>noun</td><td>The pre-shared key that encrypts a channel.</td><td>password, key (alone)</td></tr>
 <tr><td>secret</td><td>noun</td><td>Any config value that gives access: a PSK, a WiFi password, an MQTT password, an admin key.</td><td>credential, sensitive data</td></tr>
 <tr><td>channel URL</td><td>noun</td><td>A <code>https://meshtastic.org/e/#…</code> URL that encodes a ChannelSet protobuf.</td><td>share link, QR link</td></tr>
+<tr><td>proto default</td><td>noun</td><td>The value of a protobuf field that a message does not set: false, 0, empty, or the enum value 0. <code>MessageToDict</code> leaves it out.</td><td>zero value, unset value</td></tr>
 <tr><td>build</td><td>noun</td><td>One compile of one variant with one userPrefs file. A build has a build id and a status.</td><td>job, compile run</td></tr>
 <tr><td>build id</td><td>noun</td><td>The identifier of one build.</td><td>job id, token</td></tr>
 <tr><td>build status</td><td>noun</td><td>One of: <code>queued</code>, <code>compiling</code>, <code>linking</code>, <code>packaging</code>, <code>complete</code>, <code>failed</code>, <code>cancelled</code>.</td><td>state, phase</td></tr>
 <tr><td>artifact</td><td>noun</td><td>One file a build produces for the operator, for example <code>firmware-heltec-v4-2.7.26.54e0d8d.factory.bin</code>.</td><td>output, binary, image</td></tr>
 <tr><td>build queue</td><td>noun</td><td>The ordered list of builds that wait for a free build worker.</td><td>job queue</td></tr>
 <tr><td>build worker</td><td>noun</td><td>The process slot that runs one build at a time.</td><td>runner, executor</td></tr>
+<tr><td>data directory</td><td>noun</td><td>The one directory that holds all state: firmware sources, artifacts, the database and <code>config.yaml</code>. <code>MTFW_DATA_DIR</code> sets it.</td><td>state dir, volume (alone)</td></tr>
 <tr><td>build cache</td><td>noun</td><td>Stored artifacts, keyed by a hash of firmware version, variant and userPrefs file.</td><td>artifact store</td></tr>
+<tr><td>config hash</td><td>noun</td><td>The HMAC-SHA-256 of a build, keyed with <code>secret_key</code>. It covers the app version, the firmware version, the variant and the userPrefs file with its keys sorted.</td><td>build hash, fingerprint</td></tr>
+<tr><td>cache entry</td><td>noun</td><td>The artifacts of one config hash in the build cache: one directory and one <code>cache_entries</code> row.</td><td>cached build, cache item</td></tr>
 <tr><td>progress stream</td><td>noun</td><td>The Server-Sent Events (SSE) stream that sends build status and log lines to the page.</td><td>event feed, socket</td></tr>
 <tr><td>scrub</td><td>verb</td><td>To delete every file that holds a secret, after a build ends.</td><td>sanitize, wipe, clean</td></tr>
 <tr><td>flash</td><td>verb</td><td>To write an artifact to a device.</td><td>burn, install, upload</td></tr>
+<tr><td>flash method</td><td>noun</td><td>The way an operator flashes the artifact of an architecture: Web Serial, UF2, DFU zip or download only.</td><td>flash mode, upload method</td></tr>
 <tr><td>profile</td><td>noun</td><td>A saved config with a name, stored by the project.</td><td>template, preset (alone)</td></tr>
 <tr><td>fleet</td><td>noun</td><td>A named group of devices that share one profile and differ in per-device fields.</td><td>batch, group</td></tr>
 <tr><td>fleet run</td><td>noun</td><td>One request that makes one build for each device in a fleet.</td><td>bulk build</td></tr>
+<tr><td>fleet run id</td><td>noun</td><td>The random public identifier of one fleet run. The fleet run URL holds it.</td><td>run number</td></tr>
 <tr><td>push config</td><td>verb</td><td>To send a config to a connected device over Web Serial or Web Bluetooth, without a build.</td><td>provision, sync</td></tr>
 <tr><td>modem preset</td><td>noun</td><td>A Meshtastic LoRa modem preset, for example <code>LONG_FAST</code>.</td><td>preset (alone), speed</td></tr>
 <tr><td>region</td><td>noun</td><td>A Meshtastic LoRa region code, for example <code>US</code>.</td><td>country, band</td></tr>
 <tr><td>role</td><td>noun</td><td>A Meshtastic device role, for example <code>CLIENT</code> or <code>ROUTER</code>.</td><td>mode, type</td></tr>
+<tr><td>time zone</td><td>noun</td><td>An IANA tz database name, for example <code>America/New_York</code>. The form sends a time zone.</td><td>timezone, tz name</td></tr>
+<tr><td>POSIX TZ string</td><td>noun</td><td>The <code>TZ</code> value that the firmware gives to <code>setenv</code>, for example <code>EST5EDT,M3.2.0,M11.1.0</code>.</td><td>tz string, timezone string</td></tr>
 <tr><td>Web Serial</td><td>noun</td><td>The browser API that opens a USB serial port from a page.</td><td>WebUSB</td></tr>
+<tr><td>ES module</td><td>noun</td><td>A JavaScript file that the browser loads with <code>import</code>. The project vendors ES modules in <code>static/vendor/</code>.</td><td>ESM bundle, module (alone)</td></tr>
+<tr><td>import map</td><td>noun</td><td>A <code>&lt;script type="importmap"&gt;</code> element that maps a bare import name to a URL.</td><td>module map</td></tr>
 <tr><td>SSE</td><td>noun</td><td>Server-Sent Events: a one-way HTTP stream from server to browser.</td><td>websocket</td></tr>
 </table></div>
 <h2 id="goals">Goals</h2>
@@ -302,6 +318,16 @@ body.rv-open .layout { padding-right:21rem; }
 </li>
 </ul>
 <p><code>USERPREFS_MESH_BEACON_LEGACY_SPLIT</code>. They are for upstream testing and vendor editions.</p>
+<ul>
+<li>The userPrefs key <code>USERPREFS_SIMRADIO_EMULATE_COLLISIONS</code>. Only a native build reads
+</li>
+</ul>
+<p>it, and native Linux variants are a non-goal.</p>
+<ul>
+<li>The userPrefs key <code>USERPREFS_HAS_SPLASH</code>. It removes the boot icon, and no userPrefs
+</li>
+</ul>
+<p>key supplies a new icon.</p>
 <h2 id="users-personas">Users &amp; personas</h2>
 <div class="table-wrap"><table>
 <tr><th>Persona</th><th>Needs</th><th>Allowed to</th></tr>
@@ -368,13 +394,15 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><td>Web server</td><td>FastAPI + uvicorn, one process (<code>--workers 1</code>)</td><td>Built. Async builds and SSE. One process keeps the build queue in memory without a broker.</td></tr>
 <tr><td>Pages</td><td>Jinja2 templates + htmx 2 + htmx SSE extension, Bootstrap 5.3</td><td>Chosen in the interview: no JavaScript build step. htmx is loaded today but not used. ADR 0002.</td></tr>
 <tr><td>Browser flashing</td><td>ESP Web Tools 10.x / esptool-js 0.7 (Apache-2.0), vendored</td><td>Apache-2.0 is compatible with GPL-3.0. The official Web Flasher uses esptool-js.</td></tr>
-<tr><td>Push config</td><td><code>@meshtastic/core</code> + <code>@meshtastic/transport-web-serial</code> (GPL-3.0, JSR), or <code>meshtastic-sdk</code> JS when it reaches 0.3.0</td><td>The only maintained client libraries. Choice deferred to a spike in Epic 12.</td></tr>
+<tr><td>Push config</td><td><code>@meshtastic/core</code> 2.6.7 + <code>@meshtastic/transport-web-serial</code> 0.2.5 + <code>@meshtastic/transport-web-bluetooth</code> 0.1.5 (GPL-3.0-only, npm), vendored as esm.sh builds</td><td><code>meshtastic-sdk</code> has no JS release. ADR 0008.</td></tr>
 <tr><td>Data store</td><td>SQLite through aiosqlite</td><td>Built (schema only). Zero setup for a self-hoster. ADR 0003.</td></tr>
 <tr><td>Firmware build</td><td>PlatformIO Core 6.2 (<code>pioarduino</code> core for ESP32 on firmware 2.8)</td><td>Upstream build system. Source: <code>meshtastic/gh-action-firmware</code>.</td></tr>
-<tr><td>Packaging</td><td><code>pyproject.toml</code> + hatchling today; uv + <code>uv.lock</code> planned</td><td>Interview choice (stack modernization).</td></tr>
-<tr><td>Runtime</td><td>Python 3.11 today (Docker); Python 3.13 planned</td><td><code>asyncio.timeout</code> needs 3.11. <code>meshtastic</code> python requires <code>&lt;3.15</code>.</td></tr>
+<tr><td>Packaging</td><td><code>pyproject.toml</code> + hatchling, uv + <code>uv.lock</code> (Epic 4)</td><td>Interview choice (stack modernization).</td></tr>
+<tr><td>Runtime</td><td>Python 3.13 (Docker and CI; CI also tests 3.14)</td><td><code>meshtastic</code> python requires <code>&lt;3.15</code>.</td></tr>
 <tr><td>Deploy</td><td>Docker Compose, self-hosted. No hosted instance.</td><td>Interview answer: not deployed.</td></tr>
 <tr><td>Protobuf decode</td><td><code>meshtastic</code> python package (GPL-3.0)</td><td>Decodes channel URLs and CLI YAML. Allowed by the GPL-3.0 relicense (ADR 0004).</td></tr>
+<tr><td>QR code</td><td>segno (BSD-3-Clause)</td><td>Writes the SVG QR code of an exported channel URL. Pure Python, no image library.</td></tr>
+<tr><td>QR decode in tests</td><td>zxing-cpp (Apache-2.0), dev dependency only</td><td>The tests decode the exported QR code. The app does not load it.</td></tr>
 </table></div>
 <h2 id="data-model">Data model</h2>
 <div class="diagram"><pre class="mermaid">erDiagram
@@ -391,20 +419,21 @@ body.rv-open .layout { padding-right:21rem; }
 <div class="table-wrap"><table>
 <tr><th>Entity</th><th>Fields</th><th>Notes</th></tr>
 <tr><td><code>builds</code></td><td><code>id</code> TEXT PK, <code>variant</code>, <code>architecture</code>, <code>firmware_format</code> TEXT NOT NULL, <code>status</code> TEXT NOT NULL default <code>queued</code>, <code>firmware_path</code>, <code>build_log</code>, <code>error_message</code> TEXT, <code>created_at</code> default now, <code>completed_at</code></td><td>Unused. Builds live in memory (<code>app.state.active_builds</code>).</td></tr>
-<tr><td><code>config_profiles</code></td><td><code>id</code> INTEGER PK, <code>name</code> TEXT NOT NULL, <code>config_json</code> TEXT NOT NULL, <code>created_at</code>, <code>updated_at</code></td><td>Unused. <code>name</code> is not unique.</td></tr>
+<tr><td><code>config_profiles</code></td><td><code>id</code> INTEGER PK, <code>name</code> TEXT NOT NULL, <code>config_json</code> TEXT NOT NULL, <code>created_at</code>, <code>updated_at</code></td><td>Unused. <code>name</code> is not unique. Since Epic 10 (#61), <code>init_db</code> drops it, and the <code>profiles</code> table replaces it.</td></tr>
 </table></div>
-<p>The registry is a YAML file today (<code>devices/variants.yaml</code>, 150 entries, fields <code>id</code>, <code>name</code>, <code>manufacturer</code>, <code>architecture</code>, <code>pio_platform</code>).</p>
+<p>The registry was a YAML file at the inherit (<code>devices/variants.yaml</code>, 150 entries). Since Epic 6 (#145) it is the <code>variants</code> table, generated per firmware version.</p>
 <p><strong>Planned.</strong> Each planned feature file states its own fields and migration.</p>
 <div class="table-wrap"><table>
 <tr><th>Entity</th><th>Owner feature</th><th>Key fields</th><th>Lifecycle</th></tr>
 <tr><td>FIRMWARE_SOURCE</td><td>firmware-versions</td><td><code>version</code> PK, <code>channel</code> (stable/alpha/pinned), <code>path</code>, <code>installed_at</code>, <code>status</code></td><td>installing → ready → removed</td></tr>
 <tr><td>VARIANT</td><td>generated-registry</td><td><code>env</code> + <code>version</code> PK, <code>display_name</code>, <code>manufacturer</code>, <code>architecture</code>, <code>support_level</code>, <code>hw_model</code>, <code>image</code>, <code>requires_dfu</code></td><td>regenerated when a firmware source becomes ready</td></tr>
 <tr><td>BUILD</td><td>build-pipeline-repair</td><td><code>id</code> (random, 128-bit), <code>version</code>, <code>variant</code>, <code>status</code>, <code>config_hash</code>, <code>created_at</code>, <code>completed_at</code>, <code>error_message</code>, <code>fleet_run_id</code></td><td>queued → compiling → linking → packaging → complete / failed / cancelled → expired</td></tr>
-<tr><td>CACHE_ENTRY</td><td>fleet-builds</td><td><code>config_hash</code> PK, <code>artifact_paths</code>, <code>created_at</code>, <code>last_used_at</code></td><td>created on complete, removed by TTL</td></tr>
-<tr><td>PROFILE</td><td>fleet-builds</td><td><code>id</code>, <code>name</code> UNIQUE, <code>config_json</code> without secrets, <code>created_at</code>, <code>updated_at</code></td><td>created → updated → deleted</td></tr>
-<tr><td>FLEET</td><td>fleet-builds</td><td><code>id</code>, <code>name</code>, <code>profile_id</code></td><td>created → deleted</td></tr>
-<tr><td>FLEET_DEVICE</td><td>fleet-builds</td><td><code>id</code>, <code>fleet_id</code>, <code>label</code>, <code>variant</code>, <code>long_name</code>, <code>short_name</code>, <code>role</code>, <code>fixed_lat</code>, <code>fixed_lon</code>, <code>fixed_alt</code>, <code>admin_key</code></td><td>created → deleted</td></tr>
-<tr><td>FLEET_RUN</td><td>fleet-builds</td><td><code>id</code>, <code>fleet_id</code>, <code>version</code>, <code>status</code>, <code>created_at</code></td><td>queued → running → complete / partial / failed</td></tr>
+<tr><td>CACHE_ENTRY</td><td>fleet-builds</td><td><code>config_hash</code> PK, <code>firmware_version</code>, <code>variant</code>, <code>artifact_dir</code>, <code>artifact_names</code> (JSON list), <code>created_at</code>, <code>last_used_at</code> (Unix seconds)</td><td>created on complete without a secret, removed by TTL or when an artifact is missing</td></tr>
+<tr><td>PROFILE</td><td>fleet-builds</td><td><code>id</code>, <code>name</code> UNIQUE, <code>config_json</code> without secrets, <code>must_reenter_json</code>, <code>stores_secrets</code>, <code>secrets_ciphertext</code> (Fernet token, nullable), <code>created_at</code>, <code>updated_at</code></td><td>created → updated → deleted</td></tr>
+<tr><td>FLEET</td><td>fleet-builds</td><td><code>id</code>, <code>name</code>, <code>profile_id</code>, <code>firmware_version</code> (nullable: the default firmware source), <code>created_at</code>, <code>updated_at</code></td><td>created → updated → deleted</td></tr>
+<tr><td>FLEET_DEVICE</td><td>fleet-builds</td><td><code>id</code>, <code>fleet_id</code>, <code>label</code>, <code>variant</code>, <code>long_name</code>, <code>short_name</code>, <code>role</code>, <code>fixed_lat</code>, <code>fixed_lon</code>, <code>fixed_alt</code>, <code>admin_key_ciphertext</code> (Fernet token of the admin key, nullable, ADR 0007), <code>position</code> (the order of the fleet editor table)</td><td>created → updated → deleted</td></tr>
+<tr><td>FLEET_RUN</td><td>fleet-builds</td><td><code>id</code> (row id, never in a URL), <code>public_id</code> (the fleet run id, random, 128-bit), <code>fleet_id</code>, <code>profile_id</code> (the profile of the fleet run, for Retry failed), <code>firmware_version</code>, <code>status</code>, <code>created_at</code></td><td>running → complete / partial / failed. A stored <code>running</code> status that no process runs reads <code>partial</code>, or <code>complete</code> when every fleet device has a complete build.</td></tr>
+<tr><td>FLEET_RUN_BUILD</td><td>fleet-builds</td><td><code>fleet_run_id</code> + <code>fleet_device_id</code> PK, <code>build_id</code></td><td>One row for each fleet device in a fleet run. It links the fleet device to its build.</td></tr>
 </table></div>
 <p>A build log is not stored in the database. Upstream PlatformIO prints the <code>-D</code> build flags, and those flags hold every secret (see <code>Risks</code>).</p>
 <div class="diagram"><pre class="mermaid">stateDiagram-v2
@@ -424,15 +453,24 @@ body.rv-open .layout { padding-right:21rem; }
   expired --&gt; [*]</pre></div>
 <p>This is the planned build lifecycle. The <code>scrub</code> step runs on every transition into <code>complete</code>, <code>failed</code> and <code>cancelled</code>.</p>
 <h2 id="cross-cutting-concerns">Cross-cutting concerns</h2>
-<p><strong>Authentication and authorization (built).</strong> The admin password is a bcrypt hash in <code>config.yaml</code>. <code>POST /admin/login</code> sets the cookie <code>mtfw_session</code>: an itsdangerous signature of the string <code>admin</code>, HttpOnly, SameSite=Lax, Secure unless <code>debug</code>, max age 3600 s. Only <code>/api/v1/update-firmware</code> and <code>/api/v1/cleanup</code> require it. The project has no CSRF token. A cookie with <code>Secure</code> set does not work on plain HTTP, so admin sign-in fails on a default Docker install (<code>mtfwbuilder/routers/admin.py:44-51</code>).</p>
-<p><strong>Planned auth changes</strong> (feature <code>frontend-htmx</code> and <code>build-pipeline-repair</code>):</p>
+<p><strong>Authentication and authorization (built).</strong> The admin password is a bcrypt hash in <code>config.yaml</code>. <code>POST /admin/login</code> sets the cookie <code>mtfw_session</code>: an itsdangerous signature of the string <code>admin</code>, HttpOnly, SameSite=Lax, max age 3600 s. The cookie sets <code>Secure</code> only when the request scheme is <code>https</code>. These routes require the session: <code>/api/v1/update-firmware</code>, <code>/api/v1/cleanup</code>, <code>GET /api/v1/firmware/available</code>, <code>POST /api/v1/firmware/install</code> and <code>DELETE /api/v1/firmware/{version}</code>. The <code>/admin</code> page shows a sign-in form when no session exists.</p>
+<p><strong>CSRF (built, Epic 3).</strong> Each admin form carries the hidden field <code>csrf_token</code>. The token is the value of the cookie <code>mtfw_csrf</code>, signed with the same itsdangerous secret key. Sign-in sets a new <code>mtfw_csrf</code> value, so the token belongs to one session. A JSON request and a DELETE request send the token in the header <code>X-CSRF-Token</code>. Each admin POST or DELETE without a valid token returns 403:</p>
 <ul>
-<li>The <code>/admin</code> page shows a sign-in form when no session exists.
+<li><code>/admin/login</code>
 </li>
-<li>The <code>Secure</code> flag follows the request scheme.
+<li><code>/admin/logout</code>
 </li>
-<li>Every state-changing admin form carries a CSRF token.
+<li><code>/api/v1/update-firmware</code>
 </li>
+<li><code>/api/v1/cleanup</code>
+</li>
+<li><code>POST /api/v1/firmware/install</code>
+</li>
+<li><code>DELETE /api/v1/firmware/{version}</code>
+</li>
+</ul>
+<p><strong>Planned auth changes</strong> (feature <code>build-pipeline-repair</code>):</p>
+<ul>
 <li>Build ids are random, so one operator cannot guess another operator's build.
 </li>
 </ul>
@@ -452,13 +490,14 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><td>Docker + nginx</td><td><code>docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d</code></td><td>TLS on nginx. Needed for Web Serial on a LAN host.</td></tr>
 </table></div>
 <p>Settings come from <code>config.yaml</code> and from <code>MTFW_*</code> environment variables. Values in <code>config.yaml</code> win over environment variables (<code>mtfwbuilder/config.py:58-116</code>). The full list of names is in <code>docs/external.md</code>. Names only; no values are in this repository.</p>
+<p>The test hook flag: <code>MTFW_PUSH_TEST_HOOKS</code> (setting <code>push_test_hooks</code>, default <code>false</code>). When it is on, the push config page renders a test flag, and the page then accepts a fake device from the test (feature push-config). Only the E2E test config turns it on. A production server leaves it off.</p>
 <p>Seed data: none. The registry and the firmware source come from upstream at runtime. Planned: a test fixture holds a small firmware source subset (a few variant <code>platformio.ini</code> files and <code>userPrefs.jsonc</code>) so tests run without a download.</p>
 <h2 id="testing-strategy">Testing strategy</h2>
 <ul>
-<li><strong>Unit:</strong> pytest, <code>asyncio_mode = "auto"</code>. 106 tests today: generator 39, build service
+<li><strong>Unit:</strong> pytest, <code>asyncio_mode = "auto"</code>. 106 tests at the inherit (2026-11-21, <code>bd15bb1</code>);
 </li>
 </ul>
-<p>26, registry 20, security 14, routes 7.</p>
+<p>the suite grows with each epic.</p>
 <ul>
 <li><strong>Contract tests (planned):</strong> the userPrefs keys the generator writes are a subset of
 </li>
@@ -626,10 +665,10 @@ body.rv-open .layout { padding-right:21rem; }
 </ul>
 <p>without notice. Mitigation: contract tests against the fixture firmware source, and a scheduled CI job against upstream <code>develop</code>.</p>
 <ul>
-<li><strong>JS client library in flux.</strong> <code>meshtastic/js</code> is archived. <code>meshtastic-sdk</code> JS is
+<li><strong>JS client library in flux.</strong> <code>meshtastic/js</code> is archived, and upstream publishes no
 </li>
 </ul>
-<p>"snapshot only until 0.3.0". Epic 12 starts with a spike to choose.</p>
+<p><code>@meshtastic/core</code> after 2.6.7. Its protobufs are 2.7.8. <code>meshtastic-sdk</code> has no JS release. ADR 0008 records the choice and the gaps.</p>
 <ul>
 <li><strong>Disk use.</strong> Each firmware version plus its toolchains uses several GB. Mitigation: an
 </li>
@@ -866,6 +905,32 @@ body.rv-open .layout { padding-right:21rem; }
 <p>key name (<code>USERPREFS_USE_ADMIN_KEY_&lt;n&gt;</code> holds the key), router roles rejected as factory defaults, an interim registry id fix in Epic 2, and the <code>.gitignore</code> <code>firmware/</code> pattern.</p>
 <ul>
 <li>2026-11-21 — <code>/spec-to-issues</code>: 13 epics (#4–#70) and 58 sub-issues created. See <code>## Issue map</code>.
+</li>
+<li>2026-11-21 — Epic 0 shipped (#82). Batch ruling: the generic ruff criterion on each Epic 0 sub-issue was checked at the batch gate, after #7. Out-of-plan fix accepted in #80: Starlette 1.10 needs <code>TemplateResponse(request, name, context)</code>; every page returned 500 before it. <code>dev</code> is now the repository default branch.
+</li>
+<li>2026-11-21 — Epic 1 shipped (#92). PM decision, flagged for the owner: the event mode select defaults to Disabled (#13), so a form left at its defaults does not turn event mode on. The contract test found that firmware v2.7.26 reads no <code>USERPREFS_CHANNEL_3_*</code> key; the generator writes channel slots 0–2 only until #47. The build route still skips <code>ConfigRequest</code>: filed as #94 in epic #16.
+</li>
+<li>2026-11-21 — Epic 2 shipped (#102). PM decision from the batch review, flagged for the owner: the project sets no shared PlatformIO build cache and the scrub deletes <code>.pio/build_cache</code>, because the cache keeps objects compiled with secrets (Goal 7). Each build then compiles from the start; toolchains stay cached. <code>config_hash</code> is an HMAC with <code>secret_key</code>. Follow-up #88 (more than one build worker) stays open.
+</li>
+<li>2026-11-21 — Epic 4 shipped (#112). Batch review fixes: the data-directory move respects path overrides and scrubs an old firmware tree it keeps; production trusts only the nginx network for <code>X-Forwarded-For</code>; nginx repeats its security headers in each block. Terms: added <code>release channel</code> and <code>install</code> (the word <code>channel</code> alone means a Meshtastic channel).
+</li>
+<li>2026-11-21 — Epic 3 shipped (#124). Milestone M1 (Works again) is complete. Additions accepted at the batch gate: <code>GET /api/v1/builds/{id}</code>, <code>config_source=form</code>, and <code>?log_from=</code> on the progress stream. CSRF covers sign-in and sign-out too. Not built from the Screens table: the build queue position and the elapsed time.
+</li>
+<li>2026-11-21 — Epic 5 shipped (#132). PM decisions: the default firmware version falls back to the newest installed version of any release channel when no stable one is installed; <code>require_csrf</code> accepts the <code>X-CSRF-Token</code> header; <code>GET /api/v1/firmware/available</code> has no CSRF (read-only); the startup cleanup may remove a half-imported old firmware source after a crash (it is downloadable again).
+</li>
+<li>2026-11-21 — Epic 6 shipped (#145). The registry comes from <code>pio project config --json-output</code> per firmware version (ADR 0006); a bad value in one env skips that field or env, not the version. The YAML registry and feature 03 are retired. Open: #139 (device image source, owner question), #144 (weekly registry check). Epic 9 (held) must update its flash and UF2 branches to the new architecture values (PR #135 finding).
+</li>
+<li>2026-11-21 — Epic 7 shipped (#142). Milestone M2 (Current upstream) is complete. PM ruling on #50: <code>USERPREFS_SIMRADIO_EMULATE_COLLISIONS</code> and <code>USERPREFS_HAS_SPLASH</code> are Non-goals. Every 422 body leaves out the rejected input, so no secret returns to the caller.
+</li>
+<li>2026-11-21 — Epic 10 shipped (#160). PM decisions from the gates and the batch review: only an admin session may store, load or remove the secrets of a profile (ADR 0007). A config that holds a secret is never cached, because the project rule forbids a secret in a cache entry. The owner question is #158. The cache key also covers the app version.
+</li>
+<li>2026-11-21 — Epic 8 shipped (#170). PM decisions from the batch review: Apply never writes into a control that the firmware version does not read. An empty PSK means "No encryption" on a primary channel and "Uses the primary channel key" on a secondary channel (<code>Channels.cpp</code> <code>getKey</code>). An <code>add=true</code> URL follows upstream <code>setURL</code>. <code>requires-python</code> is <code>&gt;=3.13,&lt;3.15</code> because of the <code>meshtastic</code> package.
+</li>
+<li>2026-11-21 — Epic 11 shipped (#176). PM decisions from the batch review: a fleet run has a random public id, and the fleet page lists no past runs (the operator keeps the run URL). Fleet runs obey the rate limit and the build queue limit, and one fleet runs one fleet run at a time. Fleet device admin keys are the admin's public keys: the project stores them encrypted and puts them in every build (ADR 0007).
+</li>
+<li>2026-11-21 — Epic 9 shipped (#135). Owner rulings: Epic 9 merged without the manual hardware check, because no device was available. The check is #177, and #177 also holds the manual check of Epic 12. The flash panel shows for each ESP32 family member (<code>flash_method</code> is <code>web-serial</code>). Owner ruling on #139: the picker shows no device images, because the meshtastic/web-flasher images are proprietary. Owner ruling on #158: a config that holds a secret is never cached.
+</li>
+<li>2026-11-21 — Epic 12 shipped (#186). Owner rulings: build on <code>@meshtastic/core</code> 2.6.7, pinned, with three vendored ES modules and an import map (ADR 0008). FR-push-config-10 is deferred (#182), and the protobufs in core 2.6.7 lack <code>status_message</code> and <code>traffic_management</code>. PM decisions from the batch review: push config never sends managed mode, admin keys come only from the profile, and the test hook needs <code>MTFW_PUSH_TEST_HOOKS</code>. The manual device push is in #177.
 </li>
 </ul><nav class="pager">
 <span></span>

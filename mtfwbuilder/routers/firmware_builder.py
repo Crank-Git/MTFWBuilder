@@ -2,215 +2,322 @@
 
 import json
 import logging
-import re
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, RedirectResponse, Response
+from pydantic import ValidationError
 from sse_starlette.sse import EventSourceResponse
 
-from mtfwbuilder.models import BuildStatus
-from mtfwbuilder.rate_limit import limiter
+from mtfwbuilder.database import find_firmware_source, list_firmware_sources, list_variants
+from mtfwbuilder.htmx import fragment_or_json, is_htmx
+from mtfwbuilder.models import Artifact, ConfigRequest, FirmwareSource
+from mtfwbuilder.rate_limit import build_rate_limit, limiter
+from mtfwbuilder.routers.config_generator import field_error, generate_for_version, key_scan
 from mtfwbuilder.services import build_service
-from mtfwbuilder.services.cleanup_service import cleanup_build_directory
-from mtfwbuilder.services.jsonc_generator import generate_jsonc
+from mtfwbuilder.services.build_service import DeviceVariant
+from mtfwbuilder.services.userprefs_keys import KeyScan
 
 logger = logging.getLogger("mtfwbuilder.firmware_routes")
 
 router = APIRouter(prefix="/api/v1", tags=["firmware"])
 
+# The same 64 KB limit as the preview-userprefs route.
+MAX_UPLOAD_SIZE = 65536
+QUEUE_FULL_NOTICE = "The build queue is full. Try again in a few minutes."
+# The JSON detail of a 503 from a build route that the build queue refuses.
+QUEUE_FULL_DETAIL = "Build queue is full. Try again later."
+# The steps of a build before its ended build status, in build order.
+RUN_STEPS = ("queued", "compiling", "linking", "packaging")
 
-@router.post("/build-firmware")
-@limiter.limit("5/minute")
-async def start_build(request: Request):
-    """Start a firmware build. Returns build_id for SSE progress tracking."""
-    settings = request.app.state.settings
-    registry = request.app.state.device_registry
 
+@router.post("/build-firmware", status_code=202)
+@limiter.limit(build_rate_limit)
+async def start_build(request: Request) -> Response:
+    """Put a build in the build queue, and return its build id and progress stream URL.
+
+    An htmx request gets the progress panel of the build, and the page URL changes to `/?build=<id>`.
+    The form gives the config in one of three ways, by `config_source`:
+
+    - `form`: the fields of the config form.
+    - `current`: one field `config_json` that holds the config as JSON.
+    - `upload` (the default): one field `userPrefs` that holds a userPrefs file.
+
+    The optional field `firmware_version` names an installed firmware version. Without it, the build uses the
+    newest installed stable firmware version.
+
+    Returns:
+    - 400 for a bad form.
+    - 422 with field errors in these cases:
+      - an invalid config.
+      - a firmware version that is not installed.
+      - a variant that is not in the registry of the firmware version.
+      - a field that the firmware version does not read.
+    - 503 when the build queue is full.
+
+    The route validates the config before the build goes in the build queue.
+    """
     form = await request.form()
-    variant_id = form.get("variant")
-    config_source = form.get("config_source", "upload")
-    custom_filename = form.get("custom_filename", "").strip()
 
+    variant_id = form.get("variant")
     if not variant_id:
         raise HTTPException(status_code=400, detail="No device variant selected")
+    # An empty field asks for the default firmware version, the same as no field.
+    firmware_version = form.get("firmware_version") or None
+    variant = await _registry_variant(request, variant_id, firmware_version)
+    config_content = await _config_content(form, await key_scan(request, firmware_version))
 
-    if not registry.exists(variant_id):
-        raise HTTPException(status_code=400, detail=f"Unknown device variant: {variant_id}")
+    try:
+        ctx = await request.app.state.build_queue.submit(variant, config_content, firmware_version)
+    except build_service.FirmwareVersionNotInstalled as e:
+        raise _field_error("firmware_version", f"firmware version {firmware_version} is not installed") from e
+    except build_service.BuildQueueFull as e:
+        if is_htmx(request):
+            return request.app.state.templates.TemplateResponse(
+                request, "partials/build_notice.html", {"notice": QUEUE_FULL_NOTICE}, status_code=503
+            )
+        raise HTTPException(status_code=503, detail=QUEUE_FULL_DETAIL) from e
 
-    variant = registry.get(variant_id)
-
-    # Get config content
-    if config_source == "current":
-        config_json = form.get("config_json") or form.get("stored_config")
-        if not config_json:
-            raise HTTPException(status_code=400, detail="No configuration data provided")
-        try:
-            config_data = json.loads(config_json)
-            config_content = generate_jsonc(config_data)
-        except (json.JSONDecodeError, Exception) as e:
-            raise HTTPException(status_code=400, detail=f"Invalid configuration: {e}")
-    else:
-        upload = form.get("userPrefs")
-        if upload is None:
-            raise HTTPException(status_code=400, detail="No userPrefs file uploaded")
-        if hasattr(upload, "read"):
-            raw = await upload.read()
-            if len(raw) > 65536:  # 64KB max, same as preview-userprefs
-                raise HTTPException(status_code=400, detail="File too large (max 64KB)")
-            config_content = raw.decode("utf-8")
-        else:
-            config_content = str(upload)
-
-    # Create build context
-    build_id = build_service.generate_build_id()
-    ctx = build_service.BuildContext(
-        build_id=build_id,
-        variant=variant,
-        config_content=config_content,
-        settings=settings,
-    )
-
-    # Store build context for SSE endpoint with timestamp for TTL cleanup
-    if not hasattr(request.app.state, "active_builds"):
-        request.app.state.active_builds = {}
-
-    # TTL cleanup: remove entries older than 30 minutes
-    import time as _time
-    now = _time.time()
-    stale = [k for k, v in request.app.state.active_builds.items() if now - getattr(v, "_created_at", 0) > 1800]
-    for k in stale:
-        request.app.state.active_builds.pop(k, None)
-
-    ctx._created_at = now
-    request.app.state.active_builds[build_id] = ctx
-
-    return {
-        "success": True,
-        "build_id": build_id,
-        "message": f"Build queued for {variant.name}",
-        "progress_url": f"/api/v1/build-progress/{build_id}",
-    }
-
-
-@router.get("/build-progress/{build_id}")
-async def build_progress(build_id: str, request: Request):
-    """SSE endpoint for real-time build progress."""
-    active_builds = getattr(request.app.state, "active_builds", {})
-    ctx = active_builds.get(build_id)
-
-    if ctx is None:
-        raise HTTPException(status_code=404, detail="Build not found")
-
-    async def event_stream():
-        try:
-            async for progress in build_service.build_firmware(ctx):
-                data = BuildStatus(
-                    status=progress.status,
-                    message=progress.message,
-                    download_url=progress.download_url,
-                    error=progress.error,
-                ).model_dump_json()
-                yield {"event": "status", "data": data}
-
-            # Send build log as final event
-            yield {
-                "event": "log",
-                "data": json.dumps({"log": "\n".join(ctx.build_log[-100:])}),
-            }
-        except Exception as e:
-            logger.error(f"Build {build_id} stream error: {e}")
-            yield {
-                "event": "status",
-                "data": BuildStatus(status="failed", error=str(e)).model_dump_json(),
-            }
-        finally:
-            # Remove from active builds
-            active_builds.pop(build_id, None)
-
-    return EventSourceResponse(event_stream())
-
-
-@router.get("/download-firmware/{build_id}")
-async def download_firmware(build_id: str, request: Request, variant: str = "unknown", filename: str = ""):
-    """Download the built firmware file."""
-    settings = request.app.state.settings
-    registry = request.app.state.device_registry
-
-    build_dir = (settings.temp_dir / build_id).resolve()
-    if not str(build_dir).startswith(str(settings.temp_dir.resolve())):
-        raise HTTPException(status_code=400, detail="Invalid build ID")
-    if not build_dir.is_dir():
-        raise HTTPException(status_code=404, detail="Build not found or expired")
-
-    # Determine firmware format
-    if registry.exists(variant):
-        device = registry.get(variant)
-        fmt = device.firmware_format
-        has_factory = device.has_factory_binary
-    else:
-        fmt = "bin"
-        has_factory = False
-
-    # For ESP32, prefer factory binary
-    firmware_filename = f"firmware.{fmt}"
-    firmware_path = build_dir / firmware_filename
-
-    if has_factory:
-        factory_path = build_dir / "firmware.factory.bin"
-        if factory_path.exists():
-            firmware_path = factory_path
-            firmware_filename = "firmware.factory.bin"
-
-    if not firmware_path.exists():
-        raise HTTPException(status_code=404, detail="Firmware file not found")
-
-    # Build download filename
-    if filename:
-        download_name = re.sub(r"[^\w\-\.]", "_", filename)
-        if firmware_filename == "firmware.factory.bin":
-            if not download_name.lower().endswith(".factory.bin"):
-                download_name = download_name.replace(".bin", "") + ".factory.bin"
-        elif not download_name.lower().endswith(f".{fmt}"):
-            download_name += f".{fmt}"
-    else:
-        if firmware_filename == "firmware.factory.bin":
-            download_name = f"meshtastic_{variant}_firmware.factory.bin"
-        else:
-            download_name = f"meshtastic_{variant}_firmware.{fmt}"
-
-    response = FileResponse(
-        path=str(firmware_path),
-        filename=download_name,
-        media_type="application/octet-stream",
-        headers={
-            "Cache-Control": "no-cache, no-store, must-revalidate",
-            "Pragma": "no-cache",
-            "Expires": "0",
-        },
-    )
-
-    # Schedule cleanup after response is sent (via background task)
-    response.background = lambda: _sync_cleanup(build_dir)
+    data = {"build_id": ctx.build_id, "progress_url": progress_url(ctx.build_id)}
+    response = fragment_or_json(request, "partials/build_panel.html", panel_context(ctx), data, status_code=202)
+    # The page URL holds the build id, so a reload of the page shows the same build.
+    response.headers["HX-Push-Url"] = f"/?build={ctx.build_id}"
     return response
 
 
-def _sync_cleanup(build_dir):
-    """Synchronous cleanup for FileResponse background task."""
-    import shutil
+async def _registry_variant(request: Request, variant_id: str, firmware_version: str | None) -> DeviceVariant:
+    """Return the variant `variant_id` from the registry of the firmware version of the build.
 
+    `firmware_version` None selects the default firmware version. Raises a 422 field error:
+
+    - for `firmware_version` when it is not installed.
+    - for `variant` when the registry of the firmware version does not hold the variant. A firmware version
+      without registry rows holds no variant.
+    """
+    database_path = request.app.state.settings.database_path
+    source = await find_firmware_source(database_path, firmware_version)
+    if source is None:
+        if firmware_version is not None:
+            raise _field_error("firmware_version", f"firmware version {firmware_version} is not installed")
+        # With no firmware version installed, the build fails at submit and shows the admin link, so it never compiles.
+        return DeviceVariant(id=variant_id, name=variant_id, manufacturer="Other", architecture="")
+    entries = await list_variants(database_path, source["version"])
+    entry = next((e for e in entries if e["env"] == variant_id), None)
+    if entry is None:
+        raise _field_error("variant", f"Variant not in {source['version']}")
+    return DeviceVariant(
+        id=entry["env"],
+        name=entry["display_name"],
+        manufacturer=entry["manufacturer"],
+        architecture=entry["architecture"],
+    )
+
+
+def progress_url(build_id: str) -> str:
+    return f"/api/v1/build-progress/{build_id}"
+
+
+def panel_context(ctx: build_service.BuildContext) -> dict:
+    """Return the template context of the progress panel of one build.
+
+    Each step has the text `done`, `current` or `waiting`, so the panel shows the build status
+    without color. A `failed` or `cancelled` build has no record of its last step, so its
+    earlier steps have no text.
+    """
+    if ctx.status in ("failed", "cancelled"):
+        steps = [(name, "") for name in RUN_STEPS] + [(ctx.status, "current")]
+    else:
+        names = [*RUN_STEPS, "complete"]
+        index = len(names) if ctx.status == "complete" else names.index(ctx.status)
+        steps = [
+            (name, "done" if i < index else "current" if i == index else "waiting") for i, name in enumerate(names)
+        ]
+    primary = build_service.primary_artifact(ctx.artifacts)
+    # The factory artifact goes first, because it is the preferred download.
+    artifacts = sorted(ctx.artifacts, key=lambda a: a is not primary)
+    return {
+        "build": ctx,
+        "steps": steps,
+        "artifacts": [(a, build_service.artifact_url(ctx.build_id, a.name)) for a in artifacts],
+        # The panel shows the stored log lines, so the stream starts at the next line.
+        "progress_url": f"{progress_url(ctx.build_id)}?log_from={len(ctx.build_log)}",
+        "source_missing": ctx.error == build_service.FIRMWARE_SOURCE_MISSING,
+    }
+
+
+async def _config_content(form, scan: KeyScan | None) -> str:
+    """Return the userPrefs file of the build form, from the source that `config_source` names.
+
+    `scan` is the key scan of the firmware version of the build.
+    """
+    source = form.get("config_source", "upload")
+    if source == "form":
+        fields = {k: v for k, v in form.items() if k not in ("variant", "config_source", "firmware_version")}
+        return _validated(lambda: ConfigRequest.model_validate(fields), scan)
+    if source == "current":
+        return _config_from_json(form.get("config_json"), scan)
+    return await _config_from_upload(form.get("userPrefs"))
+
+
+def _validated(parse, scan: KeyScan | None) -> str:
+    """Return the userPrefs file of the config that `parse` returns, for the firmware version of `scan`.
+
+    Raises a 422 field error when `ConfigRequest` or the firmware version rejects the config.
+    """
     try:
-        if build_dir.exists():
-            shutil.rmtree(str(build_dir), ignore_errors=True)
-            logger.info(f"Post-download cleanup: {build_dir}")
-    except Exception as e:
-        logger.error(f"Cleanup error: {e}")
+        config = parse()
+    except ValidationError as e:
+        # The same field locations as the download route, so the form puts each error next to its field.
+        errors = [{**error, "loc": ("body", *error["loc"])} for error in e.errors(include_url=False)]
+        raise RequestValidationError(errors) from e
+    return generate_for_version(config, scan)
+
+
+def _config_from_json(config_json: str | None, scan: KeyScan | None) -> str:
+    """Return the userPrefs file that the generator makes from the config JSON of the form.
+
+    Raises HTTP 400 when the form holds no config, and a 422 field error when `ConfigRequest` rejects it.
+    """
+    if not config_json:
+        raise HTTPException(status_code=400, detail="No configuration data provided")
+    return _validated(lambda: ConfigRequest.model_validate_json(config_json), scan)
+
+
+async def _config_from_upload(upload) -> str:
+    """Return the text of the uploaded userPrefs file.
+
+    An uploaded file holds `USERPREFS_*` keys, not `ConfigRequest` fields, so the route checks only
+    the size, the UTF-8 encoding and the `//` rule. Raises HTTP 400 for a missing or large file, and
+    a 422 field error for `userPrefs` when a check fails.
+    """
+    if upload is None:
+        raise HTTPException(status_code=400, detail="No userPrefs file uploaded")
+    if isinstance(upload, str):
+        content = upload
+    else:
+        raw = await upload.read()
+        if len(raw) > MAX_UPLOAD_SIZE:
+            raise HTTPException(status_code=400, detail="File too large (max 64KB)")
+        try:
+            content = raw.decode("utf-8")
+        except UnicodeDecodeError as e:
+            raise _field_error("userPrefs", "the file is not UTF-8 text") from e
+    for number, line in enumerate(content.splitlines(), start=1):
+        before, double_slash, _ = line.partition("//")
+        # The upstream parser cuts each line at the first //, so a // after an odd count of quotes cuts a value.
+        if double_slash and before.replace('\\"', "").count('"') % 2:
+            raise _field_error(
+                "userPrefs", f"line {number}: a value contains //, which the firmware build reads as a comment"
+            )
+    return content
+
+
+def _field_error(name: str, message: str) -> RequestValidationError:
+    return RequestValidationError([field_error((name,), message)])
+
+
+@router.get("/build-progress/{build_id}")
+async def build_progress(build_id: str, request: Request, log_from: Annotated[int | None, Query(ge=0)] = None):
+    """Return the progress stream of the build: the current build status, its changes, and new log lines.
+
+    `log_from` is the index of the first log line to send. Without it, the stream sends only the lines
+    after the connect. Returns 404 for an unknown build, and 422 for a negative `log_from`.
+    """
+    ctx = request.app.state.build_queue.get(build_id)
+    if ctx is None:
+        raise HTTPException(status_code=404, detail="Build not found")
+    return EventSourceResponse(build_service.progress_events(ctx, log_from))
+
+
+@router.get("/builds/{build_id}")
+async def get_build(build_id: str, request: Request) -> Response:
+    """Return the build status of the build, as JSON or as the progress panel for htmx.
+
+    The panel calls this route on each `status` event of the progress stream. For a build that
+    has not ended, the fragment holds only the steps. The page adds each log line from the `log`
+    events, and a log in this fragment would remove a line that arrives after this read.
+    For an ended build, the fragment is the whole panel with the full log, without the progress stream.
+    Returns 404 for an unknown build.
+    """
+    ctx = _get_build(request, build_id)
+    data = {"build_id": ctx.build_id, **json.loads(ctx.status_event())}
+    if not ctx.ended:
+        return fragment_or_json(request, "partials/build_state.html", panel_context(ctx), data)
+    response = fragment_or_json(request, "partials/build_panel.html", panel_context(ctx), data)
+    # A swap of the element that holds the progress stream closes the stream, so the browser does not reconnect.
+    response.headers["HX-Retarget"] = "#build-panel"
+    response.headers["HX-Reswap"] = "innerHTML"
+    return response
+
+
+@router.post("/builds/{build_id}/cancel")
+async def cancel_build(build_id: str, request: Request):
+    """Cancel a queued or running build. Returns 404 for an unknown build, and 409 for an ended build."""
+    try:
+        ctx = request.app.state.build_queue.cancel(build_id)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail="Build not found") from e
+    except build_service.BuildEnded as e:
+        raise HTTPException(status_code=409, detail="Build has already ended") from e
+    # A running build changes to `cancelled` after its scrub, so the response gives the accepted result.
+    return {"build_id": ctx.build_id, "status": "cancelled"}
+
+
+@router.get("/builds/{build_id}/artifacts", response_model=list[Artifact])
+async def list_artifacts(build_id: str, request: Request):
+    """Return the artifact list of the build. Returns 404 for an unknown build."""
+    return _get_build(request, build_id).artifacts
+
+
+@router.get("/builds/{build_id}/artifacts/{name}")
+async def download_artifact(build_id: str, name: str, request: Request):
+    """Send one artifact of the build. Returns 404 when `name` is not in the artifact list."""
+    ctx = _get_build(request, build_id)
+    # Only a name from the artifact list reaches the file system, so a path in `name` cannot leave the build.
+    path = ctx.build_dir / name
+    if name not in {a.name for a in ctx.artifacts} or not path.is_file():
+        raise HTTPException(status_code=404, detail="Artifact not found")
+    return FileResponse(
+        path=str(path),
+        filename=name,
+        media_type="application/octet-stream",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
+
+
+@router.get("/download-firmware/{build_id}")
+async def download_firmware(build_id: str, request: Request):
+    """Redirect to the factory or primary artifact of the build.
+
+    This old route stays for one release. Returns 404 when the build has no firmware artifact.
+    """
+    primary = build_service.primary_artifact(_get_build(request, build_id).artifacts)
+    if primary is None:
+        raise HTTPException(status_code=404, detail="Firmware file not found")
+    return RedirectResponse(build_service.artifact_url(build_id, primary.name), status_code=308)
+
+
+def _get_build(request: Request, build_id: str) -> build_service.BuildContext:
+    ctx = request.app.state.build_queue.get(build_id)
+    if ctx is None:
+        raise HTTPException(status_code=404, detail="Build not found")
+    return ctx
 
 
 @router.get("/system-info")
 async def system_info(request: Request):
-    """Get firmware version and system status."""
-    from mtfwbuilder.services.firmware_updater import get_firmware_version
+    """Return the default firmware version, its install date, and each installed firmware version.
 
-    settings = request.app.state.settings
-    info = get_firmware_version(settings)
-    return {"success": True, **info}
+    The default firmware version is the one that a build without `firmware_version` uses. Without a firmware
+    source, `version` is `Not installed` and `last_updated` is `Never`.
+    """
+    database_path = request.app.state.settings.database_path
+    default = await find_firmware_source(database_path)
+    sources = await list_firmware_sources(database_path)
+    return {
+        "success": True,
+        "version": default["version"] if default else "Not installed",
+        "last_updated": default["installed_at"] if default else "Never",
+        "firmware_versions": [FirmwareSource(**source) for source in sources],
+    }

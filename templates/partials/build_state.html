@@ -1,0 +1,55 @@
+{% set badge = {"done": "text-bg-success", "current": "text-bg-danger" if build.status == "failed" else "text-bg-primary"} %}
+<ol class="list-inline mb-2" aria-label="Build steps">
+    {% for name, state in steps %}
+    <li class="list-inline-item badge {{ badge.get(state, 'text-bg-secondary') }}"
+        data-step="{{ name }}" data-state="{{ state }}"{% if state == "current" %} aria-current="step"{% endif %}>
+        {{ name }}{% if state %} ({{ state }}){% endif %}
+    </li>
+    {% endfor %}
+</ol>
+
+{% if source_missing %}
+<div class="alert alert-warning" role="alert">
+    No firmware version is installed. An admin must install one. <a href="/admin">Open the admin page</a>.
+</div>
+{% elif build.status == "failed" %}
+<div class="alert alert-danger" role="alert">{{ build.error or build.message }}</div>
+{% elif build.message %}
+<p class="text-muted mb-2">{{ build.message }}</p>
+{% endif %}
+
+{% if build.status == "complete" %}
+<table class="table table-sm align-middle mb-2">
+    <thead><tr><th>Artifact</th><th>Kind</th><th>Size</th><th></th></tr></thead>
+    <tbody>
+        {% for artifact, url in artifacts %}
+        <tr>
+            <td><code>{{ artifact.name }}</code></td>
+            <td>{{ artifact.kind }}</td>
+            <td>{{ "{:,}".format(artifact.size) }} bytes</td>
+            <td><a class="btn btn-sm btn-success" href="{{ url }}" download><i class="bi bi-download me-1"></i>Download</a></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{# Every ESP32-family architecture has the flash method web-serial (FR-generated-registry-14). #}
+{% if build.variant.flash_method == "web-serial" %}
+{% include "partials/flash_panel.html" %}
+{% else %}
+{% include "partials/uf2_panel.html" %}
+{% endif %}
+{% endif %}
+
+{% if not build.ended %}
+<p class="text-muted small mb-2">You can close this page. The build continues.</p>
+<button type="button" class="btn btn-outline-danger" id="build-cancel"
+        hx-post="/api/v1/builds/{{ build.build_id }}/cancel" hx-swap="none">
+    <i class="bi bi-x-circle me-2"></i>Cancel build
+</button>
+{% elif build.status in ("failed", "cancelled") %}
+<button type="button" class="btn btn-outline-warning" id="build-retry"
+        hx-post="/api/v1/build-firmware" hx-include="#configForm, #variant, #firmware_version" hx-vals='{"config_source": "form"}'
+        hx-target="#build-panel">
+    <i class="bi bi-arrow-clockwise me-2"></i>{{ "Retry" if build.status == "failed" else "Build again" }}
+</button>
+{% endif %}

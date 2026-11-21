@@ -2,7 +2,7 @@
 id: browser-flashing
 feature: Browser flashing
 epic: "Epic 9: Browser flashing"
-status: issued
+status: built
 issues: [56, 57, 58, 59]
 mockups: [mockups/06-flash.html]
 ---
@@ -56,12 +56,13 @@ flowchart TD
   B -->|nrf52840 / rp2040 / rp2350| U[UF2 download + bootloader steps]
   B -->|stm32 / nrf54l15| DL[Download only]
   C -->|no| N[Unsupported message + downloads]
-  C -->|yes| D[Flash: choose port]
-  D -->|cancelled| A
-  D --> E{Full install or Update}
-  E -->|Full install| W[Erase warning]
+  C -->|yes| E[Choose Full install or Update]
+  E --> D[Flash: choose port]
+  D -->|cancelled| E
+  D -->|Full install| W[Erase warning]
   W -->|confirm| F[Erase + write factory at 0x0]
-  E -->|Update| G[Write app at manifest offset]
+  W -->|cancel| E
+  D -->|Update| G[Write app at manifest offset]
   F --> H[Reset device]
   G --> H
   F -->|error| X[Error + retry + manual esptool command]
@@ -70,11 +71,11 @@ flowchart TD
 
 1. A build reaches `complete`.
 2. For an ESP32-family variant in Chrome or Edge over HTTPS, the panel shows Flash.
-3. The operator selects Flash and chooses the serial port.
-4. The operator chooses Full install or Update.
+3. The operator chooses Full install or Update.
+4. The operator selects Flash and chooses the serial port.
 5. For a full install, the panel warns about the erase. The operator confirms.
 6. The page writes the artifact and shows progress.
-7. The page resets the device and shows "Done".
+7. The page resets the device and shows the done text of the mode.
 8. If an error occurs, the panel shows the error, a Retry control, and the equivalent
    `esptool.py` command.
 
@@ -88,14 +89,16 @@ Mockup: [06-flash](../mockups/06-flash.html).
 | Port picker | The browser's own dialog. |
 | Connecting | "Connecting. If this takes more than 10 seconds, hold BOOT and press RESET." |
 | Writing | Progress bar with percent. |
-| Done | "Done. The device restarts with your factory defaults." |
+| Done | Full install: "Done. The device restarts with your factory defaults." Update: "Done. The device restarts and keeps its saved settings." |
 | Error | Error text, Retry, manual command. |
 | Unsupported browser / not secure | Message and download links. |
 | UF2 | Numbered steps, UF2 download control. |
 
 ## Behaviour rules
 
-- Baud rate 921600, fallback to 115200 on a connect error.
+- The page connects at 921600 baud first. On a connect error, the page tries 115200 baud.
+  When no ROM bootloader answers the sync, the page does not try 115200, because each
+  attempt syncs at the ROM rate of 115200. The manual command uses 921600.
 - esptool-js: https://github.com/espressif/esptool-js (0.7.1, 2026-11-02).
 - Web Serial availability: https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API
   (checked 2026-11-21). Chrome and Edge on desktop. Not Safari, not Firefox.

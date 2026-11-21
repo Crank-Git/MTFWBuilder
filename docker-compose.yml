@@ -7,37 +7,18 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      # Persist firmware downloads and builds
-      - firmware_data:/app/firmware
-      - build_cache:/app/.pio
-      - temp_data:/app/temp
-      - logs:/app/logs
-      # PlatformIO toolchain cache (prevents multi-hundred-MB re-downloads)
-      - platformio_cache:/home/app/.platformio
-      # Optional: mount admin config
-      # - ./config.yaml:/app/config.yaml:ro
+      # Firmware sources, artifacts, the database and config.yaml.
+      - data:/data
+      # PlatformIO toolchains, so a new container does not download them again.
+      - platformio:/home/app/.platformio
     environment:
+      - MTFW_DATA_DIR=/data
       - MTFW_LOG_LEVEL=INFO
-      - PYTHONPATH=/app
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
 
 volumes:
-  firmware_data:
-    driver: local
-  build_cache:
-    driver: local
-  temp_data:
-    driver: local
-  logs:
-    driver: local
-  platformio_cache:
-    driver: local
+  data:
+  platformio:
 
 networks:
   default:

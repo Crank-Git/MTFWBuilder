@@ -1,34 +1,75 @@
 <div class="config-section">
     <h3 class="section-title"><i class="bi bi-person-fill text-success"></i>Basic Information</h3>
     <div class="row mb-3">
-        <div class="col-12">
-            <label for="deviceName" class="form-label">Device Name</label>
-            <input type="text" class="form-control" id="deviceName" name="device_name" placeholder="My Meshtastic Device">
-            <div class="form-text text-muted">A friendly name for your device</div>
-        </div>
-    </div>
-    <div class="row mb-3">
-        <div class="col-md-6">
+        <fieldset class="col-md-6" data-userprefs-key="USERPREFS_CONFIG_OWNER_SHORT_NAME"{{ key_attrs("USERPREFS_CONFIG_OWNER_SHORT_NAME") }}>
             <label for="ownerShortName" class="form-label">Owner Short Name</label>
             <input type="text" class="form-control" id="ownerShortName" name="owner_short_name" maxlength="4" placeholder="Short name (max 4 chars)">
-        </div>
-        <div class="col-md-6">
+            <div id="error-owner_short_name" class="field-error invalid-feedback d-block"></div>
+            <div class="form-text text-muted">The short name that other nodes show for this device. <code class="small">USERPREFS_CONFIG_OWNER_SHORT_NAME</code></div>
+        </fieldset>
+        <fieldset class="col-md-6" data-userprefs-key="USERPREFS_CONFIG_OWNER_LONG_NAME"{{ key_attrs("USERPREFS_CONFIG_OWNER_LONG_NAME") }}>
             <label for="ownerLongName" class="form-label">Owner Long Name</label>
             <input type="text" class="form-control" id="ownerLongName" name="owner_long_name" placeholder="Full name or description">
-        </div>
+            <div id="error-owner_long_name" class="field-error invalid-feedback d-block"></div>
+            <div class="form-text text-muted">The full name that other nodes show for this device. <code class="small">USERPREFS_CONFIG_OWNER_LONG_NAME</code></div>
+        </fieldset>
     </div>
     <div class="row mb-3">
-        <div class="col-md-6">
+        <fieldset class="col-md-6" data-userprefs-key="USERPREFS_TZ_STRING"{{ key_attrs("USERPREFS_TZ_STRING") }}>
             <label for="tzString" class="form-label">Timezone</label>
             <select class="form-select" id="tzString" name="tz_string">
                 <option value="">Select a timezone...</option>
                 <!-- Timezone options will be populated by JavaScript -->
             </select>
-            <div class="form-text text-muted">Your local timezone will be auto-detected if possible</div>
-        </div>
-        <div class="col-md-6">
+            <div id="error-tz_string" class="field-error invalid-feedback d-block"></div>
+            <div id="tzStringHelp" class="form-text text-muted"><span id="tzPosixNote" hidden>The device gets the POSIX string <code id="tzPosix"></code>.</span> The form selects the time zone of the browser, if it can. <code class="small">USERPREFS_TZ_STRING</code></div>
+            {# The generator writes the POSIX string of the table, so the page shows the same value. #}
+            <script type="application/json" id="tzPosixTable">{{ tz_posix_table | tojson }}</script>
+        </fieldset>
+        <fieldset class="col-md-6" data-userprefs-key="USERPREFS_FIXED_BLUETOOTH"{{ key_attrs("USERPREFS_FIXED_BLUETOOTH") }}>
             <label for="bluetoothPin" class="form-label">Bluetooth PIN (optional)</label>
             <input type="text" class="form-control" id="bluetoothPin" name="bluetooth_fixed_pin" placeholder="6 digits PIN">
-        </div>
+            <div id="error-bluetooth_fixed_pin" class="field-error invalid-feedback d-block"></div>
+            <div class="form-text text-muted">A fixed 6-digit PIN for Bluetooth pairing. Empty keeps the random PIN. <code class="small">USERPREFS_FIXED_BLUETOOTH</code></div>
+        </fieldset>
     </div>
-</div> 
+    <div class="row mb-3">
+        <fieldset class="col-md-6" data-userprefs-key="USERPREFS_CONFIG_DEVICE_ROLE"{{ key_attrs("USERPREFS_CONFIG_DEVICE_ROLE") }}>
+            <label for="deviceRole" class="form-label">Device Role</label>
+            <select class="form-select" id="deviceRole" name="device_role" aria-describedby="deviceRoleHelp">
+                <option value="">Firmware default (Client)</option>
+                {% for value, label in role_options %}
+                <option value="{{ value }}"{{ enum_attrs(value) }}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <div id="error-device_role" class="field-error invalid-feedback d-block"></div>
+            <div id="deviceRoleHelp" class="form-text text-muted">{{ router_role_message }}</div>
+            <div class="form-text text-muted">The behavior of the device on the mesh. <code class="small">USERPREFS_CONFIG_DEVICE_ROLE</code></div>
+        </fieldset>
+        <fieldset class="col-md-6" data-userprefs-key="USERPREFS_CONFIG_DEVICE_REBROADCAST_MODE"{{ key_attrs("USERPREFS_CONFIG_DEVICE_REBROADCAST_MODE") }}>
+            <label for="deviceRebroadcastMode" class="form-label">Rebroadcast Mode</label>
+            <select class="form-select" id="deviceRebroadcastMode" name="device_rebroadcast_mode" aria-describedby="deviceRebroadcastModeHelp">
+                <option value="">Firmware default (All)</option>
+                {% for value, label in rebroadcast_mode_options %}
+                <option value="{{ value }}"{{ enum_attrs(value) }}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <div id="error-device_rebroadcast_mode" class="field-error invalid-feedback d-block"></div>
+            <div id="deviceRebroadcastModeHelp" class="form-text text-muted">The packets that the device sends again to the mesh. <code class="small">USERPREFS_CONFIG_DEVICE_REBROADCAST_MODE</code></div>
+        </fieldset>
+    </div>
+    <div class="row mb-3">
+        <fieldset class="col-md-6" data-userprefs-key="USERPREFS_CONFIG_DEVICE_NODE_INFO_BROADCAST_SECS"{{ key_attrs("USERPREFS_CONFIG_DEVICE_NODE_INFO_BROADCAST_SECS") }}>
+            <label for="nodeInfoBroadcastSecs" class="form-label">Node Info Broadcast Interval (seconds)</label>
+            <input type="number" class="form-control" id="nodeInfoBroadcastSecs" name="node_info_broadcast_secs" min="0" max="2592000" placeholder="10800" aria-describedby="nodeInfoBroadcastSecsHelp">
+            <div id="error-node_info_broadcast_secs" class="field-error invalid-feedback d-block"></div>
+            <div id="nodeInfoBroadcastSecsHelp" class="form-text text-muted">0, or 60 to 2592000. The firmware uses 3600 for a lower value. <code class="small">USERPREFS_CONFIG_DEVICE_NODE_INFO_BROADCAST_SECS</code></div>
+        </fieldset>
+        <fieldset class="col-md-6" data-userprefs-key="USERPREFS_NODEINFO_REPLY_SUPPRESS_SECS"{{ key_attrs("USERPREFS_NODEINFO_REPLY_SUPPRESS_SECS") }}>
+            <label for="nodeInfoReplySuppressSecs" class="form-label">Node Info Reply Suppression (seconds)</label>
+            <input type="number" class="form-control" id="nodeInfoReplySuppressSecs" name="node_info_reply_suppress_secs" min="0" placeholder="43200" aria-describedby="nodeInfoReplySuppressSecsHelp">
+            <div id="error-node_info_reply_suppress_secs" class="field-error invalid-feedback d-block"></div>
+            <div id="nodeInfoReplySuppressSecsHelp" class="form-text text-muted">The time before the device answers a node info request from the same node again. <code class="small">USERPREFS_NODEINFO_REPLY_SUPPRESS_SECS</code></div>
+        </fieldset>
+    </div>
+</div>

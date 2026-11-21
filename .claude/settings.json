@@ -9,13 +9,24 @@
       "Bash(uv run pytest:*)",
       "Bash(uv run ruff:*)",
       "Bash(uvicorn mtfwbuilder.main:app:*)",
+      "Bash(uv run uvicorn mtfwbuilder.main:app:*)",
+      "Bash(uv lock:*)",
+      "Bash(uv run python -m playwright install chromium)",
+      "Bash(uv run python -m tests.upstream_fixture:*)",
       "Bash(docker compose build:*)",
       "Bash(docker compose up:*)",
       "Bash(docker compose down:*)",
       "Bash(docker compose logs:*)",
       "Bash(pio project config:*)",
       "Bash(python -m playwright install chromium)",
-      "Bash(python3 docs/specs/render-spec.py)"
+      "Bash(python3 docs/specs/render-spec.py)",
+      "Bash(uv python install 3.13)",
+      "Bash(uv venv:*)",
+      "Bash(uv pip install:*)",
+      "Bash(.venv/bin/pytest:*)",
+      "Bash(.venv/bin/ruff:*)",
+      "Bash(.venv/bin/python -m pytest:*)",
+      "Bash(.venv/bin/python -m playwright install chromium)"
     ]
   },
   "hooks": {

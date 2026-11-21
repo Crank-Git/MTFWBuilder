@@ -1,0 +1,60 @@
+# CI runs the commands that CLAUDE.md documents, so a green check means the
+# local commands pass too.
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Lint, format check and tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The meshtastic python package requires Python <3.15, so 3.14 is the newest version to test.
+        python-version: ["3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v5
+
+      # The python-version input sets UV_PYTHON, which overrides .python-version.
+      - uses: astral-sh/setup-uv@v10.4.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install
+        run: uv sync --frozen
+
+      - name: Lint
+        run: uv run ruff check mtfwbuilder/ tests/
+
+      - name: Format check
+        run: uv run ruff format --check mtfwbuilder/ tests/
+
+      # The E2E tests in tests/e2e/ drive Chromium, so the browser and its system libraries come first.
+      # Both matrix entries run them, so the E2E tests cover 3.13 and 3.14.
+      - name: Install Chromium for the E2E tests
+        run: uv run python -m playwright install --with-deps chromium
+
+      - name: Tests
+        run: uv run pytest -q
+
+  docker:
+    name: Docker image build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # The image is built to prove the Dockerfile works. It is never pushed.
+      - name: Build
+        run: docker build --tag mtfwbuilder:ci .

@@ -5,8 +5,9 @@ project writes a `userPrefs.jsonc` file and compiles Meshtastic firmware with Pl
 The operator downloads the artifact and flashes the device. Every userPrefs key is a
 factory default: the device applies it on first boot and on factory reset only.
 
-**Current state (2026-11-21).** The v2 FastAPI backend exists. The pages still call v1
-URLs, so the end-to-end flow does not work. Epics 0–3 of the spec repair it.
+**Current state (2026-11-21).** Epics 0–12 are on `dev`. The end-to-end flow works: build,
+download, browser flashing, channel share, profiles, the build cache, fleet runs and push config.
+The manual hardware checks are open in #177.
 
 ## Spec
 
@@ -20,7 +21,7 @@ edit `docs/specs/spec.html` or `docs/specs/html/` by hand.
 
 ## Stack and layout
 
-- Python (3.11 today, 3.13 after Epic 4), FastAPI + uvicorn, one process.
+- Python 3.13 (uv manages the environment), FastAPI + uvicorn, one process.
 - Jinja2 templates + htmx (Epic 3), Bootstrap 5.3. No JavaScript build step.
 - SQLite through aiosqlite. PlatformIO for firmware builds.
 
@@ -29,9 +30,8 @@ edit `docs/specs/spec.html` or `docs/specs/html/` by hand.
 | `mtfwbuilder/main.py` | App factory, lifespan, middleware |
 | `mtfwbuilder/config.py` | Settings (`config.yaml`, then `MTFW_*` env vars) |
 | `mtfwbuilder/routers/` | HTTP routes, all API routes under `/api/v1` |
-| `mtfwbuilder/services/` | Generator, build service, registry, firmware updater, cleanup |
+| `mtfwbuilder/services/` | Generator, userPrefs key reader, build service, registry, firmware updater, cleanup |
 | `templates/`, `static/` | Pages and assets. Vendored libraries go in `static/vendor/`. |
-| `devices/variants.yaml` | Registry, until Epic 6 replaces it |
 | `tests/` | pytest suite. Fixtures in `tests/fixtures/`. |
 | `docs/adr/` | Architecture decision records |
 | `docs/external.md` | Environment variable names and upstream services. Never values. |
@@ -39,12 +39,22 @@ edit `docs/specs/spec.html` or `docs/specs/html/` by hand.
 ## Commands
 
 ```bash
-pip install -e ".[dev]"        # install (uv sync after Epic 4)
-pytest                         # tests (uv run pytest after Epic 4)
-ruff check mtfwbuilder/ tests/ # lint
-ruff format mtfwbuilder/ tests/  # format (black until Epic 0 drops it)
-uvicorn mtfwbuilder.main:app --reload --port 5000   # dev server
+uv sync                               # install, with the dev group
+uv run python -m playwright install chromium   # browser for the E2E tests in tests/e2e/
+uv run pytest                         # tests
+uv run ruff check mtfwbuilder/ tests/ # lint
+uv run ruff format mtfwbuilder/ tests/ # format
+uv run uvicorn mtfwbuilder.main:app --reload --port 5000   # dev server
 docker compose up -d           # Docker
+```
+
+Docker operations, for the `mtfwbuilder` service in `docker-compose.yml`:
+
+```bash
+docker compose logs -f                      # follow the container logs
+docker compose exec mtfwbuilder /bin/bash   # open a shell in the running container
+docker compose ps                           # show the container status
+git pull && docker compose build --no-cache && docker compose up -d   # update and rebuild
 ```
 
 The project has no real PlatformIO in tests. Tests use a fake `pio` (feature 06).

@@ -1,0 +1,11 @@
+{% extends "includes/base.html" %}
+
+{% block content %}
+<div class="config-section" id="fleet-run">
+    {% include "partials/fleet_run_state.html" %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='js/fleet_run.js') }}"></script>
+{% endblock %}

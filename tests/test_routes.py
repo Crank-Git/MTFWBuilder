@@ -5,23 +5,9 @@ import json
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from mtfwbuilder.main import create_app
-
 
 @pytest.fixture
-async def client():
-    app = create_app()
-    # Manually set up app state that lifespan would provide
-    from mtfwbuilder.config import load_settings
-    from mtfwbuilder.services.device_registry import DeviceRegistry
-    from mtfwbuilder.services.build_service import init_build_system
-
-    settings = load_settings()
-    app.state.settings = settings
-    app.state.device_registry = DeviceRegistry(settings.devices_file)
-    init_build_system(settings)
-    app.state.active_builds = {}
-
+async def client(app):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
@@ -34,13 +20,13 @@ class TestConfigGeneratorRoutes:
     async def test_generate_valid_config(self, client):
         resp = await client.post(
             "/api/v1/generate",
-            json={"device_name": "TestNode", "owner_short_name": "TST"},
+            json={"owner_long_name": "TestNode", "owner_short_name": "TST"},
         )
         assert resp.status_code == 200
         data = resp.json()
         assert data["success"] is True
         parsed = json.loads(data["content"])
-        assert parsed["USERPREFS_CONFIG_DEVICE_NAME"] == "TestNode"
+        assert parsed["USERPREFS_CONFIG_OWNER_LONG_NAME"] == "TestNode"
 
     @pytest.mark.asyncio
     async def test_generate_empty_config(self, client):
@@ -55,7 +41,7 @@ class TestConfigGeneratorRoutes:
     async def test_preview_returns_jsonc(self, client):
         resp = await client.post(
             "/api/v1/preview",
-            json={"device_name": "PreviewNode", "channels_to_write": "1"},
+            json={"owner_long_name": "PreviewNode", "channels_to_write": "1"},
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -66,13 +52,21 @@ class TestConfigGeneratorRoutes:
     async def test_download_returns_attachment(self, client):
         resp = await client.post(
             "/api/v1/download",
-            json={"device_name": "DLNode"},
+            json={"owner_long_name": "DLNode"},
         )
         assert resp.status_code == 200
         assert "attachment" in resp.headers.get("content-disposition", "")
         assert "userPrefs.jsonc" in resp.headers["content-disposition"]
         parsed = json.loads(resp.text)
-        assert parsed["USERPREFS_CONFIG_DEVICE_NAME"] == "DLNode"
+        assert parsed["USERPREFS_CONFIG_OWNER_LONG_NAME"] == "DLNode"
+
+    @pytest.mark.asyncio
+    async def test_config_form_has_no_device_name_field(self, client):
+        """Upstream reads no device name key, so the form offers no such field."""
+        resp = await client.get("/")
+        assert resp.status_code == 200
+        assert 'name="device_name"' not in resp.text
+        assert 'name="owner_long_name"' in resp.text
 
     @pytest.mark.asyncio
     async def test_preview_userprefs_valid_file(self, client):

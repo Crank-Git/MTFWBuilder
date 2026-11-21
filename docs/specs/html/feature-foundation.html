@@ -161,7 +161,7 @@ body.rv-open .layout { padding-right:21rem; }
 </ul></aside>
 <main>
 <h1>Feature: Foundation</h1>
-<p class="meta">Epic 0: Foundation &nbsp; <span class="badge">issued</span></p>
+<p class="meta">Epic 0: Foundation &nbsp; <span class="badge">built</span></p>
 <h3 id="foundation-purpose">Purpose</h3>
 <p>The foundation gives the loop the tools it needs: CI, the <code>dev</code> branch, lint rules, and isolated tests. It also removes the v1 files and adds the license. The audit below lists only the gaps. Items that exist already are not rebuilt.</p>
 <div class="table-wrap"><table>
@@ -232,7 +232,7 @@ body.rv-open .layout { padding-right:21rem; }
 <li>FR-foundation-10 — A smoke test starts the app with httpx and gets 200 from <code>/</code>,
 </li>
 </ul>
-<p><code>/firmware-builder</code> and <code>/admin</code>.</p>
+<p><code>/firmware-builder</code> and <code>/admin</code>. (Since Epic 3, <code>/firmware-builder</code> returns 308 to <code>/</code>; the smoke test checks <code>/</code> and <code>/admin</code>.)</p>
 <ul>
 <li>FR-foundation-11 — The repository has a <code>LICENSE</code> file with the GPL-3.0 text.
 </li>

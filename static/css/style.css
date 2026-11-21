@@ -229,6 +229,43 @@ body {
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
 }
 
+/* The tab layout holds each form section, so a section inside a tab pane has no card of its own. */
+.config-pane > .config-section,
+[data-bs-theme="dark"] .config-pane > .config-section {
+    background-color: transparent;
+    box-shadow: none;
+    padding: 0;
+    margin-bottom: 0;
+}
+
+.config-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+}
+
+.config-tabs .nav-link {
+    white-space: nowrap;
+}
+
+.config-tabs .tab-count {
+    font-size: 0.7rem;
+    margin-left: 2px;
+}
+
+.tab-error-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-left: 4px;
+    border-radius: 50%;
+    background-color: var(--bs-danger);
+    vertical-align: middle;
+}
+
+.tab-error-dot[hidden] {
+    display: none;
+}
+
 [data-bs-theme="dark"] .section-title {
     color: #e0e0e0;
 }
@@ -543,4 +580,48 @@ body {
 /* Build progress animation */
 .progress-bar-animated {
     animation: progress-bar-stripes 1s linear infinite;
+}
+/* The selector reads the toggle state, so the managed-mode notice shows without JavaScript too. */
+.managed-mode-notice {
+    display: none;
+}
+
+#securitySection:has(#securityIsManaged option[value="true"]:checked) .managed-mode-notice {
+    display: block;
+}
+
+/* Device picker: the support level colors follow the badges of mockup 03-device-picker. */
+.device-image {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    object-fit: contain;
+}
+
+.device-image-placeholder {
+    display: grid;
+    place-items: center;
+    border-radius: 0.375rem;
+    background: var(--bs-secondary-bg);
+    color: var(--bs-secondary-color);
+}
+
+.support-release {
+    background: var(--bs-success-bg-subtle);
+    color: var(--bs-success-text-emphasis);
+}
+
+.support-pr {
+    background: var(--bs-info-bg-subtle);
+    color: var(--bs-info-text-emphasis);
+}
+
+.support-extra {
+    background: var(--bs-warning-bg-subtle);
+    color: var(--bs-warning-text-emphasis);
+}
+
+/* The QR code SVG has a transparent background, and a camera cannot read dark modules on the dark theme. */
+.channel-share-qr svg {
+    background: #fff;
 }
