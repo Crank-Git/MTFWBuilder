@@ -60,7 +60,7 @@ async def start_build(request: Request) -> Response:
         raise HTTPException(status_code=400, detail=f"Unknown device variant: {variant_id}")
     variant = registry.get(variant_id)
     config_content = await _config_content(form)
-    # A browser sends an empty value for a select with no option, so an empty value asks for the default.
+    # An empty field asks for the default firmware version, the same as no field.
     firmware_version = form.get("firmware_version") or None
 
     try:

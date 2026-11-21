@@ -425,7 +425,7 @@ async def installed_firmware_source(settings: Settings, version: str | None = No
 
 async def run_build(ctx: BuildContext) -> None:
     """Run one build to an ended build status, and scrub the firmware source before the end event."""
-    # A firmware update can change the firmware source while the build waits, so the build reads it when it starts.
+    # The directory of the firmware source can be gone when the build starts, so the build reads the record again.
     source = await installed_firmware_source(ctx.settings, ctx.firmware_version)
     if source is None:
         ctx.set_status("failed", error=FIRMWARE_SOURCE_MISSING)
