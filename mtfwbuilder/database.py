@@ -204,6 +204,22 @@ async def delete_firmware_source(database_path: Path, version: str) -> None:
         await db.commit()
 
 
+async def list_variants(database_path: Path, version: str) -> list[dict]:
+    """Return the registry entries of the firmware version, in env order, without the `version` field.
+
+    The fields `requires_dfu`, `has_mui`, `has_ink_hud` and `actively_supported` are booleans.
+    """
+    async with aiosqlite.connect(database_path) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute("SELECT * FROM variants WHERE version = ? ORDER BY env", (version,))
+        rows = [dict(row) for row in await cursor.fetchall()]
+    for row in rows:
+        del row["version"]
+        for name in ("requires_dfu", "has_mui", "has_ink_hud", "actively_supported"):
+            row[name] = bool(row[name])
+    return rows
+
+
 async def list_firmware_sources(database_path: Path) -> list[dict]:
     """Return every firmware source record, the newest installed first."""
     async with aiosqlite.connect(database_path) as db:

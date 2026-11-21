@@ -115,6 +115,7 @@ MTFWBuilder/
 │   │   ├── config_generator.py     # /api/v1/generate, preview, download
 │   │   ├── firmware_builder.py     # /api/v1/build-firmware, SSE progress
 │   │   ├── firmware.py             # /api/v1/firmware, installed and upstream firmware versions
+│   │   ├── variants.py             # /api/v1/variants, registry of a firmware version, device images
 │   │   ├── admin.py                # Login, firmware updates, cleanup
 │   │   └── pages.py                # HTML page routes
 │   └── services/
@@ -178,6 +179,14 @@ Key endpoints:
 - `GET /api/v1/firmware/install/{install_id}/progress` (admin) — SSE install progress stream
 - `DELETE /api/v1/firmware/{version}` (admin) — Remove an installed firmware version. Returns 204,
   and 409 while a build uses it.
+- `GET /api/v1/variants?version=&q=&arch=&experimental=` — Registry entries of a firmware version, in env
+  order. Without `version`, the registry of the default firmware version. `q` matches the display name, the
+  env or the manufacturer without case and punctuation. Give `arch` once for each architecture to keep.
+  Variants with support level `extra` show only with `experimental=true`. Each entry has the registry
+  fields and `image_url`, which is null when the firmware source does not hold the image file. Returns 404
+  for a `version` that is not installed.
+- `GET /api/v1/variants/{env}/image?version=` — The SVG or PNG device image from the firmware source.
+  Returns 404 when the firmware source does not hold the image file named in `custom_meshtastic_images`.
 
 Each admin POST and DELETE requires the CSRF token. A form sends it in the field `csrf_token`.
 A JSON request and a DELETE request send it in the header `X-CSRF-Token`. Without a valid token,
@@ -200,6 +209,9 @@ Every other request gets JSON.
 The optional form field `firmware_version` names an installed firmware version, for example
 `v2.8.2.d5f1619`. Without it, the build uses the newest installed stable firmware version.
 A firmware version that is not installed gives 422 with a field error for `firmware_version`.
+A `variant` that is not in the registry of the firmware version gives 422 with a field error for
+`variant`, for example "Variant not in v2.8.2.d5f1619". A firmware version without a registry uses
+`devices/variants.yaml`.
 
 An htmx request to `/api/v1/build-firmware` or `/api/v1/builds/{id}` gets the progress
 panel as an HTML fragment. The page `/?build=<id>` shows the progress panel of that build.
