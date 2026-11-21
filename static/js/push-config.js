@@ -69,6 +69,7 @@ const UINT16 = {
     return value !== null && value <= 0xffff ? value : null;
   },
   show: String,
+  tooLarge: 'The firmware field holds at most 65535.',
 };
 // The Paxcounter thresholds are int32 fields, so a threshold can be negative.
 const INT = { profile: raw => (/^-?[0-9]+$/.test(raw) ? Number(raw) : null), show: String };
@@ -170,7 +171,14 @@ export const FIELD_MAP = [
   },
   { form: 'node_info_broadcast_secs', section: 'config.device', field: 'nodeInfoBroadcastSecs', type: UINT },
   { form: 'tz_string', section: 'config.device', field: 'tzdef', type: TZ },
-  { form: 'button_pin', section: 'config.device', field: 'buttonGpio', type: UINT, when: ['button_pin_enabled'] },
+  {
+    form: 'button_pin',
+    section: 'config.device',
+    field: 'buttonGpio',
+    type: UINT,
+    when: ['button_pin_enabled'],
+    hw: HW,
+  },
   {
     form: 'gps_mode',
     section: 'config.position',
@@ -514,9 +522,17 @@ function removedAdminKeys(read, config) {
   return count === 0 ? [] : Object.keys(found).map(Number).filter(slot => slot >= count && found[slot].length > 0);
 }
 
-/** Return the `{form, reason}` rows of `NOT_PUSHED` that the profile config `config` holds a value for. */
+/**
+ * Return the `{form, reason}` rows that push config does not send for the profile config `config`.
+ *
+ * The rows are the rows of `NOT_PUSHED` that `config` holds a value for, then each mapped value above the limit of a
+ * type with `tooLarge`.
+ */
 export function notPushed(config) {
-  return NOT_PUSHED.filter(row => filled(config[row.form]) && applies(row, config));
+  const tooLarge = FIELD_MAP.filter(row => row.type.tooLarge && filled(config[row.form]) && applies(row, config)
+    && row.type.profile(String(config[row.form])) === null)
+    .map(row => ({ form: row.form, reason: row.type.tooLarge }));
+  return [...NOT_PUSHED.filter(row => filled(config[row.form]) && applies(row, config)), ...tooLarge];
 }
 
 // A protobuf-es message keeps a nested plain object as it is, so the page sends plain objects only.

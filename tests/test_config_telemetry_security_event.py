@@ -215,6 +215,12 @@ def test_ringtone_nag_secs_above_65535_is_a_field_error():
     ]
 
 
+async def test_build_page_limits_the_ringtone_nag_seconds_input_to_65535(client):
+    html = (await client.get("/")).text
+
+    assert 'name="ringtone_nag_secs" min="0" max="65535"' in html
+
+
 def test_ringtone_nag_secs_of_65535_is_valid():
     assert ConfigRequest(ringtone_nag_secs="65535").ringtone_nag_secs == "65535"
 

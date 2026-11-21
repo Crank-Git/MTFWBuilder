@@ -3,6 +3,9 @@
 Each test feeds the profile through the profile API and pushes to the fake device of `test_push_config_e2e`.
 """
 
+import json
+from urllib.parse import urlsplit
+
 import pytest
 from playwright.sync_api import Page, expect
 
@@ -22,6 +25,7 @@ from tests.e2e.test_push_config_push_e2e import (
 pytestmark = pytest.mark.e2e
 
 PIN_WARNING = "This changes a pin. Check that the profile fits this board."
+NAG_TOO_LARGE = "The firmware field holds at most 65535."
 
 # A device with each module section of feature module-settings, as core 2.6.7 sends it.
 # The enum numbers come from `meshtastic/module_config.proto` at protobufs v2.7.8, the version in core 2.6.7.
@@ -168,6 +172,32 @@ def test_ringtone_nag_secs_reaches_the_device_as_nag_timeout(page: Page, live_se
     assert module_values(page) == {
         "externalNotification": {**MODULE_DEVICE["moduleConfig"]["externalNotification"], "nagTimeout": 45},
     }
+
+
+def test_profile_with_a_button_pin_shows_the_pin_warning(page: Page, live_server: str):
+    create_profile(page, live_server, "Button pin check", {"button_pin_enabled": "true", "button_pin": "12"})
+
+    connect(page, live_server, "Button pin check", read=MODULE_DEVICE)
+
+    assert {s["section"]: s["rows"] for s in diff_sections(page)} == {"config.device": [["button_gpio", "0", "12"]]}
+    assert page.evaluate(WARNINGS_JS) == [["config.device", "button_pin", PIN_WARNING]]
+
+
+def test_saved_nag_secs_above_65535_shows_under_not_pushed_and_gives_no_diff_row(page: Page, live_server: str):
+    profile = create_profile(page, live_server, "Old nag check", {"ringtone_nag_secs": "45"})
+
+    # The profile API now rejects the value, so the route gives the page a profile that was saved before the check.
+    def old_profile(route) -> None:
+        response = route.fetch()
+        body = response.json()
+        body["config"]["ringtone_nag_secs"] = "70000"
+        route.fulfill(response=response, body=json.dumps(body))
+
+    page.route(lambda url: urlsplit(url).path == f"/api/v1/profiles/{profile['id']}", old_profile)
+    connect(page, live_server, "Old nag check", read=MODULE_DEVICE)
+
+    assert diff_sections(page) == []
+    assert not_pushed(page) == {"ringtone_nag_secs": f"ringtone_nag_secs: {NAG_TOO_LARGE}"}
 
 
 # Each expected byte string is the protobuf encoding of the section, with the tag of its `ModuleConfig` field first.
