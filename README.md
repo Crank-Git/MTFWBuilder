@@ -192,7 +192,7 @@ docker compose logs -f
 The production overlay puts nginx in front of the project and serves HTTPS. You need HTTPS for two reasons:
 
 - The admin session cookie has the `Secure` flag unless `debug` is on. A browser does not send it over plain HTTP to a remote host.
-- Web Serial works only on a secure page, so browser flashing (planned) needs HTTPS.
+- Web Serial works only on a secure page, so browser flashing needs HTTPS.
 
 1. Copy the nginx config: `cp nginx/nginx.conf.example nginx/nginx.conf`.
 2. In `nginx/nginx.conf`, set `server_name` to your domain.
