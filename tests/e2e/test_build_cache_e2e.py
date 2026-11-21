@@ -14,6 +14,8 @@ pytestmark = pytest.mark.e2e
 def _build(page: Page, live_server: str) -> None:
     page.goto(f"{live_server}/")
     fill_config_form(page)
+    # A config with a secret never goes into the build cache, and a 1-byte PSK selects a published default key.
+    page.fill("#channel0PSK", "01")
     choose_variant(page, "heltec-v3")
     page.click("#buildBtn")
 

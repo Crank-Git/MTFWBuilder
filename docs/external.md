@@ -38,8 +38,9 @@ Settings read `config.yaml` first, then `MTFW_<FIELD>` environment variables
 ## Build cache and secrets
 
 A cache entry holds only artifacts, never the userPrefs file or the build log. An artifact holds the secrets of
-its config, as each artifact does. `MTFW_CACHE_TTL_SECONDS` sets how long a cache entry and its secrets stay on
-disk after the last use. With `MTFW_CACHE_ENABLED=false`, a build stores no cache entry.
+its config, so a build whose config holds a secret stores no cache entry and never gets one. A 1-byte channel PSK
+selects a published default key, so it is not a secret here. `MTFW_CACHE_TTL_SECONDS` sets how long a cache
+entry stays on disk after the last use. With `MTFW_CACHE_ENABLED=false`, a build stores no cache entry.
 
 ## Upstream services
 

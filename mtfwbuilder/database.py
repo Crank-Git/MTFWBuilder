@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS cache_entries (
     firmware_version TEXT NOT NULL,
     variant TEXT NOT NULL,
     artifact_dir TEXT NOT NULL,
+    artifact_names TEXT NOT NULL DEFAULT '[]',
     created_at REAL NOT NULL,
     last_used_at REAL NOT NULL
 );
@@ -86,6 +87,7 @@ DROP_CONFIG_PROFILES = "DROP TABLE IF EXISTS config_profiles"
 ADDED_COLUMNS = {
     "builds": {"config_hash": "TEXT", "firmware_version": "TEXT"},
     "profiles": {"secrets_ciphertext": "TEXT"},
+    "cache_entries": {"artifact_names": "TEXT"},
 }
 
 # A build in one of these build statuses has not ended.

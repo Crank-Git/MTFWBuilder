@@ -401,6 +401,7 @@ async def test_put_with_a_name_without_an_admin_session_returns_no_stored_secret
 
 async def test_put_with_store_secrets_off_deletes_the_stored_secrets(client, settings):
     saved = await _saved_with_secrets(client, settings)
+    _sign_in(client, settings)
 
     response = await client.put(f"/api/v1/profiles/{saved['id']}", json={"stores_secrets": False})
 
@@ -410,22 +411,91 @@ async def test_put_with_store_secrets_off_deletes_the_stored_secrets(client, set
     assert (await _rows(settings.database_path))[0]["secrets_ciphertext"] is None
 
 
-async def test_put_with_store_secrets_on_and_no_config_marks_the_secrets_must_reenter(client, settings):
+async def test_put_with_store_secrets_on_and_no_config_returns_422(client, settings):
     saved = (await _save(client)).json()
     _sign_in(client, settings)
 
     response = await client.put(f"/api/v1/profiles/{saved['id']}", json={"stores_secrets": True})
 
-    assert response.status_code == 200
-    assert response.json()["stores_secrets"] is True
-    assert response.json()["must_reenter"] == MUST_REENTER
-    assert response.json()["warning"] is None
+    assert response.status_code == 422
+    [row] = await _rows(settings.database_path)
+    assert row["stores_secrets"] == 0
+    assert row["secrets_ciphertext"] is None
+
+
+async def test_put_with_store_secrets_off_without_an_admin_session_returns_403(client, settings):
+    saved = await _saved_with_secrets(client, settings)
+
+    response = await client.put(f"/api/v1/profiles/{saved['id']}", json={"stores_secrets": False})
+
+    assert response.status_code == 403
+    assert (await _rows(settings.database_path))[0]["secrets_ciphertext"]
+
+
+async def test_put_with_store_secrets_off_without_a_csrf_token_returns_403(client, settings):
+    saved = await _saved_with_secrets(client, settings)
+    _sign_in(client, settings)
+    client.headers.pop(CSRF_HEADER)
+
+    response = await client.put(f"/api/v1/profiles/{saved['id']}", json={"stores_secrets": False})
+
+    assert response.status_code == 403
+    assert (await _rows(settings.database_path))[0]["secrets_ciphertext"]
+
+
+async def test_put_with_a_config_and_store_secrets_off_without_an_admin_session_returns_403(client, settings):
+    saved = await _saved_with_secrets(client, settings)
+
+    response = await client.put(
+        f"/api/v1/profiles/{saved['id']}", json={"config": {"owner_long_name": "Other"}, "stores_secrets": False}
+    )
+
+    assert response.status_code == 403
+    assert (await _rows(settings.database_path))[0]["secrets_ciphertext"]
+
+
+async def test_profile_with_store_secrets_set_and_no_ciphertext_shows_no_stored_secrets(client, settings):
+    saved = (await _save(client)).json()
+    async with aiosqlite.connect(settings.database_path) as db:
+        await db.execute("UPDATE profiles SET stores_secrets = 1 WHERE id = ?", (saved["id"],))
+        await db.commit()
+
+    body = (await client.get(f"/api/v1/profiles/{saved['id']}")).json()
+
+    assert body["stores_secrets"] is False
+    assert body["warning"] is None
+
+
+async def _post_with_secrets(client, settings):
+    _sign_in(client, settings)
+    return await _save_with_secrets(client)
+
+
+async def _get_with_secrets(client, settings):
+    saved = await _saved_with_secrets(client, settings)
+    _sign_in(client, settings)
+    return await client.get(f"/api/v1/profiles/{saved['id']}")
+
+
+async def _put_with_secrets(client, settings):
+    saved = await _saved_with_secrets(client, settings)
+    _sign_in(client, settings)
+    return await client.put(f"/api/v1/profiles/{saved['id']}", json={"name": "Event 2027"})
+
+
+@pytest.mark.parametrize("call", [_post_with_secrets, _get_with_secrets, _put_with_secrets], ids=["POST", "GET", "PUT"])
+async def test_profile_response_that_can_hold_secrets_is_never_stored_by_the_browser(client, settings, call):
+    response = await call(client, settings)
+
+    assert response.status_code in (200, 201)
+    assert WIFI_PSK in response.text
+    assert response.headers["cache-control"] == "no-store"
 
 
 async def test_put_with_store_secrets_on_without_an_admin_session_returns_403(client):
     saved = (await _save(client)).json()
 
-    response = await client.put(f"/api/v1/profiles/{saved['id']}", json={"stores_secrets": True})
+    response = await client.put(f"/api/v1/profiles/{saved['id']}", json={"config": CONFIG, "stores_secrets": True})
 
     assert response.status_code == 403
 

@@ -126,6 +126,26 @@ function markReenterFields(names) {
     return fields.sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
 }
 
+/**
+ * Return one message for the saved fields that the config form does not have, and one for a firmware version
+ * that is not installed. A profile from an older form can hold such values, and the load drops them.
+ */
+function formMismatches(profile) {
+    const form = document.getElementById('configForm');
+    const controls = new Set(Array.from(form.elements, element => element.name).filter(Boolean));
+    const missing = [...new Set([...Object.keys(profile.config), ...profile.must_reenter])].filter(name => !controls.has(name));
+    const messages = [];
+    if (missing.length) {
+        messages.push(`The form has no field for: ${missing.join(', ')}.`);
+    }
+    const version = profile.config.firmware_version;
+    const versionSelect = form.elements.namedItem('firmware_version');
+    if (version && versionSelect && !Array.from(versionSelect.options).some(option => option.value === version)) {
+        messages.push(`The firmware version ${version} is not installed.`);
+    }
+    return messages;
+}
+
 async function loadProfile(profileId) {
     const response = await fetch(`/api/v1/profiles/${encodeURIComponent(profileId)}`);
     if (!response.ok) {
@@ -144,7 +164,10 @@ async function loadProfile(profileId) {
     if (profile.warning) {
         parts.push(profile.warning);
     }
-    showProfileStatus(profile.warning || profile.must_reenter.length ? 'warning' : 'success', parts.join(' '));
+    const mismatches = formMismatches(profile);
+    parts.push(...mismatches);
+    const warn = profile.warning || profile.must_reenter.length || mismatches.length;
+    showProfileStatus(warn ? 'warning' : 'success', parts.join(' '));
     if (fields.length) {
         // The first field to re-enter opens its tab, so the operator sees the hint at once.
         showField(fields[0]);

@@ -98,7 +98,8 @@ def _profile(row: aiosqlite.Row, secret_key: str | None) -> dict[str, Any]:
         "name": record["name"],
         "config": config,
         "must_reenter": must_reenter,
-        "stores_secrets": bool(record["stores_secrets"]),
+        # A row from before the 422 check can have the option on and no secret, and it stores nothing.
+        "stores_secrets": bool(record["stores_secrets"]) and record["secrets_ciphertext"] is not None,
         "warning": warning,
         "created_at": record["created_at"],
         "updated_at": record["updated_at"],
@@ -160,8 +161,8 @@ async def create_profile(database_path: Path, secret_key: str, profile: ProfileR
 async def update_profile(database_path: Path, secret_key: str, profile_id: int, update: ProfileUpdate) -> bool:
     """Change the name, the config or the store secrets option of the profile.
 
-    A None field of `update` keeps the saved value. A false `stores_secrets` deletes the stored secrets. A true
-    `stores_secrets` without a config stores no secret, so each secret field stays in `must_reenter`.
+    A None field of `update` keeps the saved value. A false `stores_secrets` deletes the stored secrets. The route
+    refuses a true `stores_secrets` without a config unless the profile stores secrets already.
     Returns False when no profile has the id `profile_id`.
 
     Raises:

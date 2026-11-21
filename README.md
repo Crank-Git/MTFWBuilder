@@ -28,7 +28,7 @@ In this README, "planned" marks a part that the code does not do yet. The spec i
 - **Device registry** — Each firmware version has its own registry. The install reads it from the firmware source with `pio project config --json-output`. ESP32 variants give `.bin` files. nRF52840 and RP2040 variants give `.uf2` files.
 - **Factory Binary Support** — ESP32 devices get both `firmware.bin` and `firmware.factory.bin`
 - **Build progress (planned)** — The progress stream `GET /api/v1/build-progress/{id}` exists. The build page does not open it yet.
-- **Profiles** — Save the config form as a profile, and load it again later. A profile stores no secret, so the build page marks each secret field to re-enter. The `/profiles` page loads, renames, exports as JSON and deletes a profile.
+- **Profiles** — Save the config form as a profile, and load it again later. A profile stores no secret unless the profile stores secrets, so the build page marks each secret field to re-enter. The `/profiles` page loads, renames, exports as JSON and deletes a profile.
 - **Admin Dashboard** — Sign-in, firmware sources (install and remove firmware versions), build cleanup and recent builds.
 - **Dark Mode** — Default dark theme with light mode toggle
 
@@ -205,7 +205,8 @@ Key endpoints:
   admin keys and the mesh beacon offer PSK. `must_reenter` names each removed field.
 - With `"stores_secrets": true`, the profile keeps the secrets encrypted with Fernet. The key comes from
   `secret_key` through HKDF-SHA256. This save needs an admin session and the CSRF token, else it returns
-  403. No response holds the encrypted secrets.
+  403. No response holds the encrypted secrets. The responses of `POST`, `GET` one and `PUT` send
+  `Cache-Control: no-store`, because they can hold the stored secrets.
 - `GET /api/v1/profiles/{id}` — The profile. Returns 404 for an unknown profile. Only an admin session
   gets the stored secrets in `config`. Without one, `must_reenter` names them, and `warning` is
   "Sign in as admin to load the stored secrets."
@@ -213,14 +214,16 @@ Key endpoints:
   `must_reenter` and sets `warning`.
 - `PUT /api/v1/profiles/{id}` — Rename with `{"name": ...}`, replace the config with `{"config": {...}}`,
   set the option with `{"stores_secrets": ...}`, or more of them. A false `stores_secrets` deletes the
-  stored secrets. A change that stores secrets needs an admin session and the CSRF token, else it returns
-  403. Returns 409 when another profile has the new name.
+  stored secrets. A change that stores or removes secrets needs an admin session and the CSRF token, else it
+  returns 403. A false `stores_secrets` and a new config of a profile that stores secrets are such changes.
+  Returns 409 when another profile has the new name. Returns 422 for `{"stores_secrets": true}` without a
+  config, when the profile stores no secrets.
 - `DELETE /api/v1/profiles/{id}` — Delete the profile. Returns 204.
 - `GET /api/v1/profiles/{id}/export` — The profile as a JSON file with `name`, `config` and
   `must_reenter`, without secrets.
 
 Each operator of the instance uses each profile. The profile routes need no admin session, except to
-store secrets or to load the stored secrets.
+store, load or remove the stored secrets.
 
 Each admin POST and DELETE requires the CSRF token. A form sends it in the field `csrf_token`.
 A JSON request and a DELETE request send it in the header `X-CSRF-Token`. Without a valid token,
