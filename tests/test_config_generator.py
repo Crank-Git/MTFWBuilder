@@ -14,9 +14,10 @@ class TestBasicFields:
         assert result["USERPREFS_CHANNELS_TO_WRITE"] == "1"
         assert len(result) == 1
 
-    def test_device_name(self):
+    def test_device_name_writes_no_key(self):
+        """Upstream reads no device name key, so the generator writes none."""
         result = json.loads(generate_jsonc({"device_name": "TestNode"}))
-        assert result["USERPREFS_CONFIG_DEVICE_NAME"] == "TestNode"
+        assert "USERPREFS_CONFIG_DEVICE_NAME" not in result
 
     def test_owner_short_name(self):
         result = json.loads(generate_jsonc({"owner_short_name": "TST"}))
@@ -36,14 +37,13 @@ class TestBasicFields:
 
     def test_empty_string_fields_omitted(self):
         """Fields with empty string values should be omitted."""
-        result = json.loads(generate_jsonc({"device_name": "", "owner_short_name": ""}))
-        assert "USERPREFS_CONFIG_DEVICE_NAME" not in result
+        result = json.loads(generate_jsonc({"owner_short_name": "", "owner_long_name": ""}))
         assert "USERPREFS_CONFIG_OWNER_SHORT_NAME" not in result
+        assert "USERPREFS_CONFIG_OWNER_LONG_NAME" not in result
 
     def test_full_basic_config(self, sample_config_data):
         """Full basic config with all fields set."""
         result = json.loads(generate_jsonc(sample_config_data))
-        assert result["USERPREFS_CONFIG_DEVICE_NAME"] == "TestNode"
         assert result["USERPREFS_CONFIG_OWNER_SHORT_NAME"] == "TST"
         assert result["USERPREFS_CONFIG_OWNER_LONG_NAME"] == "Test Node"
 
@@ -172,19 +172,23 @@ class TestGPSConfig:
             "fixed_alt": "10",
         }
         result = json.loads(generate_jsonc(data))
-        assert result["USERPREFS_CONFIG_POSITION_FIXED_LAT"] == "37.7749"
-        assert result["USERPREFS_CONFIG_POSITION_FIXED_LON"] == "-122.4194"
-        assert result["USERPREFS_CONFIG_POSITION_FIXED_ALT"] == "10"
+        assert result["USERPREFS_FIXED_GPS"] == "true"
+        assert result["USERPREFS_FIXED_GPS_LAT"] == "37.7749"
+        assert result["USERPREFS_FIXED_GPS_LON"] == "-122.4194"
+        assert result["USERPREFS_FIXED_GPS_ALT"] == "10"
+        assert not any(key.startswith("USERPREFS_CONFIG_POSITION_FIXED") for key in result)
 
     def test_fixed_position_disabled_skips_coords(self):
         data = {"gps_enabled": "true", "fixed_position": "false", "fixed_lat": "37.7749"}
         result = json.loads(generate_jsonc(data))
-        assert "USERPREFS_CONFIG_POSITION_FIXED_LAT" not in result
+        assert "USERPREFS_FIXED_GPS" not in result
+        assert "USERPREFS_FIXED_GPS_LAT" not in result
 
     def test_smart_position(self):
         data = {"gps_enabled": "true", "smart_position_enabled": "true"}
         result = json.loads(generate_jsonc(data))
-        assert result["USERPREFS_CONFIG_POSITION_SMART_ENABLED"] == "true"
+        assert result["USERPREFS_CONFIG_SMART_POSITION_ENABLED"] == "true"
+        assert "USERPREFS_CONFIG_POSITION_SMART_ENABLED" not in result
 
 
 class TestNetworkConfig:
@@ -193,7 +197,13 @@ class TestNetworkConfig:
     def test_network_disabled_skipped(self):
         data = {"network_enabled": "false", "wifi_ssid": "test"}
         result = json.loads(generate_jsonc(data))
-        assert "USERPREFS_CONFIG_WIFI_SSID" not in result
+        assert "USERPREFS_NETWORK_WIFI_SSID" not in result
+
+    def test_network_protocols(self):
+        data = {"network_enabled": "true", "network_protocols": "1"}
+        result = json.loads(generate_jsonc(data))
+        assert result["USERPREFS_NETWORK_ENABLED_PROTOCOLS"] == "1"
+        assert "USERPREFS_CONFIG_NETWORK_ENABLED_PROTOCOLS" not in result
 
     def test_wifi_config(self):
         data = {
@@ -203,8 +213,16 @@ class TestNetworkConfig:
             "wifi_psk": "password123",
         }
         result = json.loads(generate_jsonc(data))
-        assert result["USERPREFS_CONFIG_WIFI_SSID"] == "MyNetwork"
-        assert result["USERPREFS_CONFIG_WIFI_PSK"] == "password123"
+        assert result["USERPREFS_NETWORK_WIFI_ENABLED"] == "true"
+        assert result["USERPREFS_NETWORK_WIFI_SSID"] == "MyNetwork"
+        assert result["USERPREFS_NETWORK_WIFI_PSK"] == "password123"
+        assert not any(key.startswith("USERPREFS_CONFIG_WIFI") for key in result)
+
+    def test_wifi_disabled_skipped(self):
+        data = {"network_enabled": "true", "wifi_enabled": "false", "wifi_ssid": "MyNetwork"}
+        result = json.loads(generate_jsonc(data))
+        assert "USERPREFS_NETWORK_WIFI_ENABLED" not in result
+        assert "USERPREFS_NETWORK_WIFI_SSID" not in result
 
     def test_mqtt_config(self):
         data = {
@@ -218,17 +236,20 @@ class TestNetworkConfig:
             "mqtt_tls_enabled": "false",
         }
         result = json.loads(generate_jsonc(data))
-        assert result["USERPREFS_CONFIG_MQTT_SERVER"] == "mqtt.example.com"
-        assert result["USERPREFS_CONFIG_MQTT_ROOT_TOPIC"] == "msh"
-        assert result["USERPREFS_CONFIG_MQTT_USERNAME"] == "user"
-        assert result["USERPREFS_CONFIG_MQTT_PASSWORD"] == "pass"
-        assert result["USERPREFS_CONFIG_MQTT_ENCRYPTION_ENABLED"] == "true"
-        assert result["USERPREFS_CONFIG_MQTT_TLS_ENABLED"] == "false"
+        assert result["USERPREFS_MQTT_ENABLED"] == "true"
+        assert result["USERPREFS_MQTT_ADDRESS"] == "mqtt.example.com"
+        assert result["USERPREFS_MQTT_ROOT_TOPIC"] == "msh"
+        assert result["USERPREFS_MQTT_USERNAME"] == "user"
+        assert result["USERPREFS_MQTT_PASSWORD"] == "pass"
+        assert result["USERPREFS_MQTT_ENCRYPTION_ENABLED"] == "true"
+        assert result["USERPREFS_MQTT_TLS_ENABLED"] == "false"
+        assert not any(key.startswith("USERPREFS_CONFIG_MQTT") for key in result)
 
     def test_mqtt_disabled_skipped(self):
         data = {"network_enabled": "true", "mqtt_enabled": "false", "mqtt_address": "x"}
         result = json.loads(generate_jsonc(data))
-        assert "USERPREFS_CONFIG_MQTT_SERVER" not in result
+        assert "USERPREFS_MQTT_ENABLED" not in result
+        assert "USERPREFS_MQTT_ADDRESS" not in result
 
 
 class TestAdminKeys:
@@ -258,12 +279,27 @@ class TestOEMConfig:
     def test_oem_text(self):
         data = {"oem_text": "Custom Mesh"}
         result = json.loads(generate_jsonc(data))
-        assert result["USERPREFS_CONFIG_OEM_TEXT"] == "Custom Mesh"
+        assert result["USERPREFS_OEM_TEXT"] == "Custom Mesh"
+
+    def test_oem_image_and_font(self):
+        data = {
+            "oem_font_size": "0",
+            "oem_image_width": "50",
+            "oem_image_height": "28",
+            "oem_image_data": "{ 0x00, 0xFF }",
+        }
+        result = json.loads(generate_jsonc(data))
+        assert result["USERPREFS_OEM_FONT_SIZE"] == "0"
+        assert result["USERPREFS_OEM_IMAGE_WIDTH"] == "50"
+        assert result["USERPREFS_OEM_IMAGE_HEIGHT"] == "28"
+        assert result["USERPREFS_OEM_IMAGE_DATA"] == "{ 0x00, 0xFF }"
+        assert not any(key.startswith("USERPREFS_CONFIG_OEM") for key in result)
 
     def test_oem_empty_omitted(self):
         data = {"oem_text": "", "oem_font_size": ""}
         result = json.loads(generate_jsonc(data))
-        assert "USERPREFS_CONFIG_OEM_TEXT" not in result
+        assert "USERPREFS_OEM_TEXT" not in result
+        assert "USERPREFS_OEM_FONT_SIZE" not in result
 
 
 class TestOutputFormat:
@@ -275,6 +311,6 @@ class TestOutputFormat:
         assert isinstance(parsed, dict)
 
     def test_output_is_indented(self):
-        output = generate_jsonc({"device_name": "Test"})
+        output = generate_jsonc({"owner_long_name": "Test"})
         assert "\n" in output
         assert "  " in output
