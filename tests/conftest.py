@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from mtfwbuilder.auth import CSRF_COOKIE, SESSION_COOKIE, create_session_token, csrf_token
 from mtfwbuilder.config import _hash_password, load_settings
 from mtfwbuilder.main import create_app
 from mtfwbuilder.rate_limit import limiter
@@ -21,6 +22,19 @@ SECRET_KEY = "test-secret-key"
 
 # bcrypt is slow by design, so the suite hashes the password once.
 _ADMIN_PASSWORD_HASH = _hash_password(ADMIN_PASSWORD)
+
+
+# A fixed CSRF cookie value, so a test can sign the CSRF token without a page request.
+_CSRF_NONCE = "test-csrf-nonce"
+
+
+def sign_in_admin(client, settings):
+    """Return the CSRF token for admin forms, after the client gets an admin session and the CSRF cookie."""
+    # A cookie from a response has a domain, so a second cookie of that name would go with each request.
+    for name, value in ((SESSION_COOKIE, create_session_token(settings)), (CSRF_COOKIE, _CSRF_NONCE)):
+        client.cookies.delete(name)
+        client.cookies.set(name, value)
+    return csrf_token(_CSRF_NONCE, settings)
 
 
 @pytest.fixture
