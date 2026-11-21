@@ -28,6 +28,11 @@ VENDORED = [
 #   A `{"$bytes": [..]}` value becomes a Uint8Array, as a protobuf-es bytes field is.
 # - `configureError`: the message of a `configure()` that fails.
 # - `disconnectError`: a `disconnect()` that fails.
+# - `rejects`: the sections whose set message the device rejects with BAD_REQUEST (32), for example "config.lora".
+# - `dropOn`: the method name whose first call drops the connection. That call never answers, as a lost port does.
+# A set message waits in `pending` until `commitEditSettings`, which writes it into `read` and then restarts the
+# device. So a later `configure()` sends the committed config, and a drop discards the pending set messages.
+# `sent` records the name and the argument of each admin call.
 FAKE_DEVICE = """
 (options => {
   const dispatcher = () => {
@@ -73,7 +78,46 @@ FAKE_DEVICE = """
       return options.disconnectError ? Promise.reject(new Error('The port is closed.')) : Promise.resolve();
     },
   };
-  const record = name => (...args) => { device.calls.push(name); return Promise.resolve(0); };
+  device.read = read;
+  device.sent = [];
+  let pending = [];
+  const sectionOf = (name, value) => ({
+    setConfig: () => `config.${value.payloadVariant.case}`,
+    setModuleConfig: () => `moduleConfig.${value.payloadVariant.case}`,
+    setChannel: () => `channels.${value.index}`,
+    setOwner: () => 'owner',
+  })[name]();
+  const apply = ([name, value]) => {
+    if (name === 'setConfig' || name === 'setModuleConfig') {
+      const root = name === 'setConfig' ? 'config' : 'moduleConfig';
+      read[root] = { ...read[root], [value.payloadVariant.case]: value.payloadVariant.value };
+    } else if (name === 'setChannel') {
+      read.channels = [...(read.channels || []).filter(channel => channel.index !== value.index), value];
+    } else {
+      read.owner = value;
+    }
+  };
+  const record = name => value => {
+    device.calls.push(name);
+    device.sent.push({ name, value });
+    if (options.dropOn === name && !device.dropped) {
+      device.dropped = true;
+      pending = [];
+      events.onDeviceStatus.dispatch(2);
+      return new Promise(() => {});
+    }
+    if (name === 'commitEditSettings') {
+      pending.forEach(apply);
+      pending = [];
+      setTimeout(() => events.onDeviceStatus.dispatch(2));
+    } else if (name.startsWith('set')) {
+      if ((options.rejects || []).includes(sectionOf(name, value))) {
+        return Promise.reject({ id: device.sent.length, error: 32 });
+      }
+      pending.push([name, value]);
+    }
+    return Promise.resolve(device.sent.length);
+  };
   ['beginEditSettings', 'commitEditSettings', 'setConfig', 'setModuleConfig', 'setChannel', 'setOwner',
    'sendPacket', 'sendRaw'].forEach(name => { device[name] = record(name); });
   window.__pushConfigTestDevice = device;

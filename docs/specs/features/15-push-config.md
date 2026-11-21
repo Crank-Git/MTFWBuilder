@@ -48,6 +48,9 @@ so the epic starts with a spike.
   detection_sensor, paxcounter. The protobufs in `@meshtastic/core` 2.6.7 are 2.7.8.
   They have no `statusmessage` or `traffic_management` field, so push config does not
   cover those two sections (owner ruling on #70). A newer library can add them again.
+  **Deferred** (PM decision at the #73 gate): a profile has no field for these
+  sections, so Epic 12 pushes only profile fields.
+  [#182](https://github.com/Crank-Git/MTFWBuilder/issues/182) carries the work.
 - FR-push-config-11 — When the device has managed mode on, the page shows "This device
   is managed. Only an admin key holder can change it remotely." and pushes nothing.
 - FR-push-config-12 — Secrets go only from the page to the device. The server receives

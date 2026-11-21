@@ -43,8 +43,11 @@
             <div id="push-diff-sections"></div>
         </div>
         <div class="alert alert-info" role="status" id="push-no-changes" hidden>The device already matches this profile.</div>
-        {# TODO(#74): Enable Push when a section is selected and the operator entered each secret. #}
         <button type="button" class="btn btn-primary" id="push-send" disabled>Push</button>
+        <ul class="list-unstyled mt-3" id="push-results" aria-live="polite" hidden></ul>
+        <div class="alert alert-info" role="status" id="push-restart" hidden>The device saved the config and restarts now. The page connects again when the device returns.</div>
+        <div class="alert alert-warning" role="alert" id="push-dropped" hidden>The connection dropped before the commit. The device keeps its old config.</div>
+        <div class="alert alert-warning" role="alert" id="push-reconnect-failed" hidden>The device did not return. Select Connect via USB or Connect via Bluetooth.</div>
     </div>
     <div class="alert alert-warning mt-3" role="alert" id="push-managed" hidden>This device is managed. Only an admin key holder can change it remotely.</div>
     <div class="alert alert-danger mt-3" role="alert" id="push-error" hidden></div>
