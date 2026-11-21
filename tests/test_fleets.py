@@ -131,7 +131,7 @@ async def test_list_returns_every_fleet(client, profile_id):
 async def test_get_returns_404_for_an_unknown_fleet(client):
     response = await client.get("/api/v1/fleets/999")
 
-    assert response.status_code == 404
+    assert response.json()["detail"] == "Fleet 999 does not exist"
 
 
 async def test_put_renames_the_fleet_and_keeps_its_devices(client, profile_id):
@@ -173,7 +173,7 @@ async def test_put_with_an_empty_body_returns_422(client, profile_id):
 async def test_put_returns_404_for_an_unknown_fleet(client):
     response = await client.put("/api/v1/fleets/999", json={"name": "X"})
 
-    assert response.status_code == 404
+    assert response.json()["detail"] == "Fleet 999 does not exist"
 
 
 async def test_delete_removes_the_fleet_and_its_devices(client, profile_id, settings):
@@ -189,7 +189,7 @@ async def test_delete_removes_the_fleet_and_its_devices(client, profile_id, sett
 async def test_delete_returns_404_for_an_unknown_fleet(client):
     response = await client.delete("/api/v1/fleets/999")
 
-    assert response.status_code == 404
+    assert response.json()["detail"] == "Fleet 999 does not exist"
 
 
 @pytest.mark.parametrize(
