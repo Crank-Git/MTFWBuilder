@@ -140,6 +140,7 @@ async def test_get_of_an_unknown_profile_returns_404(client):
     response = await client.get("/api/v1/profiles/999")
 
     assert response.status_code == 404
+    assert response.json()["detail"] == "Profile 999 does not exist"
 
 
 async def test_put_with_a_name_renames_the_profile_and_keeps_the_config(client):
@@ -189,6 +190,7 @@ async def test_put_of_an_unknown_profile_returns_404(client):
     response = await client.put("/api/v1/profiles/999", json={"name": "x"})
 
     assert response.status_code == 404
+    assert response.json()["detail"] == "Profile 999 does not exist"
 
 
 async def test_delete_removes_the_profile(client):
@@ -204,6 +206,7 @@ async def test_delete_of_an_unknown_profile_returns_404(client):
     response = await client.delete("/api/v1/profiles/999")
 
     assert response.status_code == 404
+    assert response.json()["detail"] == "Profile 999 does not exist"
 
 
 async def test_export_returns_a_json_file_without_secrets(client):
@@ -223,6 +226,7 @@ async def test_export_of_an_unknown_profile_returns_404(client):
     response = await client.get("/api/v1/profiles/999/export")
 
     assert response.status_code == 404
+    assert response.json()["detail"] == "Profile 999 does not exist"
 
 
 async def test_init_db_drops_the_unused_config_profiles_table(settings):
