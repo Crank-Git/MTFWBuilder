@@ -32,6 +32,12 @@
         {% endfor %}
     </tbody>
 </table>
+{# Every ESP32-family architecture has the flash method web-serial (FR-generated-registry-14). #}
+{% if build.variant.flash_method == "web-serial" %}
+{% include "partials/flash_panel.html" %}
+{% else %}
+{% include "partials/uf2_panel.html" %}
+{% endif %}
 {% endif %}
 
 {% if not build.ended %}
