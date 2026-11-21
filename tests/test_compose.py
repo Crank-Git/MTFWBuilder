@@ -37,6 +37,14 @@ def test_production_overlay_keeps_the_nginx_ports():
     assert published == {"80", "443"}
 
 
+def test_production_overlay_trusts_only_the_backend_network():
+    # nginx reaches the app only on the backend network, so the app counts each X-Forwarded-For client.
+    config = _merged_config("docker-compose.yml", "docker-compose.prod.yml")
+    subnet = config["networks"]["backend"]["ipam"]["config"][0]["subnet"]
+    assert config["services"]["mtfwbuilder"]["environment"]["MTFW_TRUSTED_PROXIES"] == subnet
+    assert set(config["services"]["mtfwbuilder"]["networks"]) == {"backend"}
+
+
 def test_no_compose_file_mounts_a_shared_build_cache():
     # The project sets no shared PlatformIO build cache, because the cache kept objects compiled with secrets.
     for files in (("docker-compose.yml",), ("docker-compose.yml", "docker-compose.prod.yml")):
