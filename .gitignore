@@ -95,6 +95,9 @@ flask_session/
 # Firmware source directory (downloaded)
 /firmware/
 
+# Data directory: firmware sources, artifacts, the database and config.yaml
+/data/
+
 # Build artifacts
 *.o
 *.a

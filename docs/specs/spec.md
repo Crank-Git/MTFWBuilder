@@ -114,6 +114,7 @@ the header of `userPrefs.jsonc` in `meshtastic/firmware` `develop@fe89ac1`.
 | artifact | noun | One file a build produces for the operator, for example `firmware-heltec-v4-2.7.26.54e0d8d.factory.bin`. | output, binary, image |
 | build queue | noun | The ordered list of builds that wait for a free build worker. | job queue |
 | build worker | noun | The process slot that runs one build at a time. | runner, executor |
+| data directory | noun | The one directory that holds all state: firmware sources, artifacts, the database and `config.yaml`. `MTFW_DATA_DIR` sets it. | state dir, volume (alone) |
 | build cache | noun | Stored artifacts, keyed by a hash of firmware version, variant and userPrefs file. | artifact store |
 | progress stream | noun | The Server-Sent Events (SSE) stream that sends build status and log lines to the page. | event feed, socket |
 | scrub | verb | To delete every file that holds a secret, after a build ends. | sanitize, wipe, clean |
