@@ -279,8 +279,7 @@ startup. No code reads or writes them.
 | `builds` | `id` TEXT PK, `variant`, `architecture`, `firmware_format` TEXT NOT NULL, `status` TEXT NOT NULL default `queued`, `firmware_path`, `build_log`, `error_message` TEXT, `created_at` default now, `completed_at` | Unused. Builds live in memory (`app.state.active_builds`). |
 | `config_profiles` | `id` INTEGER PK, `name` TEXT NOT NULL, `config_json` TEXT NOT NULL, `created_at`, `updated_at` | Unused. `name` is not unique. |
 
-The registry is a YAML file today (`devices/variants.yaml`, 150 entries, fields `id`,
-`name`, `manufacturer`, `architecture`, `pio_platform`).
+The registry was a YAML file at the inherit (`devices/variants.yaml`, 150 entries). Since Epic 6 (#145) it is the `variants` table, generated per firmware version.
 
 **Planned.** Each planned feature file states its own fields and migration.
 
@@ -727,3 +726,4 @@ Written by `/spec-to-issues` on 2026-11-21.
 - 2026-11-21 — Epic 4 shipped (#112). Batch review fixes: the data-directory move respects path overrides and scrubs an old firmware tree it keeps; production trusts only the nginx network for `X-Forwarded-For`; nginx repeats its security headers in each block. Terms: added `release channel` and `install` (the word `channel` alone means a Meshtastic channel).
 - 2026-11-21 — Epic 3 shipped (#124). Milestone M1 (Works again) is complete. Additions accepted at the batch gate: `GET /api/v1/builds/{id}`, `config_source=form`, and `?log_from=` on the progress stream. CSRF covers sign-in and sign-out too. Not built from the Screens table: the build queue position and the elapsed time.
 - 2026-11-21 — Epic 5 shipped (#132). PM decisions: the default firmware version falls back to the newest installed version of any release channel when no stable one is installed; `require_csrf` accepts the `X-CSRF-Token` header; `GET /api/v1/firmware/available` has no CSRF (read-only); the startup cleanup may remove a half-imported old firmware source after a crash (it is downloadable again).
+- 2026-11-21 — Epic 6 shipped (#145). The registry comes from `pio project config --json-output` per firmware version (ADR 0006); a bad value in one env skips that field or env, not the version. The YAML registry and feature 03 are retired. Open: #139 (device image source, owner question), #144 (weekly registry check). Epic 9 (held) must update its flash and UF2 branches to the new architecture values (PR #135 finding).

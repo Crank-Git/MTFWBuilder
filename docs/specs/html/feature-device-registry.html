@@ -161,9 +161,10 @@ body.rv-open .layout { padding-right:21rem; }
 </ul></aside>
 <main>
 <h1>Feature: Device registry</h1>
-<p class="meta">— &nbsp; <span class="badge">built</span></p>
+<p class="meta">— &nbsp; <span class="badge">retired</span></p>
 <h3 id="device-registry-purpose">Purpose</h3>
 <p>The registry is the list of variants the firmware builder page offers. Today it is a hand-kept YAML file. This file describes the code at commit <code>bd15bb1</code>.</p>
+<p><strong>Retired.</strong> Epic 6 (#145) deleted <code>devices/variants.yaml</code> and its loader. The registry now comes from the firmware source; see <code>10-generated-registry.md</code>.</p>
 <h3 id="device-registry-user-stories">User stories</h3>
 <ul>
 <li>As an operator, I want to choose my device from a list, so that the build compiles the

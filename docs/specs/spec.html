@@ -413,7 +413,7 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><td><code>builds</code></td><td><code>id</code> TEXT PK, <code>variant</code>, <code>architecture</code>, <code>firmware_format</code> TEXT NOT NULL, <code>status</code> TEXT NOT NULL default <code>queued</code>, <code>firmware_path</code>, <code>build_log</code>, <code>error_message</code> TEXT, <code>created_at</code> default now, <code>completed_at</code></td><td>Unused. Builds live in memory (<code>app.state.active_builds</code>).</td></tr>
 <tr><td><code>config_profiles</code></td><td><code>id</code> INTEGER PK, <code>name</code> TEXT NOT NULL, <code>config_json</code> TEXT NOT NULL, <code>created_at</code>, <code>updated_at</code></td><td>Unused. <code>name</code> is not unique.</td></tr>
 </table></div>
-<p>The registry is a YAML file today (<code>devices/variants.yaml</code>, 150 entries, fields <code>id</code>, <code>name</code>, <code>manufacturer</code>, <code>architecture</code>, <code>pio_platform</code>).</p>
+<p>The registry was a YAML file at the inherit (<code>devices/variants.yaml</code>, 150 entries). Since Epic 6 (#145) it is the <code>variants</code> table, generated per firmware version.</p>
 <p><strong>Planned.</strong> Each planned feature file states its own fields and migration.</p>
 <div class="table-wrap"><table>
 <tr><th>Entity</th><th>Owner feature</th><th>Key fields</th><th>Lifecycle</th></tr>
@@ -907,6 +907,8 @@ body.rv-open .layout { padding-right:21rem; }
 <li>2026-11-21 — Epic 3 shipped (#124). Milestone M1 (Works again) is complete. Additions accepted at the batch gate: <code>GET /api/v1/builds/{id}</code>, <code>config_source=form</code>, and <code>?log_from=</code> on the progress stream. CSRF covers sign-in and sign-out too. Not built from the Screens table: the build queue position and the elapsed time.
 </li>
 <li>2026-11-21 — Epic 5 shipped (#132). PM decisions: the default firmware version falls back to the newest installed version of any release channel when no stable one is installed; <code>require_csrf</code> accepts the <code>X-CSRF-Token</code> header; <code>GET /api/v1/firmware/available</code> has no CSRF (read-only); the startup cleanup may remove a half-imported old firmware source after a crash (it is downloadable again).
+</li>
+<li>2026-11-21 — Epic 6 shipped (#145). The registry comes from <code>pio project config --json-output</code> per firmware version (ADR 0006); a bad value in one env skips that field or env, not the version. The YAML registry and feature 03 are retired. Open: #139 (device image source, owner question), #144 (weekly registry check). Epic 9 (held) must update its flash and UF2 branches to the new architecture values (PR #135 finding).
 </li>
 </ul><nav class="pager">
 <span></span>
