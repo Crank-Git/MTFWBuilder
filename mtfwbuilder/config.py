@@ -96,7 +96,8 @@ def prepare_data_dir(data_dir: Path, base_dir: Path) -> None:
         old, new = base_dir / name, data_dir / name
         if old.exists() and not new.exists():
             shutil.move(old, new)
-            logger.info(f"Moved {old} to {new}")
+            # Startup configures logging after the settings load, and the default level drops an info line.
+            logger.warning(f"Moved {old} to {new}")
 
 
 def load_settings() -> Settings:
