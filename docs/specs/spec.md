@@ -697,3 +697,4 @@ Written by `/spec-to-issues` on 2026-11-21.
   factory defaults, an interim registry id fix in Epic 2, and the `.gitignore`
   `firmware/` pattern.
 - 2026-11-21 — `/spec-to-issues`: 13 epics (#4–#70) and 58 sub-issues created. See `## Issue map`.
+- 2026-11-21 — Epic 0 shipped (#82). Batch ruling: the generic ruff criterion on each Epic 0 sub-issue was checked at the batch gate, after #7. Out-of-plan fix accepted in #80: Starlette 1.10 needs `TemplateResponse(request, name, context)`; every page returned 500 before it. `dev` is now the repository default branch.
