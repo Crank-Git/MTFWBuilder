@@ -1,4 +1,4 @@
-"""E2E tests of the push config page in Chromium (feature push-config, FR 2, 3 and 11).
+"""E2E tests of the push config page in Chromium (feature push-config, FR 2 to 6, 11 and 12).
 
 A test that connects sets `window.__pushConfigTestDevice` to a fake device, or replaces the browser picker,
 so no test opens a serial port or a Bluetooth device.
@@ -21,8 +21,13 @@ VENDORED = [
 ]
 
 # The fake device has the MeshDevice members that the page uses, and it records each call in `calls`.
-# `configure()` answers with the security config, then with the end of the config, as a device does.
-# The options select managed mode, a `configure()` that fails, and a `disconnect()` that fails.
+# `configure()` answers as a device does: my node info, the node infos, the config, the module config, the channels,
+# then the end of the config. The options are:
+# - `managed`: the `isManaged` value of the security config.
+# - `read`: the `config`, `moduleConfig`, `channels` and `owner` that the device sends.
+#   A `{"$bytes": [..]}` value becomes a Uint8Array, as a protobuf-es bytes field is.
+# - `configureError`: the message of a `configure()` that fails.
+# - `disconnectError`: a `disconnect()` that fails.
 FAKE_DEVICE = """
 (options => {
   const dispatcher = () => {
@@ -33,18 +38,33 @@ FAKE_DEVICE = """
       dispatch(value) { handlers.slice().forEach(fn => fn(value)); },
     };
   };
+  const revive = value => JSON.parse(JSON.stringify(value),
+    (key, item) => (item && item.$bytes ? new Uint8Array(item.$bytes) : item));
+  const read = revive(options.read || {});
+  const events = {};
+  ['onConfigPacket', 'onModuleConfigPacket', 'onChannelPacket', 'onMyNodeInfo', 'onNodeInfoPacket',
+   'onDeviceStatus'].forEach(name => { events[name] = dispatcher(); });
   const device = {
     calls: [],
-    events: { onConfigPacket: dispatcher(), onDeviceStatus: dispatcher() },
+    events,
     configure() {
       device.calls.push('configure');
       if (options.configureError) {
         return Promise.reject(new Error(options.configureError));
       }
       setTimeout(() => {
-        const security = { isManaged: options.managed };
-        device.events.onConfigPacket.dispatch({ payloadVariant: { case: 'security', value: security } });
-        device.events.onDeviceStatus.dispatch(7);
+        events.onMyNodeInfo.dispatch({ myNodeNum: 1 });
+        events.onNodeInfoPacket.dispatch({ num: 2, user: { longName: 'Other node', shortName: 'OTH' } });
+        if (read.owner) {
+          events.onNodeInfoPacket.dispatch({ num: 1, user: read.owner });
+        }
+        const config = { security: { isManaged: options.managed }, ...read.config };
+        Object.entries(config).forEach(([name, value]) =>
+          events.onConfigPacket.dispatch({ payloadVariant: { case: name, value } }));
+        Object.entries(read.moduleConfig || {}).forEach(([name, value]) =>
+          events.onModuleConfigPacket.dispatch({ payloadVariant: { case: name, value } }));
+        (read.channels || []).forEach(channel => events.onChannelPacket.dispatch(channel));
+        events.onDeviceStatus.dispatch(7);
       });
       return Promise.resolve(0);
     },
