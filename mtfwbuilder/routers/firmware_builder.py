@@ -107,7 +107,7 @@ async def _config_content(form) -> str:
         fields = {k: v for k, v in form.items() if k not in ("variant", "config_source")}
         return _validated(lambda: ConfigRequest.model_validate(fields))
     if source == "current":
-        return _config_from_json(form.get("config_json") or form.get("stored_config"))
+        return _config_from_json(form.get("config_json"))
     return await _config_from_upload(form.get("userPrefs"))
 
 
