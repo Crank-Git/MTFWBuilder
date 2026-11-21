@@ -9,7 +9,7 @@ import binascii
 from urllib.parse import urlsplit
 
 from google.protobuf.message import DecodeError
-from meshtastic.protobuf import apponly_pb2
+from meshtastic.protobuf import apponly_pb2, channel_pb2
 
 from mtfwbuilder.meshtastic_enums import MODEM_PRESETS, REGIONS
 from mtfwbuilder.models import CHANNEL_SLOTS, ChannelUrlImport, ImportedChannel, ImportedLora
@@ -50,7 +50,7 @@ def _channel_set(fragment: str) -> apponly_pb2.ChannelSet:
     return channel_set
 
 
-def _channel(index: int, settings) -> ImportedChannel:
+def _channel(index: int, settings: channel_pb2.ChannelSettings) -> ImportedChannel:
     """Return the channel at `index` of a URL, with the role that upstream `setURL` gives it."""
     psk = bytes(settings.psk)
     return ImportedChannel(
