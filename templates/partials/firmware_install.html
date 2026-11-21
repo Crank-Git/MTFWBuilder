@@ -1,6 +1,9 @@
 {# The panel of one install. An install that has not ended holds the install progress stream. #}
 <div class="card mb-3" id="install-{{ install.install_id }}"{% if not install.ended %} hx-ext="sse" sse-connect="{{ progress_url }}"{% endif %}>
     <div class="card-header">Install of <code>{{ install.version }}</code> ({{ install.channel }})</div>
+    {% if install.warning %}
+    <div class="alert alert-warning rounded-0 mb-0" role="alert" id="install-warning-{{ install.install_id }}">{{ install.warning }}</div>
+    {% endif %}
     <div class="card-body" aria-live="polite"{% if not install.ended %} hx-get="/api/v1/firmware/install/{{ install.install_id }}" hx-trigger="sse:status"{% endif %}>
         {% include "partials/install_state.html" %}
     </div>

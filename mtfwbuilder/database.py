@@ -73,13 +73,15 @@ INSERT OR REPLACE INTO firmware_sources (version, channel, path, installed_at, s
 VALUES (:version, :channel, :path, :installed_at, :size_bytes, :status)
 """
 
-# Without a requested firmware version, a build uses the newest stable firmware source, else the newest one.
-FIND_FIRMWARE_SOURCE = """
-SELECT * FROM firmware_sources
-WHERE status = 'ready' AND (:version IS NULL OR version = :version)
-ORDER BY channel = 'stable' DESC, installed_at DESC
-LIMIT 1
-"""
+FIND_FIRMWARE_SOURCE = (
+    "SELECT * FROM firmware_sources WHERE status = 'ready' AND (:version IS NULL OR version = :version)"
+)
+
+
+def _default_order(record: dict) -> tuple:
+    # A tag is `vX.Y.Z.<hash>`, and a text order puts v2.10.0 before v2.9.0, so the numbers decide.
+    numbers = tuple(int(part) for part in record["version"].removeprefix("v").split(".")[:3])
+    return (record["channel"] == "stable", numbers)
 
 
 async def init_db(settings: Settings) -> None:
@@ -151,13 +153,14 @@ def record_firmware_source(database_path: Path, record: dict) -> None:
 async def find_firmware_source(database_path: Path, version: str | None = None) -> dict | None:
     """Return the ready firmware source record of `version`, or None when no record matches.
 
-    When `version` is None, the result is the newest stable firmware source, else the newest firmware source.
+    When `version` is None, the result is the default firmware source: the stable firmware source with the highest
+    version number, else the firmware source of any release channel with the highest version number.
     """
     async with aiosqlite.connect(database_path) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(FIND_FIRMWARE_SOURCE, {"version": version})
-        row = await cursor.fetchone()
-    return None if row is None else dict(row)
+        records = [dict(row) for row in await cursor.fetchall()]
+    return max(records, key=_default_order, default=None)
 
 
 async def delete_firmware_source(database_path: Path, version: str) -> None:

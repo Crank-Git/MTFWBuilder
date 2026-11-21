@@ -1,6 +1,8 @@
-{# The state of one install: the install steps and a progress bar, the ready message, or the error and Retry. #}
+{# The state of one install: the queued message, the install steps and a progress bar, the ready message, or the error and Retry. #}
 {% set steps = ["downloading", "extracting", "installing packages"] %}
-{% if install.status == "ready" %}
+{% if install.status == "queued" %}
+<p class="mb-0" data-step="queued">Queued. The install starts when the installs before it end.</p>
+{% elif install.status == "ready" %}
 <div class="alert alert-success mb-0" role="status">Firmware version {{ install.version }} is ready.</div>
 {% elif install.status == "failed" %}
 {# Only an install by exact tag has the channel `pinned`, so a retry by channel resolves the channel again. #}

@@ -283,5 +283,5 @@ class InstallStatus(BaseModel):
 
     install_id: str
     version: str
-    status: Literal["downloading", "extracting", "installing packages", "ready", "failed"]
+    status: Literal["queued", "downloading", "extracting", "installing packages", "ready", "failed"]
     error: str = ""

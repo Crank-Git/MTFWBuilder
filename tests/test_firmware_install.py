@@ -23,13 +23,12 @@ from httpx import ASGITransport, AsyncClient
 from mtfwbuilder.auth import CSRF_HEADER
 from mtfwbuilder.config import load_settings
 from mtfwbuilder.services import firmware_updater
+from mtfwbuilder.services.firmware_catalog import CatalogUnavailable
 from mtfwbuilder.services.firmware_updater import (
     Install,
     InstallFailed,
-    ReleaseNotFound,
     extract_zipball,
     install_events,
-    resolve_channel,
 )
 from tests.conftest import sign_in_admin
 
@@ -37,7 +36,7 @@ STABLE = "v2.7.26.54e0d8d"
 ALPHA = "v2.8.2.d5f1619"
 PINNED = "v2.7.15.567b8ea"
 CONFIG = json.dumps({"owner_long_name": "TestNode"})
-RELEASES = json.loads((Path(__file__).parent / "fixtures" / "firmware" / "releases.json").read_text())
+REVOKED = "v2.8.2.4c89b69"
 
 
 def _zip_bytes(entries=None):
@@ -73,9 +72,30 @@ def downloads(monkeypatch):
     return tags
 
 
+class FakeCatalog:
+    """A firmware catalog that lists `REVOKED` as a revoked alpha, or raises `CatalogUnavailable` when `down` is set."""
+
+    down = False
+
+    def available(self):
+        if self.down:
+            raise CatalogUnavailable("both upstreams failed")
+        alpha = [
+            {"tag": ALPHA, "title": "Meshtastic Firmware 2.8.2.d5f1619 Alpha", "date": None, "revoked": False},
+            {
+                "tag": REVOKED,
+                "title": "Meshtastic Firmware 2.8.2.4c89b69 Alpha (Revoked)",
+                "date": None,
+                "revoked": True,
+            },
+        ]
+        return {"source": "github", "stable": [], "alpha": alpha}
+
+
 @pytest.fixture
 def installs(app, fake_pio, downloads):
     """Return the install service of the app, with a resolver that gives fixed firmware versions."""
+    app.state.firmware_catalog = FakeCatalog()
     service = app.state.firmware_installs
     service.resolver = {"stable": STABLE, "alpha": ALPHA}.__getitem__
     return service
@@ -174,6 +194,44 @@ async def test_install_by_exact_tag_downloads_that_tag_with_channel_pinned(app, 
     assert install.status == "ready"
     assert downloads == [PINNED]
     assert (listed["version"], listed["channel"]) == (PINNED, "pinned")
+
+
+# Spec 09 edge case: a pinned install of a revoked tag
+
+
+@pytest.mark.usefixtures("installs")
+async def test_pinned_install_of_a_revoked_tag_gives_a_warning_in_the_json_response(app, admin):
+    resp = await admin.post("/api/v1/firmware/install", json={"tag": REVOKED})
+
+    assert resp.status_code == 202
+    assert resp.json()["warning"] == f"The upstream firmware list marks {REVOKED} as revoked."
+    await asyncio.wait_for(app.state.firmware_installs.get(resp.json()["install_id"]).wait(), 10)
+
+
+@pytest.mark.usefixtures("installs")
+async def test_pinned_install_of_a_revoked_tag_shows_the_warning_in_the_install_panel(app, admin):
+    resp = await admin.post("/api/v1/firmware/install", json={"tag": REVOKED}, headers={"HX-Request": "true"})
+    install = app.state.firmware_installs.get(re.search(r'id="install-([0-9a-f]{32})"', resp.text)[1])
+    await asyncio.wait_for(install.wait(), 10)
+    ended = await admin.get(f"/api/v1/firmware/install/{install.install_id}", headers={"HX-Request": "true"})
+
+    warning = (
+        rf'class="alert alert-warning[^"]*" role="alert"[^>]*>The upstream firmware list marks {REVOKED} as revoked.<'
+    )
+    for panel in (resp.text, ended.text):
+        assert re.search(warning, panel)
+
+
+@pytest.mark.usefixtures("installs")
+@pytest.mark.parametrize("down", [False, True], ids=["not_revoked", "catalog_down"])
+async def test_pinned_install_without_a_revoked_mark_gives_no_warning(app, admin, down):
+    app.state.firmware_catalog.down = down
+
+    resp = await admin.post("/api/v1/firmware/install", json={"tag": PINNED})
+
+    assert resp.status_code == 202
+    assert resp.json()["warning"] == ""
+    await asyncio.wait_for(app.state.firmware_installs.get(resp.json()["install_id"]).wait(), 10)
 
 
 @pytest.mark.usefixtures("installs")
@@ -325,6 +383,13 @@ def _fail_by_timeout(monkeypatch, downloads, settings):
     settings.install_timeout_seconds = 1
 
 
+def _fail_by_directory_creation(monkeypatch, downloads, settings):
+    def full(*_args, **_kwargs):
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(firmware_updater.tempfile, "mkdtemp", full)
+
+
 def _fail_by_record_write(monkeypatch, downloads, settings):
     def locked(*_args):
         raise sqlite3.OperationalError("database is locked")
@@ -343,6 +408,7 @@ def _fail_by_record_write(monkeypatch, downloads, settings):
         _fail_by_damaged_archive,
         _fail_by_full_disk,
         _fail_by_timeout,
+        _fail_by_directory_creation,
         _fail_by_record_write,
     ],
     ids=lambda f: f.__name__.removeprefix("_fail_by_"),
@@ -359,6 +425,18 @@ async def test_failed_install_leaves_no_firmware_directory_and_no_record(app, ad
     assert list(settings.firmware_dir.iterdir()) == []
     assert await _rows(settings) == []
     assert (await admin.get("/api/v1/firmware")).json() == []
+
+
+@pytest.mark.usefixtures("installs")
+async def test_database_error_at_the_record_write_is_logged_and_ends_the_install_failed(
+    app, admin, monkeypatch, caplog
+):
+    _fail_by_record_write(monkeypatch, None, None)
+
+    install = await _install(admin, app, {"channel": "stable"})
+
+    assert (install.status, install.error) == ("failed", "database is locked")
+    assert f"Install of {STABLE} failed: database is locked" in caplog.text
 
 
 @pytest.mark.usefixtures("installs")
@@ -440,14 +518,16 @@ async def test_install_goes_through_each_install_status_in_order(app, admin, mon
     set_status = Install.set_status
 
     def spy(self, status, error=""):
-        statuses.append(status)
+        # An ended install keeps its install status, so the spy records only the changes.
+        if not self.ended:
+            statuses.append(status)
         set_status(self, status, error)
 
     monkeypatch.setattr(Install, "set_status", spy)
 
     await _install(admin, app, {"channel": "stable"})
 
-    assert statuses == ["extracting", "installing packages", "ready"]
+    assert statuses == ["downloading", "extracting", "installing packages", "ready"]
 
 
 @pytest.mark.usefixtures("installs")
@@ -475,7 +555,7 @@ async def test_progress_events_send_each_install_status_and_end_after_ready():
     rest = [event async for event in events]
 
     statuses = [json.loads(e["data"])["status"] for e in [first, second, *rest]]
-    assert statuses == ["downloading", "extracting", "ready"]
+    assert statuses == ["queued", "extracting", "ready"]
     assert {e["event"] for e in [first, second, *rest]} == {"status"}
 
 
@@ -504,10 +584,82 @@ async def test_progress_route_streams_the_install_status_until_the_install_ends(
     ]
 
 
-async def test_progress_route_returns_404_for_an_unknown_install(client):
-    resp = await client.get(f"/api/v1/firmware/install/{'0' * 32}/progress")
+async def test_progress_route_returns_404_for_an_unknown_install(admin):
+    resp = await admin.get(f"/api/v1/firmware/install/{'0' * 32}/progress")
 
     assert resp.status_code == 404
+
+
+@pytest.mark.usefixtures("installs")
+@pytest.mark.parametrize("suffix", ["", "/progress"], ids=["status", "progress"])
+async def test_install_status_routes_require_an_admin_session(app, admin, client, suffix):
+    install = await _install(admin, app, {"channel": "stable"})
+    client.cookies.clear()
+
+    resp = await client.get(f"/api/v1/firmware/install/{install.install_id}{suffix}")
+
+    assert resp.status_code == 401
+
+
+# FR-firmware-versions-3: one install runs at a time
+
+
+@pytest.mark.usefixtures("installs")
+async def test_second_install_waits_in_queued_until_the_first_install_ends(app, admin, settings, monkeypatch):
+    monkeypatch.setenv("FAKE_PIO_PKG_SLEEP", "0.5")
+    first = app.state.firmware_installs.get(
+        (await admin.post("/api/v1/firmware/install", json={"channel": "stable"})).json()["install_id"]
+    )
+    await _until(lambda: first.status == "installing packages")
+
+    resp = await admin.post("/api/v1/firmware/install", json={"channel": "alpha"})
+    second = app.state.firmware_installs.get(resp.json()["install_id"])
+    await asyncio.sleep(0.1)
+    second_while_first_runs = second.status
+    progress = await admin.get(f"/api/v1/firmware/install/{second.install_id}")
+    await asyncio.wait_for(second.wait(), 10)
+
+    assert second_while_first_runs == "queued"
+    assert progress.json()["status"] == "queued"
+    assert first.status == "ready"
+    assert second.status == "ready"
+
+
+@pytest.mark.usefixtures("installs")
+async def test_cancel_of_a_queued_install_ends_it_failed(app, admin, monkeypatch):
+    monkeypatch.setenv("FAKE_PIO_PKG_SLEEP", "0.5")
+    await admin.post("/api/v1/firmware/install", json={"channel": "stable"})
+    resp = await admin.post("/api/v1/firmware/install", json={"channel": "alpha"})
+    queued = app.state.firmware_installs.get(resp.json()["install_id"])
+    await asyncio.sleep(0.1)
+
+    queued.task.cancel()
+    await asyncio.wait_for(queued.wait(), 5)
+
+    assert queued.status == "failed"
+
+
+@pytest.mark.usefixtures("installs")
+async def test_installs_never_run_pio_pkg_install_at_the_same_time(app, admin, monkeypatch):
+    running = []
+    overlaps = []
+    run = firmware_updater.FirmwareInstalls._pio_pkg_install
+
+    async def counted(self, tree):
+        running.append(tree)
+        overlaps.append(len(running))
+        try:
+            await run(self, tree)
+        finally:
+            running.remove(tree)
+
+    monkeypatch.setattr(firmware_updater.FirmwareInstalls, "_pio_pkg_install", counted)
+    monkeypatch.setenv("FAKE_PIO_PKG_SLEEP", "0.3")
+    responses = [await admin.post("/api/v1/firmware/install", json={"channel": c}) for c in ("stable", "alpha")]
+    for resp in responses:
+        await asyncio.wait_for(app.state.firmware_installs.get(resp.json()["install_id"]).wait(), 10)
+
+    assert overlaps == [1, 1]
 
 
 # FR-firmware-versions-7: the install timeout
@@ -731,81 +883,23 @@ async def test_update_route_requires_an_admin_session(client):
     assert resp.status_code == 401
 
 
-# The GitHub releases API
+# The GitHub request headers
 
 
-class _JsonResponse:
-    def __init__(self, data):
-        self.data = data
-
-    def raise_for_status(self):
-        pass
-
-    def json(self):
-        return self.data
-
-
-@pytest.fixture
-def github(monkeypatch):
-    """Answer each GitHub request from `tests/fixtures/firmware/releases.json`, and return the request list.
-
-    A test sets `github.releases` to another release list.
-    """
-
-    class Calls(list):
-        releases = RELEASES
-
-    calls = Calls()
-
-    def fake_get(url, **kwargs):
-        calls.append((url, kwargs))
-        if url.endswith("/releases/latest"):
-            return _JsonResponse(next(r for r in calls.releases if not r["prerelease"] and not r["draft"]))
-        return _JsonResponse(calls.releases)
-
-    monkeypatch.setattr(firmware_updater.requests, "get", fake_get)
+def test_github_requests_send_the_user_agent_and_the_api_version(monkeypatch):
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
-    return calls
 
+    headers = firmware_updater.github_headers()
 
-def test_stable_is_the_tag_of_the_latest_release(github):
-    assert resolve_channel("stable") == STABLE
-    assert github[0][0] == "https://api.github.com/repos/meshtastic/firmware/releases/latest"
-
-
-def test_alpha_is_the_newest_prerelease_that_is_not_revoked(github):
-    # The fixture lists `v2.8.2.4c89b69` as a revoked alpha with the same version numbers.
-    assert resolve_channel("alpha") == ALPHA
-
-
-def test_alpha_does_not_depend_on_the_order_of_the_release_list(github):
-    github.releases = list(reversed(RELEASES))
-
-    assert resolve_channel("alpha") == ALPHA
-
-
-def test_alpha_raises_release_not_found_when_no_alpha_is_listed(github):
-    github.releases = [r for r in RELEASES if not r["prerelease"]]
-
-    with pytest.raises(ReleaseNotFound):
-        resolve_channel("alpha")
-
-
-def test_github_requests_send_the_user_agent_and_the_api_version(github):
-    resolve_channel("alpha")
-
-    headers = github[0][1]["headers"]
     assert headers["User-Agent"] == "MTFWBuilder"
     assert headers["X-GitHub-Api-Version"] == "2022-11-28"
     assert "Authorization" not in headers
 
 
-def test_github_requests_send_the_token_of_github_token(github, monkeypatch):
+def test_github_requests_send_the_token_of_github_token(monkeypatch):
     monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
-    resolve_channel("stable")
-
-    assert github[0][1]["headers"]["Authorization"] == "Bearer test-token"
+    assert firmware_updater.github_headers()["Authorization"] == "Bearer test-token"
 
 
 def test_download_writes_the_zipball_of_the_tag(tmp_path, monkeypatch):

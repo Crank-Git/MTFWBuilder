@@ -70,6 +70,8 @@ def installs(app, fake_pio, monkeypatch):
         Path(zip_path).write_bytes(buffer.getvalue())
 
     monkeypatch.setattr(firmware_updater, "download_zipball", fake_download)
+    # A pinned install asks the catalog for a revoked mark, and a test does not reach the network.
+    app.state.firmware_catalog = FakeCatalog(AVAILABLE)
     service = app.state.firmware_installs
     service.resolver = {"stable": STABLE, "alpha": ALPHA}.__getitem__
     return service
@@ -185,7 +187,7 @@ async def test_htmx_install_returns_202_with_a_progress_panel_on_the_install_pro
 async def test_install_without_htmx_still_returns_the_json_install_id(app, admin):
     resp = await admin.post("/api/v1/firmware/install", json={"channel": "stable"})
 
-    assert set(resp.json()) == {"install_id", "progress_url"}
+    assert set(resp.json()) == {"install_id", "progress_url", "warning"}
     await asyncio.wait_for(app.state.firmware_installs.get(resp.json()["install_id"]).wait(), 10)
 
 
@@ -210,7 +212,7 @@ async def test_htmx_install_without_a_channel_tag_shows_the_message_in_the_messa
     resp = await admin.post("/api/v1/firmware/install", json={"channel": "alpha"}, headers=HTMX)
 
     assert resp.status_code == 502
-    assert "Cannot get the firmware version list from GitHub" in resp.text
+    assert "Cannot get the firmware version from the upstream firmware list" in resp.text
     assert resp.headers["HX-Retarget"] == "#firmware-message"
 
 
@@ -234,10 +236,10 @@ async def test_htmx_install_status_of_a_running_install_shows_the_current_step(a
     assert "HX-Retarget" not in resp.headers
 
 
-async def test_install_status_without_htmx_returns_the_install_status_json(app, client):
+async def test_install_status_without_htmx_returns_the_install_status_json(app, admin):
     install = _add_install(app, status="installing packages")
 
-    resp = await client.get(f"/api/v1/firmware/install/{install.install_id}")
+    resp = await admin.get(f"/api/v1/firmware/install/{install.install_id}")
 
     assert resp.json() == {
         "install_id": install.install_id,
@@ -247,8 +249,8 @@ async def test_install_status_without_htmx_returns_the_install_status_json(app, 
     }
 
 
-async def test_install_status_returns_404_for_an_unknown_install(client):
-    resp = await client.get("/api/v1/firmware/install/unknown")
+async def test_install_status_returns_404_for_an_unknown_install(admin):
+    resp = await admin.get("/api/v1/firmware/install/unknown")
 
     assert resp.status_code == 404
     assert resp.json() == {"detail": "Install not found"}
@@ -420,8 +422,9 @@ async def test_startup_removes_each_install_staging_directory_and_logs_it(app, s
     staging = settings.firmware_dir / f".install-{STABLE}-k3j2h1"
     (staging / "tree").mkdir(parents=True)
     (staging / "source.zip").write_bytes(b"partial")
+    # The firmware source has a record, so the startup keeps it.
+    _record(settings, ALPHA, channel="alpha")
     source_dir = settings.firmware_dir / ALPHA
-    source_dir.mkdir()
 
     with caplog.at_level(logging.WARNING):
         async with lifespan(app):
@@ -439,8 +442,13 @@ const fs = require('fs');
 const vm = require('vm');
 const listeners = {};
 const extensions = {};
+const triggered = [];
 const sandbox = {
-  htmx: { defineExtension: (name, ext) => { extensions[name] = ext; } },
+  EventSource: { CONNECTING: 0, OPEN: 1, CLOSED: 2 },
+  htmx: {
+    defineExtension: (name, ext) => { extensions[name] = ext; },
+    trigger: (elt, name) => triggered.push(`${elt.name} ${name}`),
+  },
   document: { addEventListener: (type, fn) => { (listeners[type] = listeners[type] || []).push(fn); } },
 };
 vm.createContext(sandbox);
@@ -459,7 +467,11 @@ const closed = [];
 ['downloading', 'ready'].forEach(status => fire('htmx:sseMessage', {
   detail: { type: 'status', data: JSON.stringify({ status }), target: { close: () => closed.push(status) } },
 }));
+const panel = (id, name) => ({ id, querySelector: sel => (sel === '[hx-get]' ? { name } : null) });
+[['install-a', 'a', 2], ['install-b', 'b', 0], ['build-panel', 'c', 2]].forEach(([id, name, readyState]) =>
+  fire('htmx:sseError', { target: panel(id, name), detail: { source: { readyState } } }));
 console.log(JSON.stringify({
+  triggered,
   html409: swapOf(409, 'text/html; charset=utf-8'),
   json409: swapOf(409, 'application/json'),
   contentType: config.detail.headers['Content-Type'],
@@ -494,6 +506,11 @@ def test_admin_js_sends_the_install_controls_as_a_json_body(admin_js_run):
 
 def test_admin_js_closes_the_install_progress_stream_after_ready(admin_js_run):
     assert admin_js_run["closed"] == ["ready"]
+
+
+def test_admin_js_asks_the_install_status_route_after_the_install_progress_stream_closes(admin_js_run):
+    # Only the closed stream of an install panel asks the route; a 401 there sends the page to the sign-in form.
+    assert admin_js_run["triggered"] == ["a sse:status"]
 
 
 def test_admin_page_loads_admin_js():

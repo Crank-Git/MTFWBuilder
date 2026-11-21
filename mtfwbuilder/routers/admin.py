@@ -126,7 +126,7 @@ async def update_firmware_route(request: Request):
         install = e.install
     except (firmware_updater.ReleaseNotFound, requests.RequestException) as e:
         logger.error(f"No stable firmware version: {e}")
-        result = {"success": False, "error": "Cannot get the firmware version list from GitHub."}
+        result = {"success": False, "error": "Cannot get the firmware version from the upstream firmware list."}
     if install is not None:
         # The install is a task of its own, so a closed request does not stop it.
         await install.wait()

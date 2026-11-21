@@ -117,8 +117,10 @@ def app(settings):
     configure_rate_limits(settings)
     app.state.device_registry = DeviceRegistry(settings.devices_file)
     app.state.build_queue = BuildQueue(settings)
-    app.state.firmware_installs = FirmwareInstalls(settings, app.state.build_queue)
     app.state.firmware_catalog = FirmwareCatalog()
+    app.state.firmware_installs = FirmwareInstalls(
+        settings, app.state.build_queue, resolver=app.state.firmware_catalog.resolve
+    )
     # The rate limit counts across tests, so each test starts with an empty count.
     limiter.reset()
     return app

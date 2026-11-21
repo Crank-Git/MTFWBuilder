@@ -17,7 +17,7 @@ from mtfwbuilder.database import list_firmware_sources
 from mtfwbuilder.htmx import fragment_or_json, is_htmx
 from mtfwbuilder.models import AvailableFirmwareVersions, FirmwareSource, InstallRequest, InstallStatus
 from mtfwbuilder.services import firmware_updater
-from mtfwbuilder.services.firmware_catalog import CatalogUnavailable
+from mtfwbuilder.services.firmware_catalog import CHANNELS, CatalogUnavailable
 
 logger = logging.getLogger("mtfwbuilder.firmware_versions")
 
@@ -39,6 +39,21 @@ def _refusal(request: Request, status_code: int, detail: str, cause: Exception) 
     response.headers["HX-Retarget"] = "#firmware-message"
     response.headers["HX-Reswap"] = "innerHTML"
     return response
+
+
+async def _revoked_warning(request: Request, tag: str) -> str:
+    """Return a warning when the upstream firmware list marks the tag as revoked, else an empty string.
+
+    The warning does not stop the install, so an unreachable upstream gives no warning and the install continues.
+    """
+    try:
+        available = await asyncio.to_thread(request.app.state.firmware_catalog.available)
+    except CatalogUnavailable as e:
+        logger.warning(f"No revoked check for {tag}: {e}")
+        return ""
+    if any(entry["tag"] == tag and entry["revoked"] for channel in CHANNELS for entry in available[channel]):
+        return f"The upstream firmware list marks {tag} as revoked."
+    return ""
 
 
 @router.get("", response_model=list[FirmwareSource])
@@ -69,12 +84,14 @@ async def available(request: Request):
 
 @router.post("/install", status_code=202, dependencies=[Depends(require_admin), Depends(require_csrf)])
 async def install(body: InstallRequest, request: Request):
-    """Start an install by channel or by exact tag, and return its install id and progress stream URL.
+    """Start an install by channel or by exact tag, and return its install id, progress stream URL and warning.
+
+    The warning is not empty when the install is by exact tag and the upstream firmware list marks the tag as revoked.
 
     Returns:
     - 422 for a tag that is not a firmware version.
     - 409 when the firmware version is installed, or an install of it has not ended.
-    - 502 when GitHub gives no firmware version for the channel.
+    - 502 when the upstream firmware list gives no firmware version for the channel.
     """
     installs: firmware_updater.FirmwareInstalls = request.app.state.firmware_installs
     try:
@@ -85,9 +102,11 @@ async def install(body: InstallRequest, request: Request):
         return _refusal(request, 409, f"An install of {e.install.version} has not ended", e)
     except (firmware_updater.ReleaseNotFound, requests.RequestException) as e:
         logger.error(f"No firmware version for channel {body.channel}: {e}")
-        return _refusal(request, 502, "Cannot get the firmware version list from GitHub", e)
+        return _refusal(request, 502, "Cannot get the firmware version from the upstream firmware list", e)
+    if body.tag is not None:
+        started.warning = await _revoked_warning(request, body.tag)
     context = install_context(started)
-    data = {"install_id": started.install_id, "progress_url": context["progress_url"]}
+    data = {"install_id": started.install_id, "progress_url": context["progress_url"], "warning": started.warning}
     response = fragment_or_json(request, "partials/firmware_install.html", context, data, status_code=202)
     # The controls put an error message in the message area, so a started install goes to the top of the panels.
     response.headers["HX-Retarget"] = "#firmware-installs"
@@ -95,7 +114,7 @@ async def install(body: InstallRequest, request: Request):
     return response
 
 
-@router.get("/install/{install_id}")
+@router.get("/install/{install_id}", dependencies=[Depends(require_admin)])
 async def install_status(install_id: str, request: Request) -> Response:
     """Return the install status of the install, as JSON or as the install panel for htmx.
 
@@ -121,7 +140,7 @@ async def install_status(install_id: str, request: Request) -> Response:
     return response
 
 
-@router.get("/install/{install_id}/progress")
+@router.get("/install/{install_id}/progress", dependencies=[Depends(require_admin)])
 async def install_progress(install_id: str, request: Request):
     """Return the progress stream of the install: the current install status, then each change."""
     started = request.app.state.firmware_installs.get(install_id)

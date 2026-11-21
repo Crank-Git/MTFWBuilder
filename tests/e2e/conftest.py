@@ -156,3 +156,59 @@ def empty_server(tmp_path_factory):
             yield url
     finally:
         catalog.shutdown()
+
+
+RELEASES = REPO_ROOT / "tests" / "fixtures" / "firmware" / "releases.json"
+
+
+class _GitHubOnlyHandler(http.server.BaseHTTPRequestHandler):
+    """Answer the GitHub release list from the recorded fixture, and answer each other GET with 404.
+
+    The firmware list path gets 404 too, so the catalog reads the GitHub list, which holds the revoked tags.
+    A zipball request gets 404, so an install fails at the download and reaches no upstream.
+    """
+
+    def do_GET(self):
+        if not self.path.startswith("/releases"):
+            self.send_error(404)
+            return
+        body = RELEASES.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, format, *args):
+        pass
+
+
+# The catalog module copies `GITHUB_REPO_API` at import, so the launcher sets it in both modules.
+_GITHUB_LAUNCHER = """
+import sys
+import uvicorn
+from mtfwbuilder.services import firmware_catalog, firmware_updater
+firmware_catalog.MESHTASTIC_LIST_URL = sys.argv[1] + "/github/firmware/list"
+firmware_catalog.GITHUB_REPO_API = firmware_updater.GITHUB_REPO_API = sys.argv[1]
+uvicorn.run("mtfwbuilder.main:app", host="127.0.0.1", port=int(sys.argv[2]))
+"""
+
+
+@pytest.fixture(scope="module")
+def github_server(tmp_path_factory):
+    """Return the base URL of a uvicorn server with no firmware source, whose upstream is a local GitHub stand-in.
+
+    The catalog gets its list from `tests/fixtures/firmware/releases.json`, and each download fails with 404.
+    The servers stop when the module ends.
+    """
+    base = tmp_path_factory.mktemp("e2e-github")
+    env = _server_env(base)
+    upstream = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _GitHubOnlyHandler)
+    threading.Thread(target=upstream.serve_forever, daemon=True).start()
+    upstream_url = f"http://127.0.0.1:{upstream.server_address[1]}"
+    port = _free_port()
+    try:
+        with _serve([sys.executable, "-c", _GITHUB_LAUNCHER, upstream_url, str(port)], env, port) as url:
+            yield url
+    finally:
+        upstream.shutdown()

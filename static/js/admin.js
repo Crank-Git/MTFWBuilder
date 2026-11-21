@@ -22,6 +22,15 @@ document.addEventListener('htmx:beforeSwap', function(evt) {
     }
 });
 
+// The progress stream needs an admin session, and the browser reconnects a stream that closes with an error.
+// A closed install stream asks the install status route, so a 401 sends the page to the sign-in form.
+document.addEventListener('htmx:sseError', function(evt) {
+    const panel = evt.target;
+    if (panel.id.startsWith('install-') && evt.detail.source.readyState === EventSource.CLOSED) {
+        htmx.trigger(panel.querySelector('[hx-get]'), 'sse:status');
+    }
+});
+
 // The server closes the install progress stream after `ready`, and main.js closes it after `failed`.
 // The page closes it first, so the browser neither reports an error nor reconnects.
 document.addEventListener('htmx:sseMessage', function(evt) {

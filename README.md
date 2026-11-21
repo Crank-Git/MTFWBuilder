@@ -170,11 +170,12 @@ Key endpoints:
   `source` (`api.meshtastic.org` or `github`), and the lists `stable` and `alpha`. Each
   entry has `tag`, `title`, `date` and `revoked`. Returns 502 when both upstreams fail.
 - `POST /api/v1/firmware/install` (admin) — Install by `{"channel": "stable"}`, `{"channel": "alpha"}`
-  or `{"tag": "<tag>"}`. Returns 202 with `install_id` and `progress_url`, and 409 when the
-  firmware version is installed.
-- `GET /api/v1/firmware/install/{install_id}` — Install status of an install: `install_id`, `version`,
-  `status`, `error`. Returns 404 for an unknown install.
-- `GET /api/v1/firmware/install/{install_id}/progress` — SSE install progress stream
+  or `{"tag": "<tag>"}`. Returns 202 with `install_id`, `progress_url` and `warning`, and 409 when
+  the firmware version is installed. `warning` is not empty when the upstream firmware list marks
+  the exact tag as revoked. One install runs at a time, and the next install waits in `queued`.
+- `GET /api/v1/firmware/install/{install_id}` (admin) — Install status of an install: `install_id`,
+  `version`, `status`, `error`. Returns 404 for an unknown install.
+- `GET /api/v1/firmware/install/{install_id}/progress` (admin) — SSE install progress stream
 - `DELETE /api/v1/firmware/{version}` (admin) — Remove an installed firmware version. Returns 204,
   and 409 while a build uses it.
 

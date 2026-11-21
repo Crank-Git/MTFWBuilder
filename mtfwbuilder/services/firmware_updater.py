@@ -9,6 +9,7 @@ import os
 import re
 import secrets
 import shutil
+import sqlite3
 import tempfile
 import zipfile
 from collections.abc import Callable
@@ -19,7 +20,12 @@ from pathlib import Path
 import requests
 
 from mtfwbuilder.config import Settings
-from mtfwbuilder.database import delete_firmware_source, find_firmware_source, record_firmware_source
+from mtfwbuilder.database import (
+    delete_firmware_source,
+    find_firmware_source,
+    list_firmware_sources,
+    record_firmware_source,
+)
 from mtfwbuilder.models import InstallStatus
 from mtfwbuilder.services.build_service import BuildQueue
 
@@ -32,31 +38,8 @@ GITHUB_REPO_API = "https://api.github.com/repos/meshtastic/firmware"
 GITHUB_API_VERSION = "2022-11-28"
 
 
-def get_latest_release_info() -> dict | None:
-    """Get latest Meshtastic firmware release info from GitHub API."""
-    try:
-        logger.info("Fetching latest release info from GitHub...")
-        api_url = "https://api.github.com/repos/meshtastic/firmware/releases/latest"
-        response = requests.get(api_url, timeout=30)
-        response.raise_for_status()
-
-        data = response.json()
-        version = data["tag_name"]
-        published = data["published_at"]
-
-        logger.info(f"Latest release: {version} (published: {published})")
-        return {
-            "version": version,
-            "published_date": published,
-            "release_data": data,
-        }
-    except Exception as e:
-        logger.error(f"Error fetching release info: {e}")
-        return None
-
-
 class ReleaseNotFound(Exception):
-    """The GitHub releases API gives no firmware version for the requested channel."""
+    """The upstream firmware list gives no firmware version for the requested channel."""
 
 
 class FirmwareVersionInstalled(Exception):
@@ -91,35 +74,6 @@ def github_headers() -> dict[str, str]:
     if token:
         headers["Authorization"] = f"Bearer {token}"
     return headers
-
-
-def resolve_channel(channel: str) -> str:
-    """Return the newest firmware version of the channel `stable` or `alpha`, from the GitHub releases API.
-
-    Raises `ReleaseNotFound` when no release matches, and `requests.RequestException` when GitHub fails.
-    """
-    if channel == "stable":
-        # `releases/latest` excludes drafts and prereleases, and upstream marks each alpha as a prerelease.
-        response = requests.get(f"{GITHUB_REPO_API}/releases/latest", headers=github_headers(), timeout=30)
-        response.raise_for_status()
-        return response.json()["tag_name"]
-    url = f"{GITHUB_REPO_API}/releases"
-    response = requests.get(url, params={"per_page": 100}, headers=github_headers(), timeout=30)
-    response.raise_for_status()
-    # Upstream adds `(Revoked)` to the release name of a revoked alpha, and keeps its prerelease flag.
-    alphas = [
-        release
-        for release in response.json()
-        if release["prerelease"]
-        and not release["draft"]
-        and "revoked" not in (release["name"] or "").lower()
-        and TAG.fullmatch(release["tag_name"])
-    ]
-    if not alphas:
-        raise ReleaseNotFound("GitHub lists no alpha firmware version")
-    # The documentation of the list gives no order, so the version numbers decide.
-    newest = max(alphas, key=lambda r: (tuple(map(int, r["tag_name"][1:].split(".")[:3])), r["published_at"]))
-    return newest["tag_name"]
 
 
 def download_zipball(tag: str, zip_path: Path) -> None:
@@ -162,8 +116,10 @@ class Install:
     install_id: str
     version: str
     channel: str
-    status: str = "downloading"
+    # An install waits in `queued` until the installs before it end.
+    status: str = "queued"
     error: str = ""
+    warning: str = ""
     changed: asyncio.Event = field(default_factory=asyncio.Event)
     task: asyncio.Task | None = None
 
@@ -200,11 +156,13 @@ class FirmwareInstalls:
     `resolver` gives the firmware version of a channel; it runs in a worker thread.
     """
 
-    def __init__(self, settings: Settings, build_queue: BuildQueue, resolver: Callable[[str], str] = resolve_channel):
+    def __init__(self, settings: Settings, build_queue: BuildQueue, resolver: Callable[[str], str]):
         self.settings = settings
         self.build_queue = build_queue
         self.resolver = resolver
         self._installs: dict[str, Install] = {}
+        # Each `pio pkg install` writes the one shared PlatformIO core directory, so only one install runs at a time.
+        self._install_lock = asyncio.Lock()
 
     def get(self, install_id: str) -> Install | None:
         return self._installs.get(install_id)
@@ -268,13 +226,23 @@ class FirmwareInstalls:
         return record
 
     async def _run(self, install: Install) -> None:
+        try:
+            async with self._install_lock:
+                install.set_status("downloading")
+                await self._install(install)
+        finally:
+            # An internal error or a cancel, also of a queued install, ends the install here, so the stream ends.
+            install.set_status("failed", error="The install stopped because of an internal error.")
+
+    async def _install(self, install: Install) -> None:
         firmware_dir = self.settings.firmware_dir
-        firmware_dir.mkdir(parents=True, exist_ok=True)
-        # The staging directory is in `firmware_dir`, so the move into `<tag>/` is one rename on one file system.
-        staging = Path(tempfile.mkdtemp(prefix=f".install-{install.version}-", dir=firmware_dir))
         source_dir = firmware_dir / install.version
+        staging = None
         moved = False
         try:
+            firmware_dir.mkdir(parents=True, exist_ok=True)
+            # The staging directory is in `firmware_dir`, so the move into `<tag>/` is one rename on one file system.
+            staging = Path(tempfile.mkdtemp(prefix=f".install-{install.version}-", dir=firmware_dir))
             zip_path = staging / "source.zip"
             await asyncio.to_thread(download_zipball, install.version, zip_path)
             install.set_status("extracting")
@@ -292,17 +260,15 @@ class FirmwareInstalls:
                 await asyncio.to_thread(record_firmware_source, self.settings.database_path, record)
             install.set_status("ready")
             logger.info(f"Installed firmware version {install.version} in {source_dir}")
-        except (InstallFailed, OSError, zipfile.BadZipFile, requests.RequestException) as e:
+        except (InstallFailed, OSError, zipfile.BadZipFile, requests.RequestException, sqlite3.Error) as e:
             logger.error(f"Install of {install.version} failed: {e}")
             install.set_status("failed", error=str(e))
         finally:
-            shutil.rmtree(staging, ignore_errors=True)
-            if install.status != "ready":
-                # Only a ready install has a record, so a directory without a record would never be used or removed.
-                if moved:
-                    shutil.rmtree(source_dir, ignore_errors=True)
-                # An internal error or a cancel ends the install here, so the progress stream still ends.
-                install.set_status("failed", error="The install stopped because of an internal error.")
+            if staging is not None:
+                shutil.rmtree(staging, ignore_errors=True)
+            # Only a ready install has a record, so a directory without a record would never be used or removed.
+            if moved and install.status != "ready":
+                shutil.rmtree(source_dir, ignore_errors=True)
 
     async def _pio_pkg_install(self, tree: Path) -> None:
         """Install the platforms, toolchains and libraries that `platformio.ini` of `tree` names.
@@ -361,6 +327,26 @@ def remove_install_staging(firmware_dir: Path) -> None:
             logger.warning(f"Removed the staging directory {staging} of a stopped install")
 
 
+async def remove_unrecorded_sources(settings: Settings) -> None:
+    """Delete each `<firmware_dir>/<tag>/` without a record, and a leftover `<firmware_dir>.import`, and log each path.
+
+    A stopped process can leave a tag directory between the rename and the record write of an install or an import.
+    No build uses a directory without a record, and no removal deletes it. Raises `OSError` when a delete fails.
+    """
+    firmware_dir = settings.firmware_dir
+    leftover_import = firmware_dir.with_name(f"{firmware_dir.name}.import")
+    if leftover_import.is_dir():
+        await asyncio.to_thread(shutil.rmtree, leftover_import)
+        logger.warning(f"Removed the directory {leftover_import} of a stopped import")
+    if not firmware_dir.is_dir():
+        return
+    recorded = {record["version"] for record in await list_firmware_sources(settings.database_path)}
+    for source_dir in firmware_dir.iterdir():
+        if source_dir.is_dir() and TAG.fullmatch(source_dir.name) and source_dir.name not in recorded:
+            await asyncio.to_thread(shutil.rmtree, source_dir)
+            logger.warning(f"Removed the firmware source {source_dir}, which has no record")
+
+
 def get_firmware_version(settings: Settings) -> dict:
     """Read current firmware version info."""
     version_file = settings.data_dir / "firmware_version.txt"
@@ -379,12 +365,12 @@ def get_firmware_version(settings: Settings) -> dict:
     return {"version": version, "last_updated": updated}
 
 
-def import_old_firmware_source(settings: Settings) -> str | None:
+def import_old_firmware_source(settings: Settings, resolver: Callable[[str], str]) -> str | None:
     """Return the firmware version of the old firmware source, after it moves to `<firmware_dir>/<tag>/`.
 
     Before feature 09, the firmware source was `<firmware_dir>` itself, and `firmware_version.txt` held its
     firmware version. The import also writes the record of the firmware source. The `channel` is `stable` when
-    the tag is the newest stable firmware version on GitHub, else `pinned`.
+    the tag is the newest stable firmware version that `resolver` gives, else `pinned`.
 
     Returns None, and changes nothing, in these cases:
     - `<firmware_dir>` holds no old firmware source.
@@ -403,8 +389,12 @@ def import_old_firmware_source(settings: Settings) -> str | None:
     if (firmware_dir / version).exists():
         logger.warning(f"The old firmware source stays in {firmware_dir}: {firmware_dir / version} exists")
         return None
-    latest = get_latest_release_info()
-    channel = "stable" if latest is not None and latest["version"] == version else "pinned"
+    try:
+        newest_stable = resolver("stable")
+    except ReleaseNotFound as e:
+        logger.warning(f"The import gives {version} the release channel pinned: {e}")
+        newest_stable = None
+    channel = "stable" if newest_stable == version else "pinned"
 
     # Two renames in one parent directory move the tree without a copy.
     staging = firmware_dir.with_name(f"{firmware_dir.name}.import")

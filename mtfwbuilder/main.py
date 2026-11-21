@@ -27,7 +27,12 @@ from mtfwbuilder.services.build_service import BuildQueue
 from mtfwbuilder.services.cleanup_service import cleanup_every_interval, scrub_sources_after_restart
 from mtfwbuilder.services.device_registry import DeviceRegistry
 from mtfwbuilder.services.firmware_catalog import FirmwareCatalog
-from mtfwbuilder.services.firmware_updater import FirmwareInstalls, import_old_firmware_source, remove_install_staging
+from mtfwbuilder.services.firmware_updater import (
+    FirmwareInstalls,
+    import_old_firmware_source,
+    remove_install_staging,
+    remove_unrecorded_sources,
+)
 
 
 def setup_logging(log_level: str, log_json: bool) -> None:
@@ -77,8 +82,10 @@ async def lifespan(app: FastAPI):
         failed = await fail_unended_builds(db, "Server restarted")
     if failed:
         logger.warning(f"Marked {failed} builds failed after a restart")
-    await asyncio.to_thread(import_old_firmware_source, settings)
+    catalog = FirmwareCatalog()
+    await asyncio.to_thread(import_old_firmware_source, settings, catalog.resolve)
     remove_install_staging(settings.firmware_dir)
+    await remove_unrecorded_sources(settings)
     scrub_sources_after_restart(settings.firmware_dir)
 
     # Load device registry
@@ -89,8 +96,8 @@ async def lifespan(app: FastAPI):
     build_queue = BuildQueue(settings)
     build_queue.start()
     app.state.build_queue = build_queue
-    app.state.firmware_catalog = FirmwareCatalog()
-    app.state.firmware_installs = FirmwareInstalls(settings, build_queue, resolver=app.state.firmware_catalog.resolve)
+    app.state.firmware_catalog = catalog
+    app.state.firmware_installs = FirmwareInstalls(settings, build_queue, resolver=catalog.resolve)
     logger.info("Build queue started")
     cleanup_task = asyncio.create_task(cleanup_every_interval(settings, build_queue.unended_build_ids))
     configure_rate_limits(settings)

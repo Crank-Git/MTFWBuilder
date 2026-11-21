@@ -9,7 +9,7 @@ import yaml
 from mtfwbuilder.config import DataDirError, Settings, load_settings
 from mtfwbuilder.database import find_firmware_source
 from mtfwbuilder.main import create_app, lifespan
-from mtfwbuilder.services import firmware_updater
+from mtfwbuilder.services.firmware_catalog import CatalogUnavailable, FirmwareCatalog
 from mtfwbuilder.services.firmware_updater import get_firmware_version
 from tests.conftest import REPO_ROOT, SECRET_KEY
 
@@ -177,8 +177,11 @@ def test_startup_scrubs_and_keeps_old_firmware_when_data_dir_has_one(dirs, caplo
 
 @pytest.fixture
 def no_github(monkeypatch):
-    # The import asks GitHub for the newest stable tag, and a test does not reach the network.
-    monkeypatch.setattr(firmware_updater, "get_latest_release_info", lambda: None)
+    # The import asks the firmware catalog for the newest stable tag, and a test does not reach the network.
+    def unreachable(_self, _channel):
+        raise CatalogUnavailable("no network in tests")
+
+    monkeypatch.setattr(FirmwareCatalog, "resolve", unreachable)
     # The base directory of the test holds no registry, so the startup reads the real one.
     monkeypatch.setenv("MTFW_DEVICES_FILE", str(REPO_ROOT / "devices" / "variants.yaml"))
 

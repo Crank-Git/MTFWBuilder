@@ -10,8 +10,8 @@ from httpx import ASGITransport, AsyncClient
 
 from mtfwbuilder.database import find_firmware_source, init_db, record_firmware_source
 from mtfwbuilder.main import lifespan
-from mtfwbuilder.services import firmware_updater
-from mtfwbuilder.services.firmware_updater import import_old_firmware_source
+from mtfwbuilder.services.firmware_catalog import CatalogUnavailable, FirmwareCatalog
+from mtfwbuilder.services.firmware_updater import import_old_firmware_source, remove_unrecorded_sources
 
 STABLE = "v2.7.26.54e0d8d"
 ALPHA = "v2.8.2.d5f1619"
@@ -47,7 +47,8 @@ async def _rows(settings):
 
 
 def _newest_stable(monkeypatch, version):
-    monkeypatch.setattr(firmware_updater, "get_latest_release_info", lambda: {"version": version})
+    # The startup import asks the firmware catalog, so the lifespan and a direct call get the same answer.
+    monkeypatch.setattr(FirmwareCatalog, "resolve", lambda _self, _channel: version)
 
 
 def _old_layout(settings, version_text):
@@ -116,6 +117,41 @@ async def test_helper_returns_the_newest_stable_firmware_source_by_default(setti
     assert source["version"] == STABLE
 
 
+async def test_default_is_the_stable_firmware_source_with_the_highest_version_number(settings):
+    await init_db(settings)
+    # The older version is the newer install, so an order by `installed_at` would choose it.
+    record_firmware_source(settings.database_path, _record(settings, STABLE, installed_at="2026-01-01T00:00:00"))
+    record_firmware_source(settings.database_path, _record(settings, OLD_STABLE, installed_at="2026-06-01T00:00:00"))
+
+    source = await find_firmware_source(settings.database_path)
+
+    assert source["version"] == STABLE
+
+
+async def test_default_compares_version_numbers_as_numbers(settings):
+    await init_db(settings)
+    record_firmware_source(settings.database_path, _record(settings, "v2.10.0.aaaaaaa"))
+    record_firmware_source(settings.database_path, _record(settings, "v2.9.9.bbbbbbb"))
+
+    source = await find_firmware_source(settings.database_path)
+
+    assert source["version"] == "v2.10.0.aaaaaaa"
+
+
+async def test_default_without_a_stable_source_is_the_highest_version_number_of_any_release_channel(settings):
+    await init_db(settings)
+    record_firmware_source(
+        settings.database_path, _record(settings, ALPHA, channel="alpha", installed_at="2026-01-01T00:00:00")
+    )
+    record_firmware_source(
+        settings.database_path, _record(settings, OLD_STABLE, channel="pinned", installed_at="2026-06-01T00:00:00")
+    )
+
+    source = await find_firmware_source(settings.database_path)
+
+    assert source["version"] == ALPHA
+
+
 async def test_helper_returns_the_firmware_source_of_the_requested_firmware_version(settings):
     await init_db(settings)
     record_firmware_source(settings.database_path, _record(settings, STABLE))
@@ -158,18 +194,22 @@ async def test_import_gives_channel_pinned_when_the_tag_is_not_the_newest_stable
     _old_layout(settings, OLD_STABLE)
     _newest_stable(monkeypatch, STABLE)
 
-    assert import_old_firmware_source(settings) == OLD_STABLE
+    assert import_old_firmware_source(settings, FirmwareCatalog().resolve) == OLD_STABLE
 
     [row] = await _rows(settings)
     assert row["channel"] == "pinned"
 
 
-async def test_import_gives_channel_pinned_when_github_is_unreachable(settings, monkeypatch):
+async def test_import_gives_channel_pinned_when_the_upstream_firmware_list_is_unreachable(settings, monkeypatch):
     await init_db(settings)
     _old_layout(settings, STABLE)
-    monkeypatch.setattr(firmware_updater, "get_latest_release_info", lambda: None)
 
-    import_old_firmware_source(settings)
+    def unreachable(_self, _channel):
+        raise CatalogUnavailable("both upstreams failed")
+
+    monkeypatch.setattr(FirmwareCatalog, "resolve", unreachable)
+
+    import_old_firmware_source(settings, FirmwareCatalog().resolve)
 
     [row] = await _rows(settings)
     assert row["channel"] == "pinned"
@@ -181,7 +221,7 @@ async def test_import_changes_nothing_when_the_version_file_holds_no_tag(setting
     _old_layout(settings, version_text)
     _newest_stable(monkeypatch, STABLE)
 
-    assert import_old_firmware_source(settings) is None
+    assert import_old_firmware_source(settings, FirmwareCatalog().resolve) is None
 
     assert (settings.firmware_dir / "platformio.ini").is_file()
     assert await _rows(settings) == []
@@ -193,7 +233,7 @@ async def test_import_changes_nothing_when_the_firmware_dir_holds_tag_directorie
     (settings.firmware_dir / STABLE / "platformio.ini").write_text("[platformio]\n")
     _newest_stable(monkeypatch, STABLE)
 
-    assert import_old_firmware_source(settings) is None
+    assert import_old_firmware_source(settings, FirmwareCatalog().resolve) is None
 
     assert await _rows(settings) == []
 
@@ -204,7 +244,7 @@ async def test_import_changes_nothing_when_the_old_tree_holds_the_tag_directory(
     (settings.firmware_dir / STABLE).mkdir()
     _newest_stable(monkeypatch, STABLE)
 
-    assert import_old_firmware_source(settings) is None
+    assert import_old_firmware_source(settings, FirmwareCatalog().resolve) is None
 
     assert (settings.firmware_dir / "platformio.ini").is_file()
     assert await _rows(settings) == []
@@ -300,3 +340,48 @@ async def test_list_route_returns_an_empty_list_when_no_firmware_version_is_inst
 
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+# Startup: a stopped process between the rename and the record write
+
+
+async def test_startup_removes_a_tag_directory_without_a_record_and_logs_it(settings, caplog):
+    await init_db(settings)
+    record_firmware_source(settings.database_path, _record(settings, STABLE))
+    orphan = settings.firmware_dir / ALPHA
+    (orphan / "src").mkdir(parents=True)
+
+    await remove_unrecorded_sources(settings)
+
+    assert sorted(p.name for p in settings.firmware_dir.iterdir()) == [STABLE]
+    assert f"Removed the firmware source {orphan}, which has no record" in caplog.text
+
+
+async def test_startup_keeps_a_directory_that_is_not_a_tag(settings):
+    await init_db(settings)
+    (settings.firmware_dir / "src").mkdir(parents=True)
+
+    await remove_unrecorded_sources(settings)
+
+    assert (settings.firmware_dir / "src").is_dir()
+
+
+async def test_startup_removes_a_leftover_import_directory_and_logs_it(settings, caplog):
+    await init_db(settings)
+    leftover = settings.firmware_dir.with_name(f"{settings.firmware_dir.name}.import")
+    (leftover / "src").mkdir(parents=True)
+
+    await remove_unrecorded_sources(settings)
+
+    assert not leftover.exists()
+    assert f"Removed the directory {leftover} of a stopped import" in caplog.text
+
+
+async def test_lifespan_removes_a_tag_directory_without_a_record(app, settings, monkeypatch):
+    _newest_stable(monkeypatch, STABLE)
+    (settings.firmware_dir / ALPHA).mkdir(parents=True)
+
+    async with lifespan(app):
+        pass
+
+    assert not (settings.firmware_dir / ALPHA).exists()

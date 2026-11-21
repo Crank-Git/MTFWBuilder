@@ -275,7 +275,7 @@ async def test_htmx_update_failure_returns_an_html_fragment_with_the_error(app, 
 
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/html")
-    assert "Cannot get the firmware version list from GitHub." in resp.text
+    assert "Cannot get the firmware version from the upstream firmware list." in resp.text
 
 
 # Edge case: the admin session expires.
