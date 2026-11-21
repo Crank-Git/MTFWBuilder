@@ -130,13 +130,19 @@ function plainPskText(psk, defaultKey, role) {
         return role === 'SECONDARY' ? 'Uses the primary channel key' : 'No encryption';
     }
     if (defaultKey !== undefined && defaultKey !== null) {
-        return `Default key ${defaultKey}`;
+        return defaultKeyText(defaultKey);
     }
     // A PSK of 1 byte is a default-key index, and its base64 text has 4 characters.
     if (psk.length === 4 && psk.endsWith('==')) {
-        return `Default key ${atob(psk).charCodeAt(0)}`;
+        return defaultKeyText(atob(psk).charCodeAt(0));
     }
     return null;
+}
+
+/** Return the preview text of default key `index`. */
+function defaultKeyText(index) {
+    // Upstream `Channels::getKey` turns off encryption for default key 0, for every channel role.
+    return index === 0 ? 'Default key 0 (no encryption)' : `Default key ${index}`;
 }
 
 /** Return the table cell of a PSK: masked, with a Show control that switches the PSK text on and off. */
