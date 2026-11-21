@@ -316,6 +316,7 @@ async def test_the_list_gives_no_admin_key_to_an_admin_session(client, profile_i
 
     response = await client.get("/api/v1/fleets")
 
+    assert response.json()[0]["devices"][0]["has_admin_key"] is True
     assert ADMIN_KEY not in response.text
 
 
