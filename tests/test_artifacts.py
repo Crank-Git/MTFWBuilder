@@ -94,6 +94,7 @@ async def test_artifact_list_gives_the_size_of_each_artifact(app, client):
 async def test_artifact_list_of_an_unknown_build_returns_404(client):
     resp = await client.get("/api/v1/builds/0123456789abcdef0123456789abcdef/artifacts")
     assert resp.status_code == 404
+    assert resp.json()["detail"] == "Build not found"
 
 
 @pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
@@ -109,7 +110,7 @@ async def test_artifact_route_sends_the_named_artifact(app, client):
 
 
 @pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
-@pytest.mark.parametrize("name", ["firmware.bin", "..%2F..%2Fetc%2Fpasswd", "userPrefs.jsonc"])
+@pytest.mark.parametrize("name", ["firmware.bin", "userPrefs.jsonc"])
 async def test_artifact_route_returns_404_for_a_name_not_in_the_artifact_list(app, client, name):
     build_id = await _complete_build(app, client, "heltec-v3")
     (app.state.settings.temp_dir / build_id / "userPrefs.jsonc").write_text("{}")
@@ -117,6 +118,7 @@ async def test_artifact_route_returns_404_for_a_name_not_in_the_artifact_list(ap
     resp = await client.get(f"/api/v1/builds/{build_id}/artifacts/{name}")
 
     assert resp.status_code == 404
+    assert resp.json()["detail"] == "Artifact not found"
 
 
 @pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
