@@ -349,24 +349,21 @@ function updateTabLabels() {
 
 /** Return true when the generator writes a value from the control in a fieldset. */
 function hasValue(fieldset) {
-    if (fieldset.hidden || fieldset.disabled || isSwitchedOff(fieldset)) {
+    if (fieldset.hidden || fieldset.disabled) {
+        return false;
+    }
+    // Each section switch sets `display: none` on the controls that it turns off, and the generator then skips them.
+    for (let element = fieldset.parentElement; !element.classList.contains('config-pane'); element = element.parentElement) {
+        if (element.style.display === 'none') {
+            return false;
+        }
+    }
+    const channelPane = fieldset.closest('[data-channel-pane]');
+    if (channelPane && Number(channelPane.dataset.channelPane) >= Number(document.getElementById('channelsToWrite').value)) {
         return false;
     }
     const controls = fieldset.querySelectorAll('input:not([type="hidden"]), select, textarea');
     return Array.from(controls).some(control => (control.type === 'checkbox' ? control.checked : control.value !== ''));
-}
-
-/** Return true when a section switch that is off, or the channel count, keeps the generator from the fieldset. */
-function isSwitchedOff(fieldset) {
-    // Each section switch sets `display: none` on the controls that it turns off.
-    for (let element = fieldset.parentElement; element && !element.classList.contains('config-pane'); element = element.parentElement) {
-        if (element.style.display === 'none') {
-            return true;
-        }
-    }
-    const channelPane = fieldset.closest('[data-channel-pane]');
-    const channelCount = Number(document.getElementById('channelsToWrite').value);
-    return channelPane !== null && Number(channelPane.dataset.channelPane) >= channelCount;
 }
 
 /** Show the POSIX string that the generator writes for the chosen IANA time zone (FR-config-coverage-17). */
