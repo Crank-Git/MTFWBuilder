@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pytest:*)",
+      "Bash(ruff check:*)",
+      "Bash(ruff format:*)",
+      "Bash(pip install -e:*)",
+      "Bash(uv sync:*)",
+      "Bash(uv run pytest:*)",
+      "Bash(uv run ruff:*)",
+      "Bash(uvicorn mtfwbuilder.main:app:*)",
+      "Bash(docker compose build:*)",
+      "Bash(docker compose up:*)",
+      "Bash(docker compose down:*)",
+      "Bash(docker compose logs:*)",
+      "Bash(pio project config:*)",
+      "Bash(python -m playwright install chromium)",
+      "Bash(python3 docs/specs/render-spec.py)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v ruff >/dev/null || exit 0; for f in $CLAUDE_FILE_PATHS; do case \"$f\" in *.py) ruff format --quiet \"$f\" ;; esac; done; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}

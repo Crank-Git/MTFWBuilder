@@ -267,3 +267,11 @@ docker-compose.override.yml
 # oh-my-claudecode state
 .omc/ 
 .gstack/
+
+# Claude Code
+.claude/settings.local.json
+.claude/worktrees/
+.claude/agent-memory-local/
+CLAUDE.local.md
+.claude.local.md
+.issue-flow.local.json

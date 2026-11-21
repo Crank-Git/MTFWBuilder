@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MTFWBuilder — Feature: Build pipeline repair</title>
+<style>
+:root { --bg:#ffffff; --fg:#1a1a24; --muted:#5a5a68; --line:#e3e3ea; --accent:#3452c8;
+        --card:#f6f6f9; --warn-bg:#fff7e8; --warn-line:#e8b34a; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#14141b; --fg:#e8e8ee; --muted:#9a9aa8; --line:#2c2c38; --accent:#8ea6ff;
+          --card:#1c1c26; --warn-bg:#2a2318; --warn-line:#a87c2a; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--fg);
+       font:16px/1.6 system-ui,-apple-system,sans-serif; }
+.layout { display:flex; min-height:100vh; }
+aside.site { width:17rem; flex:none; border-right:1px solid var(--line);
+             padding:1.2rem 1rem 3rem; position:sticky; top:0; height:100vh;
+             overflow-y:auto; background:var(--card); }
+aside.site h2 { font-size:.8rem; text-transform:uppercase; letter-spacing:.06em;
+                color:var(--muted); margin:1.2rem 0 .3rem; border:none; padding:0; }
+aside.site ul { list-style:none; margin:0; padding:0; }
+aside.site li { margin:.15rem 0; }
+aside.site a { text-decoration:none; color:var(--fg); font-size:.92rem;
+               display:block; padding:.15rem .5rem; border-radius:6px; }
+aside.site a:hover { background:var(--bg); }
+aside.site a.current { background:var(--accent); color:#fff; }
+aside.site a.sub { padding-left:1.3rem; font-size:.84rem; color:var(--muted); }
+aside.site .brand { font-weight:700; font-size:1.05rem; }
+main { max-width:60rem; margin:0 auto; padding:2rem 1.5rem 6rem; min-width:0; flex:1; }
+h1,h2,h3,h4 { line-height:1.25; }
+h1 { font-size:2rem; margin:.2rem 0; }
+h2 { border-bottom:1px solid var(--line); padding-bottom:.3rem; margin-top:2.5rem; }
+a { color:var(--accent); }
+code { background:var(--card); padding:.1em .35em; border-radius:4px; font-size:.9em; }
+pre.code { background:var(--card); border:1px solid var(--line); border-radius:8px;
+           padding:1rem; overflow-x:auto; }
+pre.code code { background:none; padding:0; }
+.table-wrap { overflow-x:auto; }
+table { border-collapse:collapse; margin:1rem 0; min-width:50%; }
+th,td { border:1px solid var(--line); padding:.4rem .7rem; text-align:left; }
+th { background:var(--card); }
+blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:.2rem 1rem;
+             color:var(--muted); }
+.meta { color:var(--muted); margin-bottom:2rem; }
+.badge { display:inline-block; padding:.1rem .6rem; border-radius:999px;
+         border:1px solid var(--accent); color:var(--accent); font-size:.85rem; }
+.diagram { background:var(--card); border:1px solid var(--line); border-radius:8px;
+           padding:1rem; margin:1rem 0; overflow-x:auto; }
+.diagram pre.mermaid { margin:0; }
+.diagram.raw::before { content:"diagram source (assets/mermaid.min.js not vendored)";
+                       display:block; color:var(--muted); font-size:.8rem;
+                       margin-bottom:.5rem; }
+.callout-h, .callout-h ~ p, .callout-h ~ ul { background:var(--warn-bg); }
+.callout-h { border-left:4px solid var(--warn-line); padding:.3rem .8rem; }
+.mockup { margin:1.5rem 0; }
+.mockup iframe { width:100%; height:32rem; border:1px solid var(--line);
+                 border-radius:8px; background:#fff; }
+nav.pager { display:flex; justify-content:space-between; margin-top:3rem;
+            border-top:1px solid var(--line); padding-top:1rem; }
+@media (max-width: 900px) {
+  .layout { display:block; }
+  aside.site { width:auto; height:auto; position:static; border-right:none;
+               border-bottom:1px solid var(--line); }
+}
+h1[id]:hover .rv-add, h2[id]:hover .rv-add, h3[id]:hover .rv-add,
+h4[id]:hover .rv-add { opacity:1; }
+.rv-add { opacity:0; margin-left:.5rem; font-size:.75rem; cursor:pointer;
+          border:1px solid var(--accent); color:var(--accent); background:none;
+          border-radius:6px; padding:0 .45rem; vertical-align:middle;
+          transition:opacity .15s; }
+.rv-comment { border:1px solid var(--warn-line); border-left-width:4px;
+              background:var(--warn-bg); border-radius:8px; padding:.6rem .9rem;
+              margin:.8rem 0; font-size:.92rem; }
+.rv-comment.rv-resolved { opacity:.6; border-left-color:var(--line); }
+.rv-comment .rv-head { display:flex; gap:.6rem; align-items:center;
+                       color:var(--muted); font-size:.8rem; margin-bottom:.3rem; }
+.rv-comment .rv-head button { font-size:.75rem; cursor:pointer; background:none;
+                              border:1px solid var(--line); border-radius:6px;
+                              color:var(--muted); padding:0 .4rem; }
+.rv-comment .rv-body { white-space:pre-wrap; }
+.rv-editor textarea { width:100%; min-height:5rem; background:var(--bg);
+                      color:var(--fg); border:1px solid var(--line);
+                      border-radius:6px; padding:.5rem; font:inherit; }
+.rv-editor .rv-actions { margin-top:.4rem; display:flex; gap:.5rem; }
+.rv-editor button { cursor:pointer; border-radius:6px; padding:.2rem .8rem;
+                    border:1px solid var(--accent); background:var(--accent);
+                    color:#fff; }
+.rv-editor button.rv-cancel { background:none; color:var(--accent); }
+#rv-toggle { position:fixed; right:1rem; bottom:1rem; z-index:60;
+             background:var(--accent); color:#fff; border:none; cursor:pointer;
+             border-radius:999px; padding:.5rem 1rem; font-size:.85rem;
+             box-shadow:0 2px 10px rgba(0,0,0,.2); }
+#rv-drawer { position:fixed; top:0; right:0; bottom:0; width:21rem; z-index:55;
+             background:var(--card); border-left:1px solid var(--line);
+             display:flex; flex-direction:column; transform:translateX(100%);
+             transition:transform .2s ease; box-shadow:-4px 0 16px rgba(0,0,0,.12); }
+body.rv-open #rv-drawer { transform:none; }
+body.rv-open .layout { padding-right:21rem; }
+#rv-drawer header { padding:.8rem 1rem .5rem; border-bottom:1px solid var(--line); }
+#rv-drawer header .rv-count { color:var(--muted); font-size:.8rem; }
+#rv-drawer .rv-compose { padding:.8rem 1rem; border-bottom:1px solid var(--line); }
+#rv-drawer .rv-compose label { display:block; font-size:.75rem;
+                               color:var(--muted); margin-bottom:.25rem; }
+#rv-drawer .rv-compose select { width:100%; margin-bottom:.4rem;
+             background:var(--bg); color:var(--fg); border:1px solid var(--line);
+             border-radius:6px; padding:.3rem; font:inherit; font-size:.85rem; }
+#rv-drawer .rv-compose textarea { width:100%; min-height:5.5rem;
+             background:var(--bg); color:var(--fg); border:1px solid var(--line);
+             border-radius:6px; padding:.5rem; font:inherit; font-size:.9rem; }
+#rv-drawer .rv-compose .rv-live { font-size:.72rem; color:var(--muted); }
+#rv-drawer .rv-list { flex:1; overflow-y:auto; padding:.6rem 1rem; }
+#rv-drawer .rv-item { border:1px solid var(--line); border-left:3px solid
+             var(--warn-line); border-radius:8px; padding:.45rem .6rem;
+             margin-bottom:.6rem; font-size:.82rem; cursor:pointer; }
+#rv-drawer .rv-item.rv-resolved { opacity:.55; border-left-color:var(--line); }
+#rv-drawer .rv-item .rv-where { color:var(--accent); font-size:.72rem; }
+#rv-drawer .rv-item .rv-meta { color:var(--muted); font-size:.72rem;
+                               display:flex; gap:.5rem; align-items:center; }
+#rv-drawer .rv-item .rv-meta button { font-size:.7rem; cursor:pointer;
+             background:none; border:1px solid var(--line); border-radius:5px;
+             color:var(--muted); padding:0 .35rem; }
+#rv-drawer .rv-item .rv-text { white-space:pre-wrap; margin:.15rem 0; }
+#rv-drawer footer { padding:.6rem 1rem; border-top:1px solid var(--line);
+                    display:flex; gap:.5rem; flex-wrap:wrap; }
+#rv-drawer footer button, #rv-drawer .rv-compose button {
+  cursor:pointer; border:1px solid var(--accent); background:none;
+  color:var(--accent); border-radius:6px; padding:.2rem .7rem; font-size:.8rem; }
+#rv-drawer .rv-compose button.rv-primary { background:var(--accent); color:#fff; }
+#rv-drawer .rv-otherpages { color:var(--muted); font-size:.75rem;
+                            margin:.4rem 0 0; }
+@media (max-width: 1200px) { body.rv-open .layout { padding-right:0; } }
+</style>
+</head>
+<body data-page="feature-build-pipeline-repair" data-rvkey="mtfwbuilder">
+<div class="layout">
+<aside class="site"><a class="brand" href="../spec.html">MTFWBuilder</a>
+<h2>Spec</h2><ul>
+<li><a href="../spec.html">Overview &amp; index</a></li>
+</ul>
+<h2>Pages</h2><ul>
+<li><a href="page-inherit-reconciliation.html">Inherit reconciliation and research</a></li>
+</ul>
+<h2>Features</h2><ul>
+<li><a href="feature-foundation.html">Foundation</a></li>
+<li><a href="feature-config-generator.html">Config generator</a></li>
+<li><a href="feature-firmware-builder.html">Firmware builder</a></li>
+<li><a href="feature-device-registry.html">Device registry</a></li>
+<li><a href="feature-admin.html">Admin</a></li>
+<li><a href="feature-userprefs-correctness.html">userPrefs correctness</a></li>
+<li><a class="current" href="feature-build-pipeline-repair.html">Build pipeline repair</a></li>
+<li><a href="feature-frontend-htmx.html">Frontend on htmx</a></li>
+<li><a href="feature-platform-modernization.html">Platform modernization</a></li>
+<li><a href="feature-firmware-versions.html">Firmware versions</a></li>
+<li><a href="feature-generated-registry.html">Generated registry</a></li>
+<li><a href="feature-config-coverage.html">Config coverage</a></li>
+<li><a href="feature-channel-share.html">Channel share</a></li>
+<li><a href="feature-browser-flashing.html">Browser flashing</a></li>
+<li><a href="feature-fleet-builds.html">Fleet builds</a></li>
+<li><a href="feature-push-config.html">Push config</a></li>
+</ul></aside>
+<main>
+<h1>Feature: Build pipeline repair</h1>
+<p class="meta">Epic 2: Build pipeline repair &nbsp; <span class="badge">planned</span></p>
+<h3 id="build-pipeline-repair-purpose">Purpose</h3>
+<p>A build must run to an artifact without a page attached. A build must scrub every secret on every exit path. It must also find the artifacts that current upstream firmware produces.</p>
+<h3 id="build-pipeline-repair-user-stories">User stories</h3>
+<ul>
+<li>As an operator, I want my build to continue when I reload the page, so that a dropped
+</li>
+</ul>
+<p>connection does not waste a 10-minute compile.</p>
+<ul>
+<li>As an operator, I want my secrets removed from the server after the build, so that
+</li>
+</ul>
+<p>another person on the host cannot read them.</p>
+<h3 id="build-pipeline-repair-functional-requirements">Functional requirements</h3>
+<ul>
+<li>FR-build-pipeline-repair-1 — <code>POST /api/v1/build-firmware</code> puts the build in the build
+</li>
+</ul>
+<p>queue and returns 202 with <code>build_id</code> and <code>progress_url</code>.</p>
+<ul>
+<li>FR-build-pipeline-repair-2 — A build worker takes builds from the build queue in
+</li>
+</ul>
+<p>order. The number of build workers is <code>MTFW_BUILD_WORKERS</code> (default 1).</p>
+<ul>
+<li>FR-build-pipeline-repair-3 — The build queue holds at most <code>MTFW_MAX_QUEUE_SIZE</code>
+</li>
+</ul>
+<p>builds (default 5). A request when the build queue is full returns 503.</p>
+<ul>
+<li>FR-build-pipeline-repair-4 — The progress stream sends the current build status on
+</li>
+</ul>
+<p>connect, then each change, then each new masked log line.</p>
+<ul>
+<li>FR-build-pipeline-repair-5 — A client that reconnects to the progress stream gets the
+</li>
+</ul>
+<p>current build status. A closed progress stream does not cancel the build.</p>
+<ul>
+<li>FR-build-pipeline-repair-6 — <code>POST /api/v1/builds/{build_id}/cancel</code> cancels a
+</li>
+</ul>
+<p>queued or running build.</p>
+<ul>
+<li>FR-build-pipeline-repair-7 — A build id is 32 hex characters from <code>secrets.token_hex(16)</code>.
+</li>
+<li>FR-build-pipeline-repair-8 — The build collects every artifact that matches
+</li>
+</ul>
+<p><code>.pio/build/&lt;env&gt;/firmware-&lt;env&gt;-<em>.{bin,factory.bin,uf2,hex,zip}</code>, the matching <code>littlefs-&lt;env&gt;-</em>.bin</code>, and <code>*.mt.json</code>.</p>
+<ul>
+<li>FR-build-pipeline-repair-9 — A build that fails stops at the failed step and reports
+</li>
+</ul>
+<p>one <code>failed</code> event with the error message.</p>
+<ul>
+<li>FR-build-pipeline-repair-10 — The build scrubs on every transition into <code>complete</code>,
+</li>
+</ul>
+<p><code>failed</code> and <code>cancelled</code>.</p>
+<ul>
+<li>FR-build-pipeline-repair-11 — The scrub deletes <code>userPrefs.jsonc</code> in the firmware
+</li>
+</ul>
+<p>source and the whole <code>.pio/build/&lt;env&gt;/</code> directory.</p>
+<ul>
+<li>FR-build-pipeline-repair-12 — The build writes the userPrefs file only to the firmware
+</li>
+</ul>
+<p>source root.</p>
+<ul>
+<li>FR-build-pipeline-repair-13 — The build replaces each secret value in each log line
+</li>
+</ul>
+<p>with <code>***</code> before it stores or sends the line.</p>
+<ul>
+<li>FR-build-pipeline-repair-14 — The project records each build in the <code>builds</code> table,
+</li>
+</ul>
+<p>without the build log and without the config.</p>
+<ul>
+<li>FR-build-pipeline-repair-15 — A cleanup task runs every <code>cleanup_interval_seconds</code>
+</li>
+</ul>
+<p>and removes artifacts older than <code>build_max_age_seconds</code>.</p>
+<ul>
+<li>FR-build-pipeline-repair-16 — A firmware update waits until no build runs, and no
+</li>
+</ul>
+<p>build starts while a firmware update runs.</p>
+<ul>
+<li>FR-build-pipeline-repair-17 — <code>GET /api/v1/builds/{build_id}/artifacts</code> lists the
+</li>
+</ul>
+<p>artifacts with name, size and kind (<code>factory</code>, <code>app</code>, <code>uf2</code>, <code>ota-zip</code>, <code>hex</code>, <code>littlefs</code>, <code>manifest</code>).</p>
+<ul>
+<li>FR-build-pipeline-repair-18 — <code>GET /api/v1/builds/{build_id}/artifacts/{name}</code> sends
+</li>
+</ul>
+<p>one artifact. The name must be in the artifact list.</p>
+<ul>
+<li>FR-build-pipeline-repair-19 — The fake <code>pio</code> test executable writes upstream-named
+</li>
+</ul>
+<p>artifacts, so the tests run without PlatformIO.</p>
+<ul>
+<li>FR-build-pipeline-repair-20 — Until Epic 6 deletes it, every <code>id</code> in
+</li>
+</ul>
+<p><code>devices/variants.yaml</code> is a PlatformIO environment name of the stable firmware version. The 71 wrong ids change to the env names in <code>pages/inherit-reconciliation.md</code> § Registry id map. Where one directory holds several envs, each env gets its own entry.</p>
+<ul>
+<li>FR-build-pipeline-repair-21 — A test fails when a registry <code>id</code> is not an <code>[env:…]</code>
+</li>
+</ul>
+<p>name in the fixture firmware source.</p>
+<h3 id="build-pipeline-repair-user-flows">User flows</h3>
+<div class="diagram"><pre class="mermaid">sequenceDiagram
+  participant O as Page
+  participant R as Router
+  participant Q as Build queue
+  participant W as Build worker
+  participant P as pio
+  O-&gt;&gt;R: POST /api/v1/build-firmware
+  R-&gt;&gt;Q: put build
+  R--&gt;&gt;O: 202 build_id, progress_url
+  O-&gt;&gt;R: GET progress_url (SSE)
+  R--&gt;&gt;O: status queued
+  Q-&gt;&gt;W: next build
+  W-&gt;&gt;P: pio run -e variant
+  P--&gt;&gt;W: log lines
+  W--&gt;&gt;O: masked log, status compiling, linking, packaging
+  W-&gt;&gt;W: collect artifacts
+  W-&gt;&gt;W: scrub
+  W--&gt;&gt;O: status complete, artifact list
+  Note over O,R: A reconnect gets the current status. Closing the stream does not cancel.</pre></div>
+<div class="diagram"><pre class="mermaid">flowchart TD
+  S[pio exits] --&gt; A{exit code 0?}
+  A --&gt;|no| F[status failed]
+  A --&gt;|yes| B{artifacts found?}
+  B --&gt;|no| F
+  B --&gt;|yes| C[status complete]
+  T[timeout] --&gt; F
+  X[cancel request] --&gt; K[status cancelled]
+  F --&gt; SC[scrub]
+  C --&gt; SC
+  K --&gt; SC</pre></div>
+<ol>
+<li>The operator starts a build. The route queues it and returns 202.
+</li>
+<li>The page opens the progress stream and shows <code>queued</code>.
+</li>
+<li>A build worker takes the build and runs <code>pio</code>.
+</li>
+<li>The progress stream sends masked log lines and build status changes.
+</li>
+<li>If <code>pio</code> fails, times out, or the operator cancels, the build stops and scrubs.
+</li>
+<li>If <code>pio</code> succeeds, the build collects artifacts, scrubs, and sends <code>complete</code>.
+</li>
+</ol>
+<h3 id="build-pipeline-repair-screens-states">Screens &amp; states</h3>
+<p>No new screens. Feature 07 renders the states.</p>
+<h3 id="build-pipeline-repair-behaviour-rules">Behaviour rules</h3>
+<ul>
+<li>Secret values for masking: every PSK (hex and byte-array form), WiFi PSK, MQTT
+</li>
+</ul>
+<p>password, admin key, and OEM image data.</p>
+<ul>
+<li>The ESP32 factory artifact is the preferred download for a full install.
+</li>
+<li>Retry: on an ESP32 build, a <code>git fetch</code> network error retries the build once, as
+</li>
+</ul>
+<p>upstream <code>bin/build-esp32.sh</code> does.</p>
+<h3 id="build-pipeline-repair-data-touched">Data touched</h3>
+<ul>
+<li><code>builds</code> table: written on queue, on each status change, and on end.
+</li>
+<li>Migration: none for <code>builds</code> (the table exists). Add the column <code>config_hash</code> TEXT
+</li>
+</ul>
+<p>and <code>firmware_version</code> TEXT.</p>
+<h3 id="build-pipeline-repair-interfaces">Interfaces</h3>
+<div class="table-wrap"><table>
+<tr><th>Method</th><th>Path</th><th>Response</th></tr>
+<tr><td>POST</td><td><code>/api/v1/build-firmware</code></td><td>202 <code>{build_id, progress_url}</code>; 400; 422; 429; 503 queue full</td></tr>
+<tr><td>GET</td><td><code>/api/v1/build-progress/{build_id}</code></td><td>SSE events <code>status</code> <code>{status, message, progress}</code>, <code>log</code> <code>{line}</code>, <code>artifacts</code> <code>[...]</code>; 404</td></tr>
+<tr><td>POST</td><td><code>/api/v1/builds/{build_id}/cancel</code></td><td>200; 404; 409 already ended</td></tr>
+<tr><td>GET</td><td><code>/api/v1/builds/{build_id}/artifacts</code></td><td>200 list; 404</td></tr>
+<tr><td>GET</td><td><code>/api/v1/builds/{build_id}/artifacts/{name}</code></td><td>file; 404</td></tr>
+</table></div>
+<p>The old <code>GET /api/v1/download-firmware/{build_id}</code> returns 308 to the factory or primary artifact for one release, then is removed.</p>
+<p>Upstream artifact names: <code>bin/platformio-pre.py</code> sets <code>PROGNAME = firmware-&lt;env&gt;-&lt;version&gt;</code> (<code>meshtastic/firmware</code> PR #8248).</p>
+<h3 id="build-pipeline-repair-edge-cases-failures">Edge cases &amp; failures</h3>
+<ul>
+<li>Firmware source not installed: the build fails at once with "Firmware source not
+</li>
+</ul>
+<p>installed. An admin must install a firmware version."</p>
+<ul>
+<li>Disk full during build: the build fails with the <code>pio</code> error, then scrubs.
+</li>
+<li>Process restart during a build: on startup, every <code>builds</code> row with a running status
+</li>
+</ul>
+<p>changes to <code>failed</code> with "Server restarted", and the firmware source is scrubbed.</p>
+<ul>
+<li>Two builds of different variants share one firmware source. Each build writes its
+</li>
+</ul>
+<p>own userPrefs file, so build workers &gt; 1 need one copy of the source per worker. With build workers &gt; 1, the project copies the firmware source per worker.</p>
+<h3 id="build-pipeline-repair-acceptance-criteria">Acceptance criteria</h3>
+<ul>
+<li>A build with the fake <code>pio</code> returns 202 and reaches <code>complete</code> with no progress stream open.
+</li>
+<li>A reconnect to the progress stream during a build gets the current build status.
+</li>
+<li>A cancel request during <code>compiling</code> gives <code>cancelled</code>, and <code>userPrefs.jsonc</code> does not exist afterwards.
+</li>
+<li>After a failed build, <code>userPrefs.jsonc</code> and <code>.pio/build/&lt;env&gt;/</code> do not exist.
+</li>
+<li>After a complete build, <code>userPrefs.jsonc</code> and <code>.pio/build/&lt;env&gt;/</code> do not exist.
+</li>
+<li>The artifact list for an ESP32 build has kind <code>factory</code> and kind <code>app</code>.
+</li>
+<li>The artifact list for an nRF52 build has kind <code>uf2</code> and kind <code>ota-zip</code>.
+</li>
+<li>No log line sent on the progress stream holds the PSK of the config.
+</li>
+<li>A sixth queued build returns 503 with build queue size 5.
+</li>
+<li>A build id is 32 hex characters.
+</li>
+<li>After restart, a build that was <code>compiling</code> shows <code>failed</code>.
+</li>
+</ul>
+<h3 id="build-pipeline-repair-out-of-scope">Out of scope</h3>
+<p>Build cache (feature 14). Firmware version choice (feature 09).</p>
+<h3 id="build-pipeline-repair-open-questions" class="callout-h">Open questions</h3><nav class="pager">
+<a href="feature-userprefs-correctness.html">&larr; Feature: userPrefs correctness</a>
+<a href="feature-frontend-htmx.html">Feature: Frontend on htmx &rarr;</a>
+</nav>
+</main>
+</div>
+<script src="../assets/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true,theme:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'default'});</script>
+<script type="application/json" id="rv-embedded">[]</script>
+<script>
+(function(){
+  'use strict';
+  var PAGE = document.body.getAttribute('data-page');
+  // storage key carries the spec's slug: file:// pages can share one
+  // localStorage pool, and two specs must never share a comment store
+  var RVKEY = 'spec-review:' + (document.body.getAttribute('data-rvkey') || 'spec');
+  var EMBED = [];
+  var embedEl = document.getElementById('rv-embedded');
+  if (embedEl) { try { EMBED = JSON.parse(embedEl.textContent); } catch(e){} }
+  function loadLocal(){ try { return JSON.parse(localStorage.getItem(RVKEY)) || {comments:[], deleted:[]}; } catch(e){ return {comments:[], deleted:[]}; } }
+  function saveLocal(s){ try { localStorage.setItem(RVKEY, JSON.stringify(s)); } catch(e){} }
+  function cid(c){ return c.page + '|' + c.section + '|' + (c.date||'') + '|' + c.body.slice(0,24); }
+  function allComments(){
+    var s = loadLocal(), map = {};
+    EMBED.forEach(function(c){ map[cid(c)] = c; });
+    s.comments.forEach(function(c){ map[cid(c)] = c; });
+    s.deleted.forEach(function(id){ delete map[id]; });
+    return Object.keys(map).map(function(k){ return map[k]; });
+  }
+  function upsert(c){
+    var s = loadLocal(), id = cid(c);
+    s.comments = s.comments.filter(function(x){ return cid(x) !== id; });
+    s.comments.push(c);
+    s.deleted = s.deleted.filter(function(x){ return x !== id; });
+    saveLocal(s); refresh();
+  }
+  function remove(c){
+    var s = loadLocal(), id = cid(c);
+    s.comments = s.comments.filter(function(x){ return cid(x) !== id; });
+    if (EMBED.some(function(x){ return cid(x) === id; })) s.deleted.push(id);
+    saveLocal(s); refresh();
+  }
+  function today(){ return new Date().toISOString().slice(0,10); }
+  function exportMd(){
+    var lines = ['# Review comments', '',
+      '<!-- Exported from the spec review layer. Save this file as',
+      '     docs/specs/review-comments.md and re-run render-spec.py to embed',
+      '     every comment under its section for the next review round. -->', ''];
+    allComments().sort(function(a,b){
+      return (a.page+a.section).localeCompare(b.page+b.section);
+    }).forEach(function(c){
+      lines.push('## [' + c.page + '] ' + (c.section||''));
+      lines.push('status: ' + (c.status||'open'));
+      lines.push('date: ' + (c.date||today()));
+      lines.push(c.body); lines.push('');
+    });
+    var blob = new Blob([lines.join('\n')], {type:'text/markdown'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'review-comments.md';
+    a.click(); URL.revokeObjectURL(a.href);
+  }
+  function importMd(file){
+    var reader = new FileReader();
+    reader.onload = function(){
+      var text = String(reader.result);
+      var blocks = text.split(/^## /m).slice(1);
+      blocks.forEach(function(b){
+        var head = b.match(/^\[([^\]]+)\]\s*(\S*)/);
+        if (!head) return;
+        var status = (b.match(/^status:\s*(\S+)/m)||[])[1] || 'open';
+        var date = (b.match(/^date:\s*(\S+)/m)||[])[1] || today();
+        var body = b.replace(/^\[[^\]]*\]\s*\S*\s*\n/, '')
+                    .replace(/^status:.*\n?/m,'').replace(/^date:.*\n?/m,'').trim();
+        if (body) upsert({page:head[1], section:head[2]||'', status:status, date:date, body:body});
+      });
+      refresh();
+    };
+    reader.readAsText(file);
+  }
+  function commentBox(c){
+    var div = document.createElement('div');
+    div.className = 'rv-comment' + (c.status === 'resolved' ? ' rv-resolved' : '');
+    var head = document.createElement('div'); head.className = 'rv-head';
+    head.textContent = '💬 ' + (c.date||'') + ' · ' + (c.status||'open');
+    var tog = document.createElement('button');
+    tog.textContent = c.status === 'resolved' ? 'reopen' : 'resolve';
+    tog.onclick = function(){ remove(c); c = Object.assign({}, c, {status: c.status === 'resolved' ? 'open' : 'resolved'}); upsert(c); };
+    var del = document.createElement('button'); del.textContent = 'delete';
+    del.onclick = function(){ if (confirm('Delete this comment?')) remove(c); };
+    head.appendChild(tog); head.appendChild(del);
+    var body = document.createElement('div'); body.className = 'rv-body';
+    body.textContent = c.body;
+    div.appendChild(head); div.appendChild(body);
+    return div;
+  }
+  function editor(section, after){
+    var wrap = document.createElement('div');
+    wrap.className = 'rv-comment rv-editor';
+    var ta = document.createElement('textarea');
+    ta.placeholder = 'Comment on this section…';
+    var actions = document.createElement('div'); actions.className = 'rv-actions';
+    var save = document.createElement('button'); save.textContent = 'Save';
+    save.onclick = function(){
+      if (ta.value.trim()) upsert({page:PAGE, section:section, status:'open', date:today(), body:ta.value.trim()});
+      wrap.remove();
+    };
+    var cancel = document.createElement('button'); cancel.textContent = 'Cancel';
+    cancel.className = 'rv-cancel'; cancel.onclick = function(){ wrap.remove(); };
+    actions.appendChild(save); actions.appendChild(cancel);
+    wrap.appendChild(ta); wrap.appendChild(actions);
+    after.insertAdjacentElement('afterend', wrap);
+    ta.focus();
+  }
+  // --- headings, inline buttons ---
+  var mainH1 = document.querySelector('main h1');
+  if (mainH1 && !mainH1.id) { mainH1.id = 'page-title'; }
+  var headings = Array.prototype.slice.call(
+    document.querySelectorAll('main h1[id], main h2[id], main h3[id], main h4[id]'));
+  headings.forEach(function(h){
+    var b = document.createElement('button');
+    b.className = 'rv-add'; b.textContent = '💬 comment'; b.title = 'Comment on this section';
+    b.onclick = function(){ editor(h.id, h); };
+    h.appendChild(b);
+  });
+  function headingTitle(h){
+    var t = h.childNodes[0] ? h.childNodes[0].textContent : h.textContent;
+    return t.trim();
+  }
+  function titleFor(section){
+    var el = section && document.getElementById(section);
+    return el ? headingTitle(el) : (section || '(page)');
+  }
+
+  // --- drawer ---
+  var drawer = document.createElement('div');
+  drawer.id = 'rv-drawer';
+  drawer.innerHTML =
+    '<header><strong>Review</strong> <span class="rv-count"></span></header>' +
+    '<div class="rv-compose">' +
+    '<div class="rv-live">Commenting on the section in view:</div>' +
+    '<label for="rv-sec"></label><select id="rv-sec"></select>' +
+    '<textarea id="rv-text" placeholder="Type as you read… (Ctrl+Enter saves)"></textarea>' +
+    '<div style="margin-top:.4rem; display:flex; gap:.5rem;">' +
+    '<button class="rv-primary" id="rv-save">Save comment</button>' +
+    '<button id="rv-clear">Clear</button></div></div>' +
+    '<div class="rv-list"></div>' +
+    '<footer><button id="rv-export">Export .md</button>' +
+    '<button id="rv-import">Import</button>' +
+    '<span class="rv-otherpages"></span></footer>';
+  document.body.appendChild(drawer);
+  var toggle = document.createElement('button');
+  toggle.id = 'rv-toggle';
+  toggle.onclick = function(){
+    document.body.classList.toggle('rv-open');
+    try { localStorage.setItem(RVKEY + ':open', document.body.classList.contains('rv-open') ? '1' : ''); } catch(e){}
+  };
+  document.body.appendChild(toggle);
+  try { if (localStorage.getItem(RVKEY + ':open')) document.body.classList.add('rv-open'); } catch(e){}
+
+  var sel = drawer.querySelector('#rv-sec');
+  headings.forEach(function(h){
+    var opt = document.createElement('option');
+    opt.value = h.id; opt.textContent = headingTitle(h);
+    sel.appendChild(opt);
+  });
+  var followScroll = true;
+  sel.onchange = function(){ followScroll = false; };
+
+  // scroll spy: pick the last heading above the upper third of the viewport
+  function currentSection(){
+    var line = window.innerHeight * 0.33, best = headings[0];
+    for (var i = 0; i < headings.length; i++) {
+      if (headings[i].getBoundingClientRect().top <= line) best = headings[i];
+    }
+    return best ? best.id : '';
+  }
+  window.addEventListener('scroll', function(){
+    if (!followScroll) return;
+    var s = currentSection();
+    if (s && sel.value !== s) sel.value = s;
+  }, {passive:true});
+  // typing pins the target section so a stray scroll can't retarget the comment
+  drawer.querySelector('#rv-text').addEventListener('input', function(){
+    if (this.value.trim()) followScroll = false;
+    else followScroll = true;
+  });
+
+  function saveFromDrawer(){
+    var ta = drawer.querySelector('#rv-text');
+    if (!ta.value.trim()) return;
+    upsert({page:PAGE, section:sel.value, status:'open', date:today(), body:ta.value.trim()});
+    ta.value = ''; followScroll = true;
+  }
+  drawer.querySelector('#rv-save').onclick = saveFromDrawer;
+  drawer.querySelector('#rv-text').addEventListener('keydown', function(e){
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') saveFromDrawer();
+  });
+  drawer.querySelector('#rv-clear').onclick = function(){
+    drawer.querySelector('#rv-text').value = ''; followScroll = true;
+  };
+  drawer.querySelector('#rv-export').onclick = exportMd;
+  var fileIn = document.createElement('input');
+  fileIn.type = 'file'; fileIn.accept = '.md,text/markdown'; fileIn.style.display = 'none';
+  fileIn.onchange = function(){ if (fileIn.files[0]) importMd(fileIn.files[0]); };
+  drawer.appendChild(fileIn);
+  drawer.querySelector('#rv-import').onclick = function(){ fileIn.click(); };
+
+  function drawerItem(c){
+    var div = document.createElement('div');
+    div.className = 'rv-item' + (c.status === 'resolved' ? ' rv-resolved' : '');
+    var where = document.createElement('div'); where.className = 'rv-where';
+    where.textContent = titleFor(c.section);
+    var text = document.createElement('div'); text.className = 'rv-text';
+    text.textContent = c.body;
+    var meta = document.createElement('div'); meta.className = 'rv-meta';
+    meta.textContent = (c.date||'') + ' · ' + (c.status||'open');
+    var tog = document.createElement('button');
+    tog.textContent = c.status === 'resolved' ? 'reopen' : 'resolve';
+    tog.onclick = function(e){ e.stopPropagation(); remove(c);
+      upsert(Object.assign({}, c, {status: c.status === 'resolved' ? 'open' : 'resolved'})); };
+    var del = document.createElement('button'); del.textContent = 'delete';
+    del.onclick = function(e){ e.stopPropagation();
+      if (confirm('Delete this comment?')) remove(c); };
+    meta.appendChild(tog); meta.appendChild(del);
+    div.appendChild(where); div.appendChild(text); div.appendChild(meta);
+    div.onclick = function(){
+      var el = c.section && document.getElementById(c.section);
+      if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
+    };
+    return div;
+  }
+
+  function refresh(){
+    document.querySelectorAll('.rv-comment:not(.rv-editor)').forEach(function(el){ el.remove(); });
+    var all = allComments();
+    var mine = all.filter(function(c){ return c.page === PAGE; });
+    mine.forEach(function(c){
+      var target = c.section && document.getElementById(c.section);
+      var anchor = target || mainH1 || document.body.querySelector('main') || document.body;
+      anchor.insertAdjacentElement('afterend', commentBox(c));
+    });
+    var open = all.filter(function(c){ return c.status !== 'resolved'; }).length;
+    toggle.textContent = '💬 Review (' + open + ')';
+    drawer.querySelector('.rv-count').textContent =
+      open + ' open / ' + all.length + ' total';
+    var list = drawer.querySelector('.rv-list');
+    list.innerHTML = '';
+    mine.slice().reverse().forEach(function(c){ list.appendChild(drawerItem(c)); });
+    var others = {};
+    all.forEach(function(c){ if (c.page !== PAGE) others[c.page] = (others[c.page]||0) + 1; });
+    var otherKeys = Object.keys(others);
+    drawer.querySelector('.rv-otherpages').textContent = otherKeys.length
+      ? 'Other pages: ' + otherKeys.map(function(k){ return k + ' (' + others[k] + ')'; }).join(', ')
+      : '';
+  }
+  refresh();
+  var s0 = currentSection();
+  if (s0) sel.value = s0;
+})();
+</script>
+</body>
+</html>

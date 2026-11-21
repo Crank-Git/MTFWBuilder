@@ -1,0 +1,484 @@
+---
+name: MTFWBuilder
+slug: mtfwbuilder
+repo: Crank-Git/MTFWBuilder
+status: approved
+spec_version: 2
+created: 2026-11-21
+approved: 2026-11-21
+html_generated: 2026-11-21
+branch_model: dev-and-live
+visibility: public
+features:
+  - id: foundation
+    file: features/00-foundation.md
+  - id: config-generator
+    file: features/01-config-generator.md
+  - id: firmware-builder
+    file: features/02-firmware-builder.md
+  - id: device-registry
+    file: features/03-device-registry.md
+  - id: admin
+    file: features/04-admin.md
+  - id: userprefs-correctness
+    file: features/05-userprefs-correctness.md
+  - id: build-pipeline-repair
+    file: features/06-build-pipeline-repair.md
+  - id: frontend-htmx
+    file: features/07-frontend-htmx.md
+  - id: platform-modernization
+    file: features/08-platform-modernization.md
+  - id: firmware-versions
+    file: features/09-firmware-versions.md
+  - id: generated-registry
+    file: features/10-generated-registry.md
+  - id: config-coverage
+    file: features/11-config-coverage.md
+  - id: channel-share
+    file: features/12-channel-share.md
+  - id: browser-flashing
+    file: features/13-browser-flashing.md
+  - id: fleet-builds
+    file: features/14-fleet-builds.md
+  - id: push-config
+    file: features/15-push-config.md
+pages:
+  - id: inherit-reconciliation
+    file: pages/inherit-reconciliation.md
+---
+
+# MTFWBuilder
+
+## Overview
+
+MTFWBuilder is a self-hosted web application for Meshtastic radios. The operator fills
+in a form. The project writes a `userPrefs.jsonc` file from the form. The project then
+compiles Meshtastic firmware with PlatformIO, and the `userPrefs.jsonc` values are
+compiled into the firmware. The operator downloads the firmware and flashes it to the
+device.
+
+The project serves three groups:
+- the owner, who runs it in a homelab for personal devices;
+- self-hosters in the Meshtastic community, who clone the repository and run it;
+- event and fleet organizers, who give many devices the same channels and settings.
+
+The official Meshtastic Web Flasher flashes prebuilt firmware only. The Meshtastic CLI
+configures a device after it is flashed. No other public tool gives a web interface for
+firmware that carries custom defaults. Research on 2026-11-21 found only small
+command-line forks (see `pages/inherit-reconciliation.md`).
+
+**Current state (2026-11-21).** The v2 rewrite (FastAPI, March 2026) changed the
+backend. It did not change the frontend. Research found that the end-to-end flow does
+not work today, for these reasons:
+- The pages call v1 URLs that the v2 backend does not serve.
+- 71 of the 150 registry ids are not PlatformIO environment names.
+- Upstream firmware changed its output file names in December 2025.
+- The generator writes many keys that the firmware does not read.
+
+This spec documents the code as it is (`status: built` features 01–04). It then plans the
+repair, the update to current upstream firmware, and new capabilities (`status:
+planned` features 00 and 05–15). The full reconciliation of documents against code is
+in `pages/inherit-reconciliation.md`.
+
+**An important upstream fact.** A `userPrefs.jsonc` value is a factory default. The
+firmware applies it on first boot and on factory reset only. After that, the saved
+device config wins. To stop a user changing settings, the config must set an admin key
+(`USERPREFS_USE_ADMIN_KEY_0`) and `USERPREFS_CONFIG_SECURITY_IS_MANAGED`. Source:
+the header of `userPrefs.jsonc` in `meshtastic/firmware` `develop@fe89ac1`.
+
+## Terms
+
+| Term | Part of speech | Meaning in this project | Do not use |
+|---|---|---|---|
+| project | noun | MTFWBuilder, the whole application this spec describes. | app, tool, system |
+| operator | noun | A person who uses the project's web pages to make a config or a build. | user, customer |
+| admin | noun | An operator who has signed in with the admin password. Only an admin can change the firmware source or run cleanup. | administrator, superuser |
+| device | noun | One physical Meshtastic radio. | node (except in Meshtastic field names), radio unit |
+| variant | noun | One PlatformIO environment in the firmware source, for example `heltec-v4`. A variant is what the project compiles. | board, target, model, env |
+| registry | noun | The list of variants the project offers, with name, manufacturer, architecture and support level. | device list, catalog |
+| architecture | noun | The chip family of a variant: `esp32`, `esp32s3`, `esp32c3`, `esp32c6`, `esp32s2`, `nrf52840`, `nrf54l15`, `rp2040`, `rp2350`, `stm32`. | platform, chip |
+| support level | noun | The upstream `board_level` of a variant: `release`, `pr` or `extra`. | tier, status |
+| config | noun | The set of setting values that an operator enters for a device. | configuration, settings file, preferences |
+| userPrefs file | noun | The `userPrefs.jsonc` file the project writes from a config. The firmware build reads it. | prefs, jsonc |
+| userPrefs key | noun | One `USERPREFS_*` name in the userPrefs file. | define, flag, macro |
+| factory default | noun | A value the firmware applies on first boot and on factory reset only. Every userPrefs key is a factory default. | baked setting, locked setting |
+| firmware source | noun | One extracted copy of the `meshtastic/firmware` source tree at one firmware version. | firmware tree, repo copy |
+| firmware version | noun | One upstream release tag, for example `v2.7.26.54e0d8d`. | release, tag (alone) |
+| channel | noun | A Meshtastic channel: index 0–7, name, PSK, precision, uplink, downlink, muted. | room, group |
+| PSK | noun | The pre-shared key that encrypts a channel. | password, key (alone) |
+| secret | noun | Any config value that gives access: a PSK, a WiFi password, an MQTT password, an admin key. | credential, sensitive data |
+| channel URL | noun | A `https://meshtastic.org/e/#…` URL that encodes a ChannelSet protobuf. | share link, QR link |
+| build | noun | One compile of one variant with one userPrefs file. A build has a build id and a status. | job, compile run |
+| build id | noun | The identifier of one build. | job id, token |
+| build status | noun | One of: `queued`, `compiling`, `linking`, `packaging`, `complete`, `failed`, `cancelled`. | state, phase |
+| artifact | noun | One file a build produces for the operator, for example `firmware-heltec-v4-2.7.26.54e0d8d.factory.bin`. | output, binary, image |
+| build queue | noun | The ordered list of builds that wait for a free build worker. | job queue |
+| build worker | noun | The process slot that runs one build at a time. | runner, executor |
+| build cache | noun | Stored artifacts, keyed by a hash of firmware version, variant and userPrefs file. | artifact store |
+| progress stream | noun | The Server-Sent Events (SSE) stream that sends build status and log lines to the page. | event feed, socket |
+| scrub | verb | To delete every file that holds a secret, after a build ends. | sanitize, wipe, clean |
+| flash | verb | To write an artifact to a device. | burn, install, upload |
+| profile | noun | A saved config with a name, stored by the project. | template, preset (alone) |
+| fleet | noun | A named group of devices that share one profile and differ in per-device fields. | batch, group |
+| fleet run | noun | One request that makes one build for each device in a fleet. | bulk build |
+| push config | verb | To send a config to a connected device over Web Serial or Web Bluetooth, without a build. | provision, sync |
+| modem preset | noun | A Meshtastic LoRa modem preset, for example `LONG_FAST`. | preset (alone), speed |
+| region | noun | A Meshtastic LoRa region code, for example `US`. | country, band |
+| role | noun | A Meshtastic device role, for example `CLIENT` or `ROUTER`. | mode, type |
+| Web Serial | noun | The browser API that opens a USB serial port from a page. | WebUSB |
+| SSE | noun | Server-Sent Events: a one-way HTTP stream from server to browser. | websocket |
+
+## Goals
+
+1. An operator makes a config, starts a build, and downloads a working artifact for any
+   `release` or `pr` variant of the selected firmware version.
+2. Every userPrefs key the project writes is a key the selected firmware version reads.
+   A test checks this against the firmware source.
+3. The registry comes from the firmware source. No person edits a variant list by hand.
+4. The config form covers every userPrefs key that upstream lists, except the keys in
+   `Non-goals`.
+5. An operator flashes an ESP32-family artifact from the browser in one step.
+6. An organizer makes builds for 20 devices in one fleet run.
+7. No secret stays on disk after its build ends, on any path: success, failure, timeout
+   or cancel.
+8. A fresh clone installs, tests, lints and starts with the commands in `CLAUDE.md`, and
+   CI runs the same commands on each pull request.
+
+## Non-goals
+
+- A public hosted instance. The project stays self-hosted.
+- MeshCore or any mesh firmware other than Meshtastic.
+- Native Linux variants (`meshtasticd`, architecture `native`). Their output is not
+  flashable.
+- Over-the-air (OTA) firmware update.
+- Injection of a config into a prebuilt binary without a compile. No upstream mechanism
+  exists for it.
+- Accounts for operators. The admin password is the only sign-in.
+- The userPrefs keys `USERPREFS_UI_TEST_LOG`, `USERPREFS_FIRMWARE_EDITION` and
+  `USERPREFS_MESH_BEACON_LEGACY_SPLIT`. They are for upstream testing and vendor editions.
+
+## Users & personas
+
+| Persona | Needs | Allowed to |
+|---|---|---|
+| Homelab owner | Fast builds for a few personal devices. Correct defaults. | Everything, as admin. |
+| Self-hoster | A Docker install that works on first start. Clear setup. | Everything on their own instance. |
+| Fleet organizer | One config for many devices, with per-device names, roles and positions. Locked settings. | Create profiles and fleet runs. Download all artifacts. |
+| Admin | Change the firmware source. Run cleanup. See build history. | All admin pages and admin API routes. |
+
+An operator who is not signed in can make configs, builds and fleet runs. An admin
+changes what firmware versions the instance holds. The project has no other roles.
+
+## Feature map
+
+| Feature set | Spec file | Status | Epic | Mockups |
+|---|---|---|---|---|
+| Foundation | [features/00-foundation.md](features/00-foundation.md) | planned | Epic 0: Foundation | — |
+| Config generator | [features/01-config-generator.md](features/01-config-generator.md) | built | — | — |
+| Firmware builder | [features/02-firmware-builder.md](features/02-firmware-builder.md) | built | — | — |
+| Device registry | [features/03-device-registry.md](features/03-device-registry.md) | built | — | — |
+| Admin | [features/04-admin.md](features/04-admin.md) | built | — | — |
+| userPrefs correctness | [features/05-userprefs-correctness.md](features/05-userprefs-correctness.md) | planned | Epic 1: Correct userPrefs | — |
+| Build pipeline repair | [features/06-build-pipeline-repair.md](features/06-build-pipeline-repair.md) | planned | Epic 2: Build pipeline repair | — |
+| Frontend on htmx | [features/07-frontend-htmx.md](features/07-frontend-htmx.md) | planned | Epic 3: Frontend on htmx | [01-build-page](mockups/01-build-page.html) |
+| Platform modernization | [features/08-platform-modernization.md](features/08-platform-modernization.md) | planned | Epic 4: Platform modernization | — |
+| Firmware versions | [features/09-firmware-versions.md](features/09-firmware-versions.md) | planned | Epic 5: Firmware versions | [02-firmware-sources](mockups/02-firmware-sources.html) |
+| Generated registry | [features/10-generated-registry.md](features/10-generated-registry.md) | planned | Epic 6: Generated registry | [03-device-picker](mockups/03-device-picker.html) |
+| Config coverage | [features/11-config-coverage.md](features/11-config-coverage.md) | planned | Epic 7: Config coverage | [04-config-form](mockups/04-config-form.html) |
+| Channel share | [features/12-channel-share.md](features/12-channel-share.md) | planned | Epic 8: Channel share | [05-channel-share](mockups/05-channel-share.html) |
+| Browser flashing | [features/13-browser-flashing.md](features/13-browser-flashing.md) | planned | Epic 9: Browser flashing | [06-flash](mockups/06-flash.html) |
+| Fleet builds | [features/14-fleet-builds.md](features/14-fleet-builds.md) | planned | Epic 10: Profiles and build cache, Epic 11: Fleet runs | [07-fleet](mockups/07-fleet.html) |
+| Push config | [features/15-push-config.md](features/15-push-config.md) | planned | Epic 12: Push config | [08-push-config](mockups/08-push-config.html) |
+
+## Architecture & stack
+
+```mermaid
+flowchart LR
+  subgraph Browser
+    P[Pages: Jinja2 + htmx]
+    WS[Web Serial / Web Bluetooth]
+  end
+  subgraph Server[FastAPI process]
+    R[Routers /api/v1]
+    G[Config generator]
+    Q[Build queue]
+    W[Build worker]
+    REG[Registry generator]
+    FU[Firmware updater]
+    C[Cleanup task]
+    DB[(SQLite)]
+  end
+  FS[(Firmware sources on disk)]
+  BC[(Build cache)]
+  GH[api.github.com / api.meshtastic.org]
+  P -- form, HTTP --> R
+  R --> G
+  R --> Q --> W
+  W -- pio run -e variant --> FS
+  W -- artifacts --> BC
+  W -- progress stream SSE --> P
+  FU -- release zipball --> GH
+  FU --> FS
+  REG -- pio project config --> FS
+  R --> DB
+  C --> BC
+  P -- artifact --> WS -- flash / push config --> D[Device]
+```
+
+The diagram shows the target architecture after the planned epics. Today the build
+worker runs only while a progress stream is open, the cleanup task does not exist, and
+the database is not used (see `features/02-firmware-builder.md`).
+
+| Component | Choice | Why |
+|---|---|---|
+| Web server | FastAPI + uvicorn, one process (`--workers 1`) | Built. Async builds and SSE. One process keeps the build queue in memory without a broker. |
+| Pages | Jinja2 templates + htmx 2 + htmx SSE extension, Bootstrap 5.3 | Chosen in the interview: no JavaScript build step. htmx is loaded today but not used. ADR 0002. |
+| Browser flashing | ESP Web Tools 10.x / esptool-js 0.7 (Apache-2.0), vendored | Apache-2.0 is compatible with GPL-3.0. The official Web Flasher uses esptool-js. |
+| Push config | `@meshtastic/core` + `@meshtastic/transport-web-serial` (GPL-3.0, JSR), or `meshtastic-sdk` JS when it reaches 0.3.0 | The only maintained client libraries. Choice deferred to a spike in Epic 12. |
+| Data store | SQLite through aiosqlite | Built (schema only). Zero setup for a self-hoster. ADR 0003. |
+| Firmware build | PlatformIO Core 6.2 (`pioarduino` core for ESP32 on firmware 2.8) | Upstream build system. Source: `meshtastic/gh-action-firmware`. |
+| Packaging | `pyproject.toml` + hatchling today; uv + `uv.lock` planned | Interview choice (stack modernization). |
+| Runtime | Python 3.11 today (Docker); Python 3.13 planned | `asyncio.timeout` needs 3.11. `meshtastic` python requires `<3.15`. |
+| Deploy | Docker Compose, self-hosted. No hosted instance. | Interview answer: not deployed. |
+| Protobuf decode | `meshtastic` python package (GPL-3.0) | Decodes channel URLs and CLI YAML. Allowed by the GPL-3.0 relicense (ADR 0004). |
+
+## Data model
+
+```mermaid
+erDiagram
+  FIRMWARE_SOURCE ||--o{ VARIANT : "registry of"
+  FIRMWARE_SOURCE ||--o{ BUILD : "compiled from"
+  VARIANT ||--o{ BUILD : "compiled for"
+  PROFILE ||--o{ FLEET : "base config of"
+  FLEET ||--o{ FLEET_DEVICE : contains
+  FLEET ||--o{ FLEET_RUN : "built by"
+  FLEET_RUN ||--o{ BUILD : produces
+  FLEET_DEVICE ||--o| BUILD : "one per run"
+  BUILD }o--o| CACHE_ENTRY : "served from"
+```
+
+**Built today** (`mtfwbuilder/database.py:8-30`). The project creates two tables at
+startup. No code reads or writes them.
+
+| Entity | Fields | Notes |
+|---|---|---|
+| `builds` | `id` TEXT PK, `variant`, `architecture`, `firmware_format` TEXT NOT NULL, `status` TEXT NOT NULL default `queued`, `firmware_path`, `build_log`, `error_message` TEXT, `created_at` default now, `completed_at` | Unused. Builds live in memory (`app.state.active_builds`). |
+| `config_profiles` | `id` INTEGER PK, `name` TEXT NOT NULL, `config_json` TEXT NOT NULL, `created_at`, `updated_at` | Unused. `name` is not unique. |
+
+The registry is a YAML file today (`devices/variants.yaml`, 150 entries, fields `id`,
+`name`, `manufacturer`, `architecture`, `pio_platform`).
+
+**Planned.** Each planned feature file states its own fields and migration.
+
+| Entity | Owner feature | Key fields | Lifecycle |
+|---|---|---|---|
+| FIRMWARE_SOURCE | firmware-versions | `version` PK, `channel` (stable/alpha/pinned), `path`, `installed_at`, `status` | installing → ready → removed |
+| VARIANT | generated-registry | `env` + `version` PK, `display_name`, `manufacturer`, `architecture`, `support_level`, `hw_model`, `image`, `requires_dfu` | regenerated when a firmware source becomes ready |
+| BUILD | build-pipeline-repair | `id` (random, 128-bit), `version`, `variant`, `status`, `config_hash`, `created_at`, `completed_at`, `error_message`, `fleet_run_id` | queued → compiling → linking → packaging → complete / failed / cancelled → expired |
+| CACHE_ENTRY | fleet-builds | `config_hash` PK, `artifact_paths`, `created_at`, `last_used_at` | created on complete, removed by TTL |
+| PROFILE | fleet-builds | `id`, `name` UNIQUE, `config_json` without secrets, `created_at`, `updated_at` | created → updated → deleted |
+| FLEET | fleet-builds | `id`, `name`, `profile_id` | created → deleted |
+| FLEET_DEVICE | fleet-builds | `id`, `fleet_id`, `label`, `variant`, `long_name`, `short_name`, `role`, `fixed_lat`, `fixed_lon`, `fixed_alt`, `admin_key` | created → deleted |
+| FLEET_RUN | fleet-builds | `id`, `fleet_id`, `version`, `status`, `created_at` | queued → running → complete / partial / failed |
+
+A build log is not stored in the database. Upstream PlatformIO prints the `-D` build
+flags, and those flags hold every secret (see `Risks`).
+
+```mermaid
+stateDiagram-v2
+  [*] --> queued
+  queued --> compiling
+  queued --> cancelled
+  compiling --> linking
+  linking --> packaging
+  packaging --> complete
+  compiling --> failed
+  linking --> failed
+  packaging --> failed
+  compiling --> cancelled
+  complete --> expired
+  failed --> expired
+  cancelled --> expired
+  expired --> [*]
+```
+
+This is the planned build lifecycle. The `scrub` step runs on every transition into
+`complete`, `failed` and `cancelled`.
+
+## Cross-cutting concerns
+
+**Authentication and authorization (built).** The admin password is a bcrypt hash in
+`config.yaml`. `POST /admin/login` sets the cookie `mtfw_session`: an itsdangerous
+signature of the string `admin`, HttpOnly, SameSite=Lax, Secure unless `debug`, max age
+3600 s. Only `/api/v1/update-firmware` and `/api/v1/cleanup` require it. The project has
+no CSRF token. A cookie with `Secure` set does not work on plain HTTP, so admin sign-in
+fails on a default Docker install (`mtfwbuilder/routers/admin.py:44-51`).
+
+**Planned auth changes** (feature `frontend-htmx` and `build-pipeline-repair`):
+- The `/admin` page shows a sign-in form when no session exists.
+- The `Secure` flag follows the request scheme.
+- Every state-changing admin form carries a CSRF token.
+- Build ids are random, so one operator cannot guess another operator's build.
+
+**Validation.** Today the routes read raw JSON. The pydantic models in `models.py` are
+not used. Planned: every route validates its body with a pydantic model, and every
+enum (region, modem preset, role, GPS mode) comes from one module that matches the
+upstream protobufs.
+
+**Errors.** Today the config routes return HTTP 200 with `success: false` and the raw
+exception text. Planned: a validation error returns 422 with field errors. An internal
+error returns 500 with a generic message and logs the detail.
+
+**Secrets.** A secret is never logged, never stored in the database, never kept in a
+cache entry, and never kept in browser storage after the page closes. The project
+scrubs the firmware source after every build. The build log sent to the page has every
+secret value replaced with `***`.
+
+**Logging.** Standard `logging`, optional JSON format (`MTFW_LOG_JSON`). No `print()`.
+
+**Accessibility.** Every input has a label. The progress stream region has
+`aria-live="polite"`. Every icon-only button has an `aria-label`. Colors meet WCAG AA
+contrast in light and dark themes.
+
+**i18n.** English only. Not planned.
+
+**Performance.** One build worker by default (`MTFW_BUILD_WORKERS`, default 1). A
+PlatformIO build of one ESP32 variant takes several minutes on first build and uses
+several GB of disk for toolchains. The build cache returns a repeated build in under
+one second.
+
+**Security headers.** nginx sets them in production (`nginx/nginx.conf.example`). The
+app sets none. Planned: the app sets `X-Content-Type-Options`, `Referrer-Policy` and a
+Content-Security-Policy that allows only vendored scripts.
+
+## Environments & config
+
+| Environment | How it runs | Notes |
+|---|---|---|
+| local dev | `uvicorn mtfwbuilder.main:app --reload --port 5000` | Firmware source must be installed from `/admin`. |
+| Docker | `docker compose up -d` | Port 5000. Volumes for firmware sources and PlatformIO toolchains. |
+| Docker + nginx | `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d` | TLS on nginx. Needed for Web Serial on a LAN host. |
+
+Settings come from `config.yaml` and from `MTFW_*` environment variables. Values in
+`config.yaml` win over environment variables (`mtfwbuilder/config.py:58-116`). The full
+list of names is in `docs/external.md`. Names only; no values are in this repository.
+
+Seed data: none. The registry and the firmware source come from upstream at runtime.
+Planned: a test fixture holds a small firmware source subset (a few variant
+`platformio.ini` files and `userPrefs.jsonc`) so tests run without a download.
+
+## Testing strategy
+
+- **Unit:** pytest, `asyncio_mode = "auto"`. 106 tests today: generator 39, build service
+  26, registry 20, security 14, routes 7.
+- **Contract tests (planned):** the userPrefs keys the generator writes are a subset of
+  the keys the fixture firmware source reads. The registry fixture matches
+  `pio project config --json-output` output.
+- **Integration (planned):** route tests through httpx for every `/api/v1` route,
+  including the progress stream. A fake `pio` executable stands in for PlatformIO.
+- **E2E smoke (planned):** Playwright loads each page, fills the config form, starts a
+  build against the fake `pio`, and downloads the artifact.
+- **Real build (planned, manual or scheduled CI):** one real `pio run` of one ESP32 and
+  one nRF52 variant.
+- A change is done when `uv run pytest`, `uv run ruff check`, and `uv run ruff format
+  --check` pass, and the E2E smoke passes for any change under `templates/` or `static/`.
+
+## Epics
+
+| # | Epic | Goal | Feature files | Depends on | Exit criteria |
+|---|---|---|---|---|---|
+| 0 | Foundation | CI, branch model, lint rules, test isolation, license, v1 removal | 00-foundation | — | CI runs on each PR to `dev`. Tests do not write to the repository. |
+| 1 | Correct userPrefs | The generator writes only keys the firmware reads | 05-userprefs-correctness | 0 | A contract test passes against the fixture firmware source. |
+| 2 | Build pipeline repair | A build runs to an artifact without a page attached, and scrubs on every path | 06-build-pipeline-repair | 0 | A fake-pio build completes, and its artifact downloads. No userPrefs file remains. |
+| 3 | Frontend on htmx | The pages use the v2 API, the progress stream and admin sign-in | 07-frontend-htmx | 1, 2 | The E2E smoke passes. |
+| 4 | Platform modernization | Python 3.13, uv, current dependencies, correct Docker volumes and nginx | 08-platform-modernization | 0 | `docker compose up` gives a working instance that keeps state across a restart. |
+| 5 | Firmware versions | Hold several firmware versions, choose one per build | 09-firmware-versions | 2 | An admin installs stable and alpha. A build names its firmware version. |
+| 6 | Generated registry | The registry comes from the firmware source metadata | 10-generated-registry | 5 | `devices/variants.yaml` is deleted. The picker shows every `release` and `pr` variant. |
+| 7 | Config coverage | The form covers the upstream userPrefs keys | 11-config-coverage | 1, 3 | Every in-scope key has a form control and a test. |
+| 8 | Channel share | Import and export channel URLs, QR codes and CLI YAML | 12-channel-share | 7 | A round trip of a channel URL gives the same channels. |
+| 9 | Browser flashing | Flash ESP32-family artifacts from the page | 13-browser-flashing | 3 | A Chrome page flashes a factory artifact to a connected ESP32. |
+| 10 | Profiles and build cache | Saved profiles and artifact reuse by config hash | 14-fleet-builds (FR 1–9) | 2, 7 | A repeated build returns from the build cache. |
+| 11 | Fleet runs | One fleet run makes one build per device | 14-fleet-builds (FR 10–20) | 10 | A fleet run of 3 devices gives 3 artifacts and one zip. |
+| 12 | Push config | Push a config to a device without a build | 15-push-config | 7, 9 | A Chrome page sets channels on a connected device over Web Serial. |
+
+## Milestones
+
+1. **M1 — Works again** (Epics 0–3). The documented flow works end to end on the
+   firmware version that `releases/latest` returns. Shippable: tag `v2.1.0`.
+2. **M2 — Current upstream** (Epics 4–7). Current stack, chosen firmware versions, a
+   generated registry, and full config coverage. Shippable: tag `v3.0.0`.
+3. **M3 — Fewer steps** (Epics 8–9). Channel share and browser flashing. Tag `v3.1.0`.
+4. **M4 — Fleets** (Epics 10–11). Tag `v3.2.0`.
+5. **M5 — No compile** (Epic 12). Tag `v3.3.0`.
+
+## Assumptions
+
+- The repair targets the firmware version that `releases/latest` returns
+  (`v2.7.26.54e0d8d` on 2026-11-21). Firmware 2.8 support arrives with Epic 5.
+- Python 3.13 is the target runtime. Python 3.14 is possible, but the `meshtastic`
+  python package requires `<3.15`, and 3.13 gives more margin.
+- One build worker is the default. A homelab machine cannot run two ESP32 compiles at
+  once without heavy swap.
+- Builds by operators who are not signed in stay allowed. The instance is self-hosted
+  and trusted.
+- The fixture firmware source for tests is a hand-picked subset copied from upstream
+  under GPL-3.0, which the relicense allows.
+- Web Serial works only on HTTPS or `localhost`. The docs tell a LAN self-hoster to use
+  the nginx overlay with TLS.
+- The `meshtastic.org/e/#` channel URL format is stable across 2.7 and 2.8 firmware.
+- Reconstructed ADRs (0001–0003) record choices made in 2025–2026. Their context is
+  reconstructed from the code and commit log, not from records of the time.
+
+## Risks & open questions
+
+**Contradictions between documents and code** (the code is the fact):
+1. README says 62 variants. The registry holds 150. The README is stale since commit
+   `e575ce7`.
+2. README links a LICENSE file. No LICENSE file exists. `pyproject.toml` says MIT.
+   Resolved in the interview: relicense to GPL-3.0 (ADR 0004).
+3. README says the database stores build history and profiles. No code reads or writes
+   the database.
+4. README says the frontend uses htmx. No template uses an `hx-` attribute.
+5. README describes real-time build progress. The build page never opens the progress
+   stream, and it calls v1 URLs.
+6. README says the admin panel needs the admin password. The page has no sign-in form.
+7. README says builds clean up after 1 hour. No periodic task exists.
+8. README says secrets are scrubbed from artifacts. Scrub runs on success only, and
+   `.elf` and object files keep the values.
+9. README says uploads are validated as JSON. Only size and UTF-8 are checked.
+10. CONTRIBUTING says the `id` must match a PlatformIO environment. 71 ids do not.
+11. `pyproject.toml` and CONTRIBUTING say Python 3.10+. The code needs 3.11
+    (`asyncio.timeout`, `build_service.py:80`).
+12. The README volume table names paths the app does not write to
+    (`docker-compose.yml`; see `features/02-firmware-builder.md`).
+13. `docker.env.example` and `docker-deploy.sh cleanup` use v1 names and routes.
+
+**Risks:**
+- **Router roles are not factory defaults.** Upstream replaces a userPrefs role of
+  `ROUTER`, `ROUTER_LATE` or `LOST_AND_FOUND` with `CLIENT`
+  (`src/mesh/NodeDB.cpp:1180-1188`). A fleet of routers needs push config (Epic 12)
+  after the flash. Features 11 and 14 reject those roles with a clear message.
+- **Secrets in build logs.** Upstream `bin/platformio-custom.py` prints every `-D`
+  flag, and the flags hold PSKs and passwords. The progress stream sends the last 100
+  log lines. Mitigation: mask in feature 06.
+- **Upstream churn.** Upstream changes userPrefs keys, artifact names and toolchains
+  without notice. Mitigation: contract tests against the fixture firmware source, and a
+  scheduled CI job against upstream `develop`.
+- **JS client library in flux.** `meshtastic/js` is archived. `meshtastic-sdk` JS is
+  "snapshot only until 0.3.0". Epic 12 starts with a spike to choose.
+- **Disk use.** Each firmware version plus its toolchains uses several GB. Mitigation: an
+  admin removes firmware versions from the firmware sources page.
+- **ESP32 2.8 toolchain.** Firmware 2.8 uses the pioarduino platform and fetches ESP-IDF
+  components at build time. Network errors fail builds. Mitigation: retry, as upstream
+  `bin/build-esp32.sh` does.
+
+**Open questions:** none block approval.
+
+## Changelog
+
+- 2026-11-21 — Draft written by `/project-inherit` from a full repository survey, two
+  upstream research spikes, and three interview rounds.
+- 2026-11-21 — Review round 1: approved. Corrections before approval: the admin key
+  key name (`USERPREFS_USE_ADMIN_KEY_<n>` holds the key), router roles rejected as
+  factory defaults, an interim registry id fix in Epic 2, and the `.gitignore`
+  `firmware/` pattern.
