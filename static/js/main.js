@@ -47,9 +47,10 @@ document.addEventListener('htmx:beforeRequest', function(evt) {
     }
     document.querySelectorAll('.field-error').forEach(slot => { slot.textContent = ''; });
     document.querySelectorAll('#configForm .is-invalid').forEach(field => field.classList.remove('is-invalid'));
+    updateTabLabels();
 });
 
-// The validation error state marks each wrong field and moves the focus to the first one.
+// The validation error state marks each wrong field, and opens the tab of the first one and moves the focus to it.
 document.addEventListener('htmx:afterSettle', function() {
     document.querySelectorAll('.field-error[data-field]').forEach(slot => {
         const selector = `#configForm [name="${CSS.escape(slot.getAttribute('data-field'))}"]:not([type="hidden"])`;
@@ -60,8 +61,10 @@ document.addEventListener('htmx:afterSettle', function() {
     });
     const first = document.querySelector('#configForm .is-invalid');
     if (first) {
+        showField(first);
         first.focus();
     }
+    updateTabLabels();
 });
 
 // A log event holds JSON, so the line goes into the log as text and htmx does not swap it as HTML.
@@ -253,6 +256,34 @@ document.addEventListener('DOMContentLoaded', function() {
         channelsToWrite.dispatchEvent(new Event('change'));
     }
 
+    // The server renders the form for the default firmware version, so a change of version asks for its key scan.
+    const versionSelect = document.getElementById('firmware_version');
+    if (versionSelect && versionSelect.value) {
+        const loadKeyScan = () => {
+            const version = versionSelect.value;
+            fetch(`/api/v1/userprefs/keys?version=${encodeURIComponent(version)}`)
+                .then(response => (response.ok ? response.json() : null))
+                // A response can arrive after a later change of version, and then it is for the wrong form.
+                .then(scan => { if (scan && versionSelect.value === version) applyKeyScan(scan); });
+        };
+        versionSelect.addEventListener('change', loadKeyScan);
+        // The browser can keep the chosen version after a reload, and then the rendered form is for another version.
+        if (versionSelect.value !== versionSelect.dataset.renderedVersion) {
+            loadKeyScan();
+        } else {
+            updateUnreadNotes(versionSelect.value);
+        }
+    }
+
+    initConfigTabs();
+    initTimeZonePosix();
+    const configForm = document.getElementById('configForm');
+    if (configForm) {
+        configForm.addEventListener('input', updateTabLabels);
+        configForm.addEventListener('change', updateTabLabels);
+        updateTabLabels();
+    }
+
     document.querySelectorAll('.generate-psk-btn').forEach(button => {
         button.addEventListener('click', function() {
             const targetInput = document.getElementById(this.getAttribute('data-target'));
@@ -264,9 +295,160 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 /**
- * Return a new 32-byte key as base64 (FR-frontend-htmx-18).
+ * Show only the controls, enum values and channel slots that one firmware version reads (FR-config-coverage-16).
  *
- * The server accepts a PSK or an admin key in base64, so one generator serves both fields.
+ * A hidden part is also disabled, so the form sends no value for a key that the firmware version does not read.
+ * `routers/pages.py` applies the same rules when it renders the page. A null list shows everything.
+ */
+function applyKeyScan(scan) {
+    const keys = scan.keys === null ? null : new Set(scan.keys);
+    const values = scan.enum_values === null ? null : new Set(scan.enum_values);
+    const setAbsent = (element, absent) => { element.hidden = absent; element.disabled = absent; };
+    const slotRead = slot => keys === null || [...keys].some(key => key.startsWith(`USERPREFS_CHANNEL_${slot}_`));
+
+    document.querySelectorAll('#configForm fieldset[data-userprefs-key]').forEach(fieldset => {
+        setAbsent(fieldset, keys !== null && !keys.has(fieldset.dataset.userprefsKey));
+    });
+    document.querySelectorAll('#configForm option[value^="meshtastic_"]').forEach(option => {
+        setAbsent(option, values !== null && !values.has(option.value));
+    });
+    document.querySelectorAll('#channelTabsList [data-channel-slot]').forEach(tab => {
+        tab.hidden = !slotRead(Number(tab.dataset.channelSlot));
+    });
+    document.querySelectorAll('#channelsToWrite option').forEach(option => {
+        const count = Number(option.value);
+        setAbsent(option, count > 0 && !slotRead(count - 1));
+    });
+    // A disabled option sends no value, so a select on a removed option moves to the last option that remains.
+    document.querySelectorAll('#configForm select').forEach(select => {
+        if (select.selectedOptions[0] && select.selectedOptions[0].disabled) {
+            const remaining = Array.from(select.options).filter(option => !option.disabled);
+            if (remaining.length) {
+                select.value = remaining[select.id === 'channelsToWrite' ? remaining.length - 1 : 0].value;
+            }
+        }
+    });
+    document.getElementById('channelsToWrite').dispatchEvent(new Event('change'));
+    updateUnreadNotes(scan.version);
+    updateTabLabels();
+    document.getElementById('configForm').dataset.firmwareVersion = scan.version;
+}
+
+/** Put a note at the bottom of each tab pane that counts its hidden controls. */
+function updateUnreadNotes(version) {
+    document.querySelectorAll('#configForm .config-pane').forEach(section => {
+        const count = section.querySelectorAll('fieldset[data-userprefs-key][hidden]').length;
+        let note = section.querySelector(':scope > .unread-note');
+        if (!note) {
+            note = document.createElement('p');
+            note.className = 'unread-note form-text text-muted mb-0';
+            section.append(note);
+        }
+        note.hidden = count === 0;
+        note.textContent = count === 1
+            ? `1 setting is not available in ${version}.`
+            : `${count} settings are not available in ${version}.`;
+    });
+}
+
+/**
+ * Make the config tabs an accessible tab list: a click, an arrow key, Home or End selects a tab.
+ *
+ * The server renders every tab pane visible, so the whole form shows without JavaScript.
+ */
+function initConfigTabs() {
+    const tabList = document.getElementById('configTabList');
+    if (!tabList) return;
+    const tabs = Array.from(tabList.querySelectorAll('[role="tab"]'));
+    tabs.forEach(tab => tab.addEventListener('click', () => selectConfigTab(tab)));
+    tabList.addEventListener('keydown', evt => {
+        const index = tabs.indexOf(document.activeElement);
+        const next = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: tabs.length - 1 }[evt.key];
+        if (index < 0 || next === undefined) return;
+        evt.preventDefault();
+        const tab = tabs[(next + tabs.length) % tabs.length];
+        selectConfigTab(tab);
+        tab.focus();
+    });
+    selectConfigTab(tabs.find(tab => tab.getAttribute('aria-selected') === 'true') || tabs[0]);
+}
+
+/** Show the tab pane of one config tab and hide the other tab panes. */
+function selectConfigTab(selected) {
+    document.querySelectorAll('#configTabList [role="tab"]').forEach(tab => {
+        const isSelected = tab === selected;
+        tab.setAttribute('aria-selected', String(isSelected));
+        tab.tabIndex = isSelected ? 0 : -1;
+        tab.classList.toggle('active', isSelected);
+        document.getElementById(tab.getAttribute('aria-controls')).hidden = !isSelected;
+    });
+}
+
+/** Show the tab pane, the channel tab and the accordion part that hold a field, so the field can take the focus. */
+function showField(field) {
+    const pane = field.closest('.config-pane');
+    if (pane) {
+        selectConfigTab(document.getElementById(pane.getAttribute('aria-labelledby')));
+    }
+    const channelPane = field.closest('[data-channel-pane]');
+    if (channelPane) {
+        bootstrap.Tab.getOrCreateInstance(document.getElementById(`channel-${channelPane.dataset.channelPane}-tab`)).show();
+    }
+    const collapse = field.closest('.accordion-collapse');
+    if (collapse) {
+        bootstrap.Collapse.getOrCreateInstance(collapse, { toggle: false }).show();
+    }
+}
+
+/** Put on each tab label the count of its fields with a value, and a red dot when a field of the tab has an error. */
+function updateTabLabels() {
+    document.querySelectorAll('#configTabList [role="tab"]').forEach(tab => {
+        const pane = document.getElementById(tab.getAttribute('aria-controls'));
+        const fieldsets = Array.from(pane.querySelectorAll('fieldset[data-userprefs-key]'));
+        tab.querySelector('.tab-count').textContent = String(fieldsets.filter(hasValue).length);
+        const errors = Array.from(pane.querySelectorAll('.field-error'));
+        tab.querySelector('.tab-error-dot').hidden = !errors.some(slot => slot.textContent.trim() !== '');
+    });
+}
+
+/** Return true when the generator writes a value from the control in a fieldset. */
+function hasValue(fieldset) {
+    if (fieldset.hidden || fieldset.disabled) {
+        return false;
+    }
+    // Each section switch sets `display: none` on the controls that it turns off, and the generator then skips them.
+    for (let element = fieldset.parentElement; !element.classList.contains('config-pane'); element = element.parentElement) {
+        if (element.style.display === 'none') {
+            return false;
+        }
+    }
+    const channelPane = fieldset.closest('[data-channel-pane]');
+    if (channelPane && Number(channelPane.dataset.channelPane) >= Number(document.getElementById('channelsToWrite').value)) {
+        return false;
+    }
+    const controls = fieldset.querySelectorAll('input:not([type="hidden"]), select, textarea');
+    return Array.from(controls).some(control => (control.type === 'checkbox' ? control.checked : control.value !== ''));
+}
+
+/** Show the POSIX string that the generator writes for the chosen IANA time zone (FR-config-coverage-17). */
+function initTimeZonePosix() {
+    const select = document.getElementById('tzString');
+    const table = document.getElementById('tzPosixTable');
+    if (!select || !table) return;
+    const posixByZone = JSON.parse(table.textContent);
+    const show = () => {
+        const posix = posixByZone[select.value];
+        document.getElementById('tzPosix').textContent = posix || '';
+        document.getElementById('tzPosixNote').hidden = !posix;
+    };
+    select.addEventListener('change', show);
+    show();
+}
+
+/**
+ * Return a new 32-byte PSK as base64 (FR-frontend-htmx-18).
+ *
+ * An admin key has no generator, because it is the public key of the admin device.
  */
 function generatePSK() {
     const bytes = new Uint8Array(32);

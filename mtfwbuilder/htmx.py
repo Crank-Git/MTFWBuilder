@@ -5,7 +5,6 @@ from typing import Any
 
 from fastapi import Request
 from fastapi.encoders import jsonable_encoder
-from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 
@@ -50,13 +49,15 @@ def _field_error(error: dict[str, Any]) -> dict[str, str]:
 
 
 async def validation_error_response(request: Request, exc: RequestValidationError) -> Response:
-    """Return a 422 fragment that puts each message under its field, or the FastAPI JSON 422.
+    """Return a 422 fragment that puts each message under its field, or a JSON 422 with `loc`, `msg` and `type`.
 
     The fragment carries one out-of-band element for each field error, so htmx swaps the message
     into the error slot of that field (https://htmx.org/attributes/hx-swap-oob/).
     """
     if not is_htmx(request):
-        return await request_validation_exception_handler(request, exc)
+        # Pydantic puts the submitted value in `input` and `ctx`, and the value can be a PSK or another secret.
+        detail = [{"loc": error["loc"], "msg": error["msg"], "type": error["type"]} for error in exc.errors()]
+        return JSONResponse(jsonable_encoder({"detail": detail}), status_code=422)
     errors = [_field_error(error) for error in exc.errors()]
     return request.app.state.templates.TemplateResponse(
         request, "partials/field_errors.html", {"errors": errors}, status_code=422

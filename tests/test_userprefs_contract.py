@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from mtfwbuilder.models import CHANNEL_SLOTS, ChannelConfig, ConfigRequest
+from mtfwbuilder.models import CHANNEL_SLOTS, MESH_BEACON_TARGETS, ChannelConfig, ConfigRequest
 from mtfwbuilder.services.jsonc_generator import generate_jsonc
 from mtfwbuilder.services.userprefs_keys import read_keys
 
@@ -31,12 +31,19 @@ def full_config() -> dict[str, str]:
         "owner_long_name": "Test Node",
         "tz_string": "Europe/Berlin",
         "bluetooth_fixed_pin": "123456",
+        "device_role": "meshtastic_Config_DeviceConfig_Role_CLIENT_BASE",
+        "device_rebroadcast_mode": "meshtastic_Config_DeviceConfig_RebroadcastMode_LOCAL_ONLY",
+        "node_info_broadcast_secs": "10800",
+        "node_info_reply_suppress_secs": "43200",
         "channels_to_write": str(CHANNEL_SLOTS),
         "lora_enabled": "true",
         "lora_region": "US",
         "lora_modem_preset": "meshtastic_Config_LoRaConfig_ModemPreset_LONG_FAST",
         "lora_channel_num": "20",
         "lora_ignore_mqtt": "true",
+        "lora_tx_power": "20",
+        "lora_tx_disabled": "true",
+        "lora_config_ok_to_mqtt": "true",
         "gps_enabled": "true",
         "gps_mode": "meshtastic_Config_PositionConfig_GpsMode_ENABLED",
         "gps_update_interval": "600",
@@ -48,6 +55,7 @@ def full_config() -> dict[str, str]:
         "smart_position_enabled": "true",
         "network_enabled": "true",
         "network_protocols": "1",
+        "network_ipv6_enabled": "true",
         "wifi_enabled": "true",
         "wifi_ssid": "mesh-wifi",
         "wifi_psk": "wifi-secret",
@@ -69,13 +77,42 @@ def full_config() -> dict[str, str]:
         "button_pin": "36",
         "button_pin_enabled": "true",
         "event_mode": "1",
+        "telemetry_device_interval": "900",
+        "telemetry_environment_enabled": "true",
+        "telemetry_environment_interval": "900",
+        "telemetry_environment_screen_enabled": "true",
+        "telemetry_air_quality_enabled": "true",
+        "telemetry_air_quality_screen_enabled": "true",
+        "telemetry_air_quality_interval": "900",
+        "security_is_managed": "true",
+        "security_packet_signature_policy": "PACKET_SIGNATURE_POLICY_BALANCED",
+        "event_mode_hop_limit": "3",
+        "event_block_position": "true",
+        "canned_messages": "Hi\nBye",
+        "ringtone_rtttl": "24:d=32,o=5,b=565:f6,p,f6",
+        "ringtone_nag_secs": "60",
+        "mesh_beacon_listen_enabled": "true",
+        "mesh_beacon_broadcast_enabled": "true",
+        "mesh_beacon_message": "Join us",
+        "mesh_beacon_interval_secs": "3600",
+        "mesh_beacon_offer_channel_name": "Offer",
+        "mesh_beacon_offer_channel_psk": "deadbeef" * 8,
+        "mesh_beacon_offer_frequency_slot": "48",
+        "mesh_beacon_offer_preset": "NARROW_SLOW",
+        "mesh_beacon_offer_region": "EU_N_868",
     }
+    for target in range(MESH_BEACON_TARGETS):
+        data[f"mesh_beacon_target_{target}_channel_index"] = str(target)
+        data[f"mesh_beacon_target_{target}_frequency_slot"] = "1"
+        data[f"mesh_beacon_target_{target}_preset"] = "LONG_FAST"
+        data[f"mesh_beacon_target_{target}_region"] = "EU_868"
     for slot in range(CHANNEL_SLOTS):
         data[f"channel_{slot}[name]"] = f"Chan{slot}"
         data[f"channel_{slot}[psk]"] = "deadbeef" * 8
         data[f"channel_{slot}[precision]"] = "14"
         data[f"channel_{slot}[uplink_enabled]"] = "true"
         data[f"channel_{slot}[downlink_enabled]"] = "true"
+        data[f"channel_{slot}[muted]"] = "true"
     return data
 
 

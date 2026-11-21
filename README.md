@@ -154,6 +154,9 @@ Key endpoints:
 - `POST /api/v1/generate` — Generate config from JSON
 - `POST /api/v1/preview` — Preview config without downloading
 - `POST /api/v1/download` — Download `userPrefs.jsonc`
+- `GET /api/v1/userprefs/keys?version=<tag>` — The userPrefs keys (`keys`) and the `config.proto` enum values
+  (`enum_values`) that a firmware version reads, from a scan of its firmware source. Without `version`, the result
+  is for the default firmware version. Returns 404 when the firmware version is not installed.
 - `POST /api/v1/build-firmware` — Start firmware build
 - `GET /api/v1/build-progress/{id}` — SSE build progress stream
 - `GET /api/v1/builds/{id}` — Build status of a build: `build_id`, `status`, `message`, `progress`, `error`, `download_url`
@@ -193,7 +196,16 @@ A JSON request and a DELETE request send it in the header `X-CSRF-Token`. Withou
 the route returns 403.
 
 The three config routes validate the body with `ConfigRequest`. An invalid body returns
-422 with field errors, for example `channel_0.psk`.
+422 with field errors, for example `channel_0.psk`. Each field error holds `loc`, `msg` and
+`type` only, so a 422 never contains a submitted value.
+
+The generate, preview, download and build routes take an optional field `firmware_version`. Without it, they use the
+default firmware version. They return 422 for a field whose userPrefs key or enum value that firmware version lacks.
+They also return 422 when `channels_to_write` counts more channel slots than that firmware version reads.
+
+When the firmware version has no key scan, or no firmware version is installed, the generator leaves out each key
+that v2.7.26 does not read. The generate, preview and download routes then send the header `X-Userprefs-Note`
+with a message that says so, and the preview fragment shows the same message.
 
 `/api/v1/preview` and `/api/v1/download` also take a form body with the config fields,
 for example `channel_0[psk]`. When the request has the header `HX-Request: true`, the

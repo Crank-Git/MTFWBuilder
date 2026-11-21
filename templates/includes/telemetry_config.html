@@ -1,0 +1,67 @@
+<div class="config-section">
+    <h3 class="section-title"><i class="bi bi-thermometer-half text-success"></i>Telemetry</h3>
+    <div class="row mb-3">
+        <fieldset class="col-md-4" data-userprefs-key="USERPREFS_CONFIG_DEVICE_TELEM_UPDATE_INTERVAL"{{ key_attrs("USERPREFS_CONFIG_DEVICE_TELEM_UPDATE_INTERVAL") }}>
+            <label for="telemetryDeviceInterval" class="form-label">Device Telemetry Interval</label>
+            <input type="number" class="form-control" id="telemetryDeviceInterval" name="telemetry_device_interval" min="0" max="2592000" placeholder="Firmware default">
+            <div id="error-telemetry_device_interval" class="field-error invalid-feedback d-block"></div>
+            <div class="form-text text-muted">The time between two device metrics broadcasts. Seconds: 0, or 60 to 2,592,000. <code class="small">USERPREFS_CONFIG_DEVICE_TELEM_UPDATE_INTERVAL</code></div>
+        </fieldset>
+    </div>
+    <div class="row mb-3">
+        <fieldset class="col-md-4" data-userprefs-key="USERPREFS_CONFIG_ENVIRONMENT_MEASUREMENT_ENABLED"{{ key_attrs("USERPREFS_CONFIG_ENVIRONMENT_MEASUREMENT_ENABLED") }}>
+            <label for="telemetryEnvironmentEnabled" class="form-label">Environment Measurement</label>
+            <select class="form-select" id="telemetryEnvironmentEnabled" name="telemetry_environment_enabled">
+                <option value="" selected>Firmware default</option>
+                <option value="true">On</option>
+                <option value="false">Off</option>
+            </select>
+            <div id="error-telemetry_environment_enabled" class="field-error invalid-feedback d-block"></div>
+            <div class="form-text text-muted">Read the environment sensors and broadcast the values. <code class="small">USERPREFS_CONFIG_ENVIRONMENT_MEASUREMENT_ENABLED</code></div>
+        </fieldset>
+        <fieldset class="col-md-4" data-userprefs-key="USERPREFS_CONFIG_ENV_SCREEN_SCREEN_ENABLED"{{ key_attrs("USERPREFS_CONFIG_ENV_SCREEN_SCREEN_ENABLED") }}>
+            <label for="telemetryEnvironmentScreenEnabled" class="form-label">Environment Values on Screen</label>
+            <select class="form-select" id="telemetryEnvironmentScreenEnabled" name="telemetry_environment_screen_enabled">
+                <option value="" selected>Firmware default</option>
+                <option value="true">On</option>
+                <option value="false">Off</option>
+            </select>
+            <div id="error-telemetry_environment_screen_enabled" class="field-error invalid-feedback d-block"></div>
+            <div class="form-text text-muted">Show the environment values on the device screen. <code class="small">USERPREFS_CONFIG_ENV_SCREEN_SCREEN_ENABLED</code></div>
+        </fieldset>
+        <fieldset class="col-md-4" data-userprefs-key="USERPREFS_CONFIG_ENV_TELEM_UPDATE_INTERVAL"{{ key_attrs("USERPREFS_CONFIG_ENV_TELEM_UPDATE_INTERVAL") }}>
+            <label for="telemetryEnvironmentInterval" class="form-label">Environment Telemetry Interval</label>
+            <input type="number" class="form-control" id="telemetryEnvironmentInterval" name="telemetry_environment_interval" min="0" max="2592000" placeholder="Firmware default">
+            <div id="error-telemetry_environment_interval" class="field-error invalid-feedback d-block"></div>
+            <div class="form-text text-muted">The time between two environment broadcasts. Seconds: 0, or 60 to 2,592,000. <code class="small">USERPREFS_CONFIG_ENV_TELEM_UPDATE_INTERVAL</code></div>
+        </fieldset>
+    </div>
+    <div class="row mb-3">
+        <fieldset class="col-md-4" data-userprefs-key="USERPREFS_CONFIG_AQ_MEASUREMENT_ENABLED"{{ key_attrs("USERPREFS_CONFIG_AQ_MEASUREMENT_ENABLED") }}>
+            <label for="telemetryAirQualityEnabled" class="form-label">Air Quality Measurement</label>
+            <select class="form-select" id="telemetryAirQualityEnabled" name="telemetry_air_quality_enabled">
+                <option value="" selected>Firmware default</option>
+                <option value="true">On</option>
+                <option value="false">Off</option>
+            </select>
+            <div id="error-telemetry_air_quality_enabled" class="field-error invalid-feedback d-block"></div>
+            <div class="form-text text-muted">Read the air quality sensors and broadcast the values. <code class="small">USERPREFS_CONFIG_AQ_MEASUREMENT_ENABLED</code></div>
+        </fieldset>
+        <fieldset class="col-md-4" data-userprefs-key="USERPREFS_CONFIG_AQ_SCREEN_ENABLED"{{ key_attrs("USERPREFS_CONFIG_AQ_SCREEN_ENABLED") }}>
+            <label for="telemetryAirQualityScreenEnabled" class="form-label">Air Quality Values on Screen</label>
+            <select class="form-select" id="telemetryAirQualityScreenEnabled" name="telemetry_air_quality_screen_enabled">
+                <option value="" selected>Firmware default</option>
+                <option value="true">On</option>
+                <option value="false">Off</option>
+            </select>
+            <div id="error-telemetry_air_quality_screen_enabled" class="field-error invalid-feedback d-block"></div>
+            <div class="form-text text-muted">Show the air quality values on the device screen. <code class="small">USERPREFS_CONFIG_AQ_SCREEN_ENABLED</code></div>
+        </fieldset>
+        <fieldset class="col-md-4" data-userprefs-key="USERPREFS_CONFIG_AQ_TELEM_UPDATE_INTERVAL"{{ key_attrs("USERPREFS_CONFIG_AQ_TELEM_UPDATE_INTERVAL") }}>
+            <label for="telemetryAirQualityInterval" class="form-label">Air Quality Telemetry Interval</label>
+            <input type="number" class="form-control" id="telemetryAirQualityInterval" name="telemetry_air_quality_interval" min="0" max="2592000" placeholder="Firmware default">
+            <div id="error-telemetry_air_quality_interval" class="field-error invalid-feedback d-block"></div>
+            <div class="form-text text-muted">The time between two air quality broadcasts. Seconds: 0, or 60 to 2,592,000. <code class="small">USERPREFS_CONFIG_AQ_TELEM_UPDATE_INTERVAL</code></div>
+        </fieldset>
+    </div>
+</div>

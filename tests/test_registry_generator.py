@@ -19,6 +19,7 @@ from mtfwbuilder.services.registry_generator import (
     generate_registry,
     registry_entries,
 )
+from mtfwbuilder.services.userprefs_keys import SCAN_FILE
 from tests.conftest import REPO_ROOT, sign_in_admin
 
 FIXTURE_DIR = REPO_ROOT / "tests" / "fixtures" / "firmware"
@@ -355,6 +356,21 @@ async def test_failed_registry_marks_the_firmware_source_registry_failed(install
     assert await _variant_rows(settings) == []
     # The record names the directory, so the directory stays for the removal.
     assert (settings.firmware_dir / STABLE).is_dir()
+
+
+async def test_failed_registry_still_writes_the_key_scan_of_the_firmware_source(installs, settings, monkeypatch):
+    def download_with_src(_tag, zip_path):
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("top/platformio.ini", "[platformio]\n")
+            zf.writestr("top/src/main.cpp", "#ifdef USERPREFS_CONFIG_LORA_REGION\n#endif\n")
+
+    monkeypatch.setattr(firmware_updater, "download_zipball", download_with_src)
+    monkeypatch.setenv("FAKE_PIO_CONFIG_FAIL", "1")
+
+    await _install_stable(installs)
+
+    scan = json.loads((settings.firmware_dir / STABLE / SCAN_FILE).read_text())
+    assert scan["keys"] == ["USERPREFS_CONFIG_LORA_REGION"]
 
 
 async def test_admin_sees_and_removes_a_firmware_source_with_a_failed_registry(app, installs, settings, monkeypatch):

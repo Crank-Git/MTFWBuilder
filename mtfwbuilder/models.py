@@ -6,17 +6,52 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
+from mtfwbuilder import meshtastic_enums
 from mtfwbuilder.key_bytes import ADMIN_KEY_LENGTH, decode_key
 from mtfwbuilder.time_zones import to_posix_tz
 
 CHANNEL_SLOTS = 8
 PSK_LENGTHS = (0, 1, 16, 32)
+MAX_TX_POWER_DBM = 30
+
+# Spec feature config-coverage: an interval field is 0 or 60 to 2,592,000 seconds (30 days).
+MIN_INTERVAL_SECS = 60
+MAX_INTERVAL_SECS = 2_592_000
+
+MANAGED_MODE_MESSAGE = "Managed mode needs an admin key, or the device cannot be changed again."
+# Upstream `src/mesh/Default.h` fails the firmware build with a `static_assert` above 7 hops.
+MAX_EVENT_HOP_LIMIT = 7
+# Upstream `src/mesh/NodeDB.cpp` changes a beacon interval under 3600 seconds to 3600.
+MIN_BEACON_INTERVAL_SECS = 3600
+MESH_BEACON_TARGETS = 4
 
 # The form posts each channel field as a flat key, for example `channel_0[psk]`.
 _FLAT_CHANNEL_KEY = re.compile(r"(channel_[0-7])\[(\w+)\]")
 
 # The generator writes these fields as `{ 0x.. }` byte arrays, so a `//` in base64 input never reaches the file.
-_BYTE_ARRAY_FIELDS = frozenset({"psk", "admin_key_0", "admin_key_1", "admin_key_2"})
+_BYTE_ARRAY_FIELDS = frozenset({"psk", "admin_key_0", "admin_key_1", "admin_key_2", "mesh_beacon_offer_channel_psk"})
+
+
+# Upstream writes each enum value into the build unchanged, so only a value with its C prefix compiles.
+_ENUM_FIELDS = (
+    {
+        "lora_region": meshtastic_enums.REGIONS,
+        "lora_modem_preset": meshtastic_enums.MODEM_PRESETS,
+        "gps_mode": meshtastic_enums.GPS_MODES,
+        "device_rebroadcast_mode": meshtastic_enums.REBROADCAST_MODES,
+        "security_packet_signature_policy": meshtastic_enums.PACKET_SIGNATURE_POLICIES,
+        "mesh_beacon_offer_preset": meshtastic_enums.MODEM_PRESETS,
+        "mesh_beacon_offer_region": meshtastic_enums.REGIONS,
+    }
+    | {f"mesh_beacon_target_{n}_preset": meshtastic_enums.MODEM_PRESETS for n in range(MESH_BEACON_TARGETS)}
+    | {f"mesh_beacon_target_{n}_region": meshtastic_enums.REGIONS for n in range(MESH_BEACON_TARGETS)}
+)
+
+
+def _is_whole_number(value: str) -> bool:
+    """Return True if every character of `value` is an ASCII digit."""
+    # `isdigit()` alone accepts other scripts' digits, and upstream quotes a value that is not all ASCII digits.
+    return value.isascii() and value.isdigit()
 
 
 class _UserPrefsFields(BaseModel):
@@ -39,6 +74,7 @@ class ChannelConfig(_UserPrefsFields):
     precision: str | None = None
     uplink_enabled: str | None = None
     downlink_enabled: str | None = None
+    muted: str | None = None
 
     @field_validator("psk")
     @classmethod
@@ -58,6 +94,10 @@ class ConfigRequest(_UserPrefsFields):
     owner_long_name: str | None = None
     tz_string: str | None = None
     bluetooth_fixed_pin: str | None = None
+    device_role: str | None = None
+    device_rebroadcast_mode: str | None = None
+    node_info_broadcast_secs: str | None = None
+    node_info_reply_suppress_secs: str | None = None
 
     # Channels
     channels_to_write: str = "1"
@@ -76,6 +116,9 @@ class ConfigRequest(_UserPrefsFields):
     lora_modem_preset: str | None = None
     lora_channel_num: str | None = None
     lora_ignore_mqtt: str | None = None
+    lora_tx_power: str | None = None
+    lora_tx_disabled: str | None = None
+    lora_config_ok_to_mqtt: str | None = None
 
     # GPS
     gps_enabled: str | None = None
@@ -91,6 +134,7 @@ class ConfigRequest(_UserPrefsFields):
     # Network
     network_enabled: str | None = None
     network_protocols: str | None = None
+    network_ipv6_enabled: str | None = None
     wifi_enabled: str | None = None
     wifi_ssid: str | None = None
     wifi_psk: str | None = None
@@ -107,6 +151,19 @@ class ConfigRequest(_UserPrefsFields):
     admin_key_1: str | None = None
     admin_key_2: str | None = None
 
+    # Security. The managed-mode check reads the admin keys, so these fields come after them.
+    security_is_managed: str | None = None
+    security_packet_signature_policy: str | None = None
+
+    # Telemetry
+    telemetry_device_interval: str | None = None
+    telemetry_environment_enabled: str | None = None
+    telemetry_environment_interval: str | None = None
+    telemetry_environment_screen_enabled: str | None = None
+    telemetry_air_quality_enabled: str | None = None
+    telemetry_air_quality_screen_enabled: str | None = None
+    telemetry_air_quality_interval: str | None = None
+
     # OEM
     oem_text: str | None = None
     oem_font_size: str | None = None
@@ -118,6 +175,40 @@ class ConfigRequest(_UserPrefsFields):
     button_pin: str | None = None
     button_pin_enabled: str | None = None
     event_mode: str | None = None
+    event_mode_hop_limit: str | None = None
+    event_block_position: str | None = None
+
+    # Canned messages, one message on each line, and the ringtone
+    canned_messages: str | None = None
+    ringtone_rtttl: str | None = None
+    ringtone_nag_secs: str | None = None
+
+    # Mesh beacon
+    mesh_beacon_listen_enabled: str | None = None
+    mesh_beacon_broadcast_enabled: str | None = None
+    mesh_beacon_message: str | None = None
+    mesh_beacon_interval_secs: str | None = None
+    mesh_beacon_offer_channel_name: str | None = None
+    mesh_beacon_offer_channel_psk: str | None = None
+    mesh_beacon_offer_frequency_slot: str | None = None
+    mesh_beacon_offer_preset: str | None = None
+    mesh_beacon_offer_region: str | None = None
+    mesh_beacon_target_0_channel_index: str | None = None
+    mesh_beacon_target_0_frequency_slot: str | None = None
+    mesh_beacon_target_0_preset: str | None = None
+    mesh_beacon_target_0_region: str | None = None
+    mesh_beacon_target_1_channel_index: str | None = None
+    mesh_beacon_target_1_frequency_slot: str | None = None
+    mesh_beacon_target_1_preset: str | None = None
+    mesh_beacon_target_1_region: str | None = None
+    mesh_beacon_target_2_channel_index: str | None = None
+    mesh_beacon_target_2_frequency_slot: str | None = None
+    mesh_beacon_target_2_preset: str | None = None
+    mesh_beacon_target_2_region: str | None = None
+    mesh_beacon_target_3_channel_index: str | None = None
+    mesh_beacon_target_3_frequency_slot: str | None = None
+    mesh_beacon_target_3_preset: str | None = None
+    mesh_beacon_target_3_region: str | None = None
 
     # Preview flag
     preview_only: bool = False
@@ -161,13 +252,133 @@ class ConfigRequest(_UserPrefsFields):
             to_posix_tz(value)
         return value
 
-    @field_validator("button_pin", "event_mode")
+    @field_validator("device_role")
+    @classmethod
+    def _check_device_role(cls, value: str | None) -> str | None:
+        """Return an offered role with its C prefix, and reject a router role with the router-role message."""
+        if value and value.removeprefix(meshtastic_enums.ROLES.c_prefix) in meshtastic_enums.ROUTER_ROLES:
+            raise ValueError(meshtastic_enums.ROUTER_ROLE_MESSAGE)
+        return meshtastic_enums.ROLES.c_value(value) if value else value
+
+    @field_validator("security_is_managed")
+    @classmethod
+    def _check_managed_mode(cls, value: str | None, info: ValidationInfo) -> str | None:
+        """Reject managed mode without an admin key, with the managed-mode message.
+
+        Upstream `src/mesh/NodeDB.cpp` notes that a managed device without an admin key accepts no config change.
+        Only a factory reset then recovers it.
+        """
+        if value == "true" and not any(info.data.get(f) for f in ("admin_key_0", "admin_key_1", "admin_key_2")):
+            raise ValueError(MANAGED_MODE_MESSAGE)
+        return value
+
+    @field_validator(
+        "security_is_managed",
+        "telemetry_environment_enabled",
+        "telemetry_environment_screen_enabled",
+        "telemetry_air_quality_enabled",
+        "telemetry_air_quality_screen_enabled",
+        "event_block_position",
+        "mesh_beacon_listen_enabled",
+        "mesh_beacon_broadcast_enabled",
+    )
+    @classmethod
+    def _check_true_or_false(cls, value: str | None) -> str | None:
+        # Upstream passes only `true` and `false` unquoted, and the firmware reads each toggle as a C++ value.
+        if value and value not in ("true", "false"):
+            raise ValueError("the value is not true or false")
+        return value
+
+    @field_validator("event_mode_hop_limit")
+    @classmethod
+    def _check_event_hop_limit(cls, value: str | None) -> str | None:
+        """Accept a hop limit from 0 to 7."""
+        if value and not (_is_whole_number(value) and int(value) <= MAX_EVENT_HOP_LIMIT):
+            raise ValueError(f"the hop limit is not a whole number from 0 to {MAX_EVENT_HOP_LIMIT}")
+        return value
+
+    @field_validator("canned_messages")
+    @classmethod
+    def _check_canned_messages(cls, value: str | None) -> str | None:
+        # Upstream separates the messages with `|`, so a `|` in a message splits it in two.
+        if value and "|" in value:
+            raise ValueError("a message contains |, which separates the messages")
+        return value
+
+    @field_validator(*_ENUM_FIELDS)
+    @classmethod
+    def _check_enum_value(cls, value: str | None, info: ValidationInfo) -> str | None:
+        """Return the value with its C prefix, if the protobufs enum of the field holds it."""
+        return _ENUM_FIELDS[info.field_name].c_value(value) if value else value
+
+    @field_validator("button_pin", "event_mode", "node_info_reply_suppress_secs", "ringtone_nag_secs")
     @classmethod
     def _check_digits(cls, value: str | None) -> str | None:
-        # The upstream parser quotes a value that is not all ASCII digits, and the firmware build then fails.
-        # `isdecimal()` alone accepts other scripts' digits, for example "١٢".
-        if value and not (value.isascii() and value.isdigit()):
+        if value and not _is_whole_number(value):
             raise ValueError("the value is not a whole number")
+        return value
+
+    @field_validator("lora_tx_power")
+    @classmethod
+    def _check_tx_power(cls, value: str | None) -> str | None:
+        """Accept a TX power of 0 to 30 dBm, where 0 selects the region maximum."""
+        if value and not (_is_whole_number(value) and int(value) <= MAX_TX_POWER_DBM):
+            raise ValueError(f"the TX power is not a whole number from 0 to {MAX_TX_POWER_DBM}")
+        return value
+
+    @field_validator(
+        "node_info_broadcast_secs",
+        "telemetry_device_interval",
+        "telemetry_environment_interval",
+        "telemetry_air_quality_interval",
+    )
+    @classmethod
+    def _check_interval(cls, value: str | None) -> str | None:
+        """Accept an interval of 0, or of 60 to 2592000 seconds."""
+        if value and not (
+            _is_whole_number(value) and (int(value) == 0 or MIN_INTERVAL_SECS <= int(value) <= MAX_INTERVAL_SECS)
+        ):
+            raise ValueError(
+                f"the interval is not 0 or a whole number of seconds from {MIN_INTERVAL_SECS} to {MAX_INTERVAL_SECS}"
+            )
+        return value
+
+    @field_validator("mesh_beacon_interval_secs")
+    @classmethod
+    def _check_beacon_interval(cls, value: str | None) -> str | None:
+        """Accept a beacon interval of 0, or of 3600 to 2592000 seconds."""
+        if value and not (
+            _is_whole_number(value) and (int(value) == 0 or MIN_BEACON_INTERVAL_SECS <= int(value) <= MAX_INTERVAL_SECS)
+        ):
+            raise ValueError(
+                "the interval is not 0 or a whole number of seconds "
+                f"from {MIN_BEACON_INTERVAL_SECS} to {MAX_INTERVAL_SECS}"
+            )
+        return value
+
+    @field_validator("mesh_beacon_offer_channel_psk")
+    @classmethod
+    def _check_beacon_psk(cls, value: str | None) -> str | None:
+        """Accept an offer PSK of the same forms and lengths as a channel PSK."""
+        return ChannelConfig._check_psk_length(value)
+
+    @field_validator(*(f"mesh_beacon_target_{n}_channel_index" for n in range(MESH_BEACON_TARGETS)))
+    @classmethod
+    def _check_beacon_channel_index(cls, value: str | None) -> str | None:
+        """Accept a channel index from 0 to 7, the slots of the device channel table."""
+        if value and not (_is_whole_number(value) and int(value) < CHANNEL_SLOTS):
+            raise ValueError(f"the channel index is not a whole number from 0 to {CHANNEL_SLOTS - 1}")
+        return value
+
+    @field_validator(
+        "mesh_beacon_offer_frequency_slot",
+        *(f"mesh_beacon_target_{n}_frequency_slot" for n in range(MESH_BEACON_TARGETS)),
+    )
+    @classmethod
+    def _check_frequency_slot(cls, value: str | None) -> str | None:
+        # The protobufs number the frequency slot from 1, and slot 0 means unset.
+        if value and not (_is_whole_number(value) and int(value) >= 1):
+            raise ValueError("the frequency slot is not a whole number of 1 or more")
         return value
 
     @field_validator("channels_to_write")
@@ -185,6 +396,19 @@ class ConfigRequest(_UserPrefsFields):
             for field, value in data.pop(f"channel_{slot}", {}).items():
                 data[f"channel_{slot}[{field}]"] = value
         return data
+
+
+class UserPrefsKeys(BaseModel):
+    """The body of `GET /api/v1/userprefs/keys`: what one firmware version reads, from a scan of its firmware source.
+
+    `keys` is None when the firmware source cannot be scanned, and then the form shows every control.
+    `enum_values` holds the C name of each `config.proto` enum value in the firmware source. It is None when the
+    firmware source has no `config.pb.h`, and then the form offers every enum value.
+    """
+
+    version: str
+    keys: list[str] | None
+    enum_values: list[str] | None
 
 
 class BuildRequest(BaseModel):

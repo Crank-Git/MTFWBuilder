@@ -229,7 +229,7 @@ async def test_build_of_an_env_not_in_the_chosen_firmware_version_returns_422_on
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == [
-        {"type": "value_error", "loc": ["body", "variant"], "msg": f"Variant not in {ALPHA}", "input": None}
+        {"type": "value_error", "loc": ["body", "variant"], "msg": f"Variant not in {ALPHA}"}
     ]
 
 

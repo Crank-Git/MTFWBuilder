@@ -67,6 +67,9 @@ firmware version. The contract test scans these files for the keys the firmware 
 - `src/modules/PositionModule.h`
 - `src/platform/portduino/SimRadio.cpp`
 
+Enum file: `src/mesh/generated/meshtastic/config.pb.h`, the nanopb header of `config.proto`. The key scan of a
+firmware version reads the enum values of the firmware version from it.
+
 ## Env list
 
 `envs.json` is not an upstream file. It maps each `[env:…]` name to its architecture
