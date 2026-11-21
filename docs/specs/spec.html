@@ -490,6 +490,7 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><td>Docker + nginx</td><td><code>docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d</code></td><td>TLS on nginx. Needed for Web Serial on a LAN host.</td></tr>
 </table></div>
 <p>Settings come from <code>config.yaml</code> and from <code>MTFW_*</code> environment variables. Values in <code>config.yaml</code> win over environment variables (<code>mtfwbuilder/config.py:58-116</code>). The full list of names is in <code>docs/external.md</code>. Names only; no values are in this repository.</p>
+<p>The test hook flag: <code>MTFW_PUSH_TEST_HOOKS</code> (setting <code>push_test_hooks</code>, default <code>false</code>). When it is on, the push config page renders a test flag, and the page then accepts a fake device from the test (feature push-config). Only the E2E test config turns it on. A production server leaves it off.</p>
 <p>Seed data: none. The registry and the firmware source come from upstream at runtime. Planned: a test fixture holds a small firmware source subset (a few variant <code>platformio.ini</code> files and <code>userPrefs.jsonc</code>) so tests run without a download.</p>
 <h2 id="testing-strategy">Testing strategy</h2>
 <ul>

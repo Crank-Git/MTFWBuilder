@@ -25,6 +25,7 @@
             </div>
         </div>
         <div class="alert alert-warning" role="alert" id="push-profile-failed" hidden>The profile did not load. Reload the page.</div>
+        <div class="alert alert-warning" role="alert" id="push-profile-warning" hidden></div>
         <button type="button" class="btn btn-primary me-2" id="push-connect-usb" disabled hidden>Connect via USB</button>
         <button type="button" class="btn btn-outline-primary" id="push-connect-bluetooth" disabled hidden>Connect via Bluetooth</button>
         <p class="text-muted small mt-2 mb-0">Connect via USB needs Chrome or Edge on a desktop. Connect via Bluetooth also works in Chrome on Android.</p>
@@ -43,10 +44,16 @@
             <div id="push-diff-sections"></div>
         </div>
         <div class="alert alert-info" role="status" id="push-no-changes" hidden>The device already matches this profile.</div>
+        <div id="push-not-pushed" hidden>
+            <h4 class="h6">Not pushed</h4>
+            <p class="text-muted small">Push config does not send these profile values.</p>
+            <ul class="small" id="push-not-pushed-list"></ul>
+        </div>
         <button type="button" class="btn btn-primary" id="push-send" disabled>Push</button>
         <ul class="list-unstyled mt-3" id="push-results" aria-live="polite" hidden></ul>
         <div class="alert alert-info" role="status" id="push-restart" hidden>The device saved the config and restarts now. The page connects again when the device returns.</div>
         <div class="alert alert-warning" role="alert" id="push-dropped" hidden>The connection dropped before the commit. The device keeps its old config.</div>
+        <div class="alert alert-warning" role="alert" id="push-unknown" hidden>The result is unknown. Read the device again.</div>
         <div class="alert alert-warning" role="alert" id="push-reconnect-failed" hidden>The device did not return. Select Connect via USB or Connect via Bluetooth.</div>
     </div>
     <div class="alert alert-warning mt-3" role="alert" id="push-managed" hidden>This device is managed. Only an admin key holder can change it remotely.</div>
@@ -57,6 +64,8 @@
 </div>
 {# The device stores a POSIX TZ string, and a profile can hold an IANA time zone. #}
 <script type="application/json" id="push-tz-table">{{ posix_tz_by_zone | tojson }}</script>
+{# Only the test config turns this setting on, so a production page ignores a test device. #}
+{% if push_test_hooks %}<script type="application/json" id="push-test-hooks">true</script>{% endif %}
 {% endblock %}
 
 {% block scripts %}

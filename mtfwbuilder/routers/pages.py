@@ -107,7 +107,11 @@ async def push_config_page(request: Request):
     The page talks to the device in the browser only, so the route sends no device data (FR-push-config-12).
     The device stores a POSIX TZ string, so the page gets the time zone table to compare a profile time zone.
     """
-    context = {"title": "Push config", "posix_tz_by_zone": POSIX_TZ_BY_ZONE}
+    context = {
+        "title": "Push config",
+        "posix_tz_by_zone": POSIX_TZ_BY_ZONE,
+        "push_test_hooks": request.app.state.settings.push_test_hooks,
+    }
     return request.app.state.templates.TemplateResponse(request, "push_config.html", context)
 
 

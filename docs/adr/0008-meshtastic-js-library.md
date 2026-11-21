@@ -71,7 +71,10 @@ The import map gives the page and both transports one copy of the core module. C
 - Risk: upstream published nothing after 2.6.7 and removed the source on 2026-06-15. The project pins 2.6.7. A protocol change after protobufs 2.7.8 needs a different library or a fork.
 - The bundled protobufs 2.7.8 have no `ModuleConfig` fields `statusmessage` (14), `traffic_management` (15), `tak` (16) and `mesh_beacon` (17). By the owner ruling, FR-push-config-10 no longer covers `status_message` and `traffic_management`. A newer library can add them again.
 - The bundled protobufs 2.7.8 also have no `Config` fields `display.use_long_node_name`, `display.enable_message_bubbles`, `lora.fem_lna_mode`, `lora.serial_hal_only`, `lora.transparent_mode` and `security.packet_signature_policy`.
+- The bundled protobufs 2.7.8 have no `ModuleConfig` field `telemetry.air_quality_screen_enabled`. The profile field `telemetry_air_quality_screen_enabled` is under "Not pushed" on the page.
 - `beginEditSettings` is private in the TypeScript types only. The page calls it directly, or sends `setConfig` first in each transaction.
+- The esm.sh core build replaces `util.types.isNativeError` with a function that throws `[unenv] util.types.isNativeError is not implemented yet!`. The tslog logger of `MeshDevice` calls it for each log line, so `configure()` and each set call throw. The page sets `device.log.settings.minLevel = 7`, above fatal (6), so each log call returns before that check (`createMeshDevice` in `static/js/push-config.js`). A rebuild of the same esm.sh URL can change this. `test_mesh_device_of_the_page_sends_want_config_with_no_logger_error` fails when the workaround stops working.
+- `setFixedPosition(latitude, longitude)` takes no altitude. The page does not push the profile field `fixed_alt`, and shows it under "Not pushed".
 - When `meshtastic-sdk` publishes a JS release that a page can load without a build, a new ADR can replace this one.
 
 ## Sources

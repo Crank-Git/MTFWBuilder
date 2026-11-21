@@ -17,15 +17,21 @@ const RECONNECT_MS = 120000;
 // A device that is still starting can miss want_config, and the read then never ends.
 const READ_MS = 10000;
 const NO_SECURITY = 'The device sent its config without a security section.';
+const NO_CONFIG = 'The device did not send its config.';
+const READ_DROPPED = 'The connection dropped before the device sent its config.';
 // The build log mask uses the same text, so the operator sees one mask for each secret.
 const MASK = '***';
 const NOT_READ = '—';
+// The profile list of admin keys is shorter than the device list, so the push removes the device key.
+const NO_KEY = '(none)';
 const CHANNEL_SLOTS = 8;
 const PSK_LENGTHS = [0, 1, 16, 32];
 const ADMIN_KEY_LENGTHS = [32];
 
 // The device stores a POSIX TZ string, and a profile can hold an IANA time zone (`mtfwbuilder/time_zones.py`).
 export const tzTable = JSON.parse(el('push-tz-table').textContent);
+// The template renders the flag only when the `push_test_hooks` setting is on, and only the tests turn it on.
+const TEST_HOOKS = el('push-test-hooks') !== null;
 
 /**
  * Return the bytes of a key in hex, `{ 0x.. }` or base64 form, or null for any other text.
@@ -73,6 +79,12 @@ function keyType(lengths, error) {
 const PSK = keyType(PSK_LENGTHS, 'The value is not hex, base64 or a { 0x.. } byte list of 0, 1, 16 or 32 bytes.');
 const ADMIN_KEY = keyType(ADMIN_KEY_LENGTHS, 'The value is not hex, base64 or a { 0x.. } byte list of 32 bytes.');
 
+// `setFixedPosition` of core 2.6.7 sends `Math.floor(degrees / 1e-7)`, so the page compares that integer.
+const DEGREES = {
+  profile: raw => (raw.trim() !== '' && Number.isFinite(Number(raw)) ? Math.floor(Number(raw) / 1e-7) : null),
+  show: value => (value / 1e7).toFixed(7),
+};
+
 /**
  * Return the value type of the `Protobuf.Config` enum `name`, for example `Config_LoRaConfig_RegionCode`.
  *
@@ -93,24 +105,32 @@ function enumType(name) {
   };
 }
 
+// USERPREFS_FIXED_BLUETOOTH sets the FIXED_PIN pairing mode with the PIN (`NodeDB::installDefaultConfig`).
+const FIXED_PIN_MODE = {
+  ...enumType('Config_BluetoothConfig_PairingMode'),
+  profile: raw => (UINT.profile(raw) === null ? null : 'FIXED_PIN'),
+};
+
 // The generator writes the fields of these sections only when the form switch is on.
 const LORA = ['lora_enabled'];
 const GPS = ['gps_enabled'];
 const NETWORK = ['network_enabled'];
 const WIFI = ['network_enabled', 'wifi_enabled'];
 const MQTT = ['network_enabled', 'mqtt_enabled'];
+const FIXED = ['gps_enabled', 'fixed_position'];
 
 /**
  * The mapping table: each profile form field, with the protobuf field of @meshtastic/core 2.6.7 that holds it.
  *
  * - `section` is the path of the section in the device read: `config.<case>`, `moduleConfig.<case>`,
- *   `channels.<index>` or `owner`.
+ *   `channels.<index>`, `owner` or `position`.
  * - `field` is the path of the protobuf field in the section, with protobuf-es names.
  * - `when` names the form switches that must be "true" for the generator to write the field.
  * - `slot` is the channel slot, which counts only when `channels_to_write` is above it.
  *
- * A form field whose protobuf field core 2.6.7 does not have is absent, for example
- * `security_packet_signature_policy`.
+ * A form field that push config does not send is in `NOT_PUSHED`.
+ * `fixed_lat` and `fixed_lon` come after the position config: `set_fixed_position` sets `fixed_position`
+ * (`AdminModule.cpp`), and a later position config replaces it.
  */
 export const FIELD_MAP = [
   { form: 'device_role', section: 'config.device', field: 'role', type: enumType('Config_DeviceConfig_Role') },
@@ -146,6 +166,8 @@ export const FIELD_MAP = [
     type: BOOL,
     when: GPS,
   },
+  { form: 'fixed_lat', section: 'position', field: 'latitudeI', type: DEGREES, when: FIXED },
+  { form: 'fixed_lon', section: 'position', field: 'longitudeI', type: DEGREES, when: FIXED },
   {
     form: 'lora_region',
     section: 'config.lora',
@@ -209,7 +231,7 @@ export const FIELD_MAP = [
     type: UINT,
   },
   { form: 'bluetooth_fixed_pin', section: 'config.bluetooth', field: 'fixedPin', type: UINT },
-  { form: 'security_is_managed', section: 'config.security', field: 'isManaged', type: BOOL },
+  { form: 'bluetooth_fixed_pin', section: 'config.bluetooth', field: 'mode', type: FIXED_PIN_MODE },
   ...[0, 1, 2].map(n => ({ form: `admin_key_${n}`, section: 'config.security', field: `adminKey.${n}`, type: ADMIN_KEY })),
   ...Array.from({ length: CHANNEL_SLOTS }, (_, slot) => [
     ['name', 'settings.name', TEXT],
@@ -224,6 +246,35 @@ export const FIELD_MAP = [
   { form: 'owner_short_name', section: 'owner', field: 'shortName', type: TEXT },
 ];
 
+const NO_FIELD = 'Core 2.6.7 has no field for this value.';
+const BUILD_ONLY = 'The firmware reads this value only from a build.';
+const NOT_MAPPED = 'Push config does not send this value.';
+const MESH_BEACON_FIELDS = [
+  'listen_enabled', 'broadcast_enabled', 'message', 'interval_secs', 'offer_channel_name', 'offer_channel_psk',
+  'offer_frequency_slot', 'offer_preset', 'offer_region',
+  ...[0, 1, 2, 3].flatMap(n => ['channel_index', 'frequency_slot', 'preset', 'region']
+    .map(name => `target_${n}_${name}`)),
+];
+
+/**
+ * The profile form fields that push config does not send, each with the reason that the page shows (ruling 7 on #70).
+ *
+ * `when` has the meaning of the mapping table. A form field that only switches other fields on is in neither table.
+ */
+export const NOT_PUSHED = [
+  // A managed device ignores each local admin message (`AdminModule::handleReceivedProtobuf`), so push config would
+  // lose its own access.
+  { form: 'security_is_managed', reason: 'Set managed mode with a build. Push config does not set it.' },
+  { form: 'security_packet_signature_policy', reason: NO_FIELD },
+  { form: 'telemetry_air_quality_screen_enabled', reason: NO_FIELD },
+  ...MESH_BEACON_FIELDS.map(name => ({ form: `mesh_beacon_${name}`, reason: NO_FIELD })),
+  { form: 'fixed_alt', reason: 'setFixedPosition of core 2.6.7 takes no altitude.', when: FIXED },
+  ...['node_info_reply_suppress_secs', 'event_mode', 'event_mode_hop_limit', 'event_block_position', 'oem_text',
+    'oem_font_size', 'oem_image_width', 'oem_image_height', 'oem_image_data']
+    .map(form => ({ form, reason: BUILD_ONLY })),
+  ...['canned_messages', 'ringtone_rtttl', 'ringtone_nag_secs'].map(form => ({ form, reason: NOT_MAPPED })),
+];
+
 const SECTION_LABELS = {
   'config.device': 'Device',
   'config.position': 'Position',
@@ -234,6 +285,7 @@ const SECTION_LABELS = {
   'config.bluetooth': 'Bluetooth',
   'config.security': 'Security',
   owner: 'Owner',
+  position: 'Fixed position',
 };
 
 function valueAt(source, path) {
@@ -283,6 +335,7 @@ function diffRow(row, read, raw, context) {
   }
   return {
     form: row.form,
+    path: row.field,
     field: fieldLabel(row.field),
     device: current === undefined ? NOT_READ : row.type.show(current),
     profile: row.type.show(wanted),
@@ -303,22 +356,64 @@ function diffRow(row, read, raw, context) {
  * A form field that is empty, or that the generator does not write, gives no row.
  */
 export function diffSections(read, config, context) {
+  const profile = withAdminKeys(config);
   const sections = new Map();
+  const add = (section, diff) => {
+    if (!sections.has(section)) {
+      sections.set(section, { section, label: sectionLabel(section), rows: [] });
+    }
+    sections.get(section).rows.push(diff);
+  };
   FIELD_MAP.forEach(row => {
-    const raw = config[row.form];
-    if (!filled(raw) || !applies(row, config)) {
-      return;
+    const raw = profile[row.form];
+    const diff = filled(raw) && applies(row, profile) ? diffRow(row, read, raw, context) : null;
+    if (diff) {
+      add(row.section, diff);
     }
-    const diff = diffRow(row, read, raw, context);
-    if (!diff) {
-      return;
-    }
-    if (!sections.has(row.section)) {
-      sections.set(row.section, { section: row.section, label: sectionLabel(row.section), rows: [] });
-    }
-    sections.get(row.section).rows.push(diff);
   });
+  removedAdminKeys(read, profile).forEach(slot => add('config.security', {
+    form: `admin_key_${slot}`,
+    path: `adminKey.${slot}`,
+    field: `admin_key[${slot}]`,
+    device: MASK,
+    profile: NO_KEY,
+  }));
   return [...sections.values()];
+}
+
+/**
+ * Return `config` with its valid admin keys moved to the first slots, in slot order (ruling 4 on #70).
+ *
+ * The push replaces the whole admin key list, so a profile key in slot 1 alone becomes the only device key.
+ */
+function withAdminKeys(config) {
+  const forms = [0, 1, 2].map(slot => `admin_key_${slot}`);
+  const keys = forms.map(form => config[form]).filter(raw => filled(raw) && ADMIN_KEY.profile(String(raw)) !== null);
+  const result = { ...config };
+  forms.forEach((form, slot) => {
+    if (slot < keys.length) {
+      result[form] = keys[slot];
+    } else {
+      delete result[form];
+    }
+  });
+  return result;
+}
+
+function adminKeyCount(config) {
+  return [0, 1, 2].filter(slot => filled(config[`admin_key_${slot}`])).length;
+}
+
+/** Return the slots of the device admin keys that a push of `config` removes. `config` comes from `withAdminKeys`. */
+function removedAdminKeys(read, config) {
+  const count = adminKeyCount(config);
+  const found = valueAt(read, 'config.security.adminKey') ?? [];
+  return count === 0 ? [] : Object.keys(found).map(Number).filter(slot => slot >= count && found[slot].length > 0);
+}
+
+/** Return the `{form, reason}` rows of `NOT_PUSHED` that the profile config `config` holds a value for. */
+export function notPushed(config) {
+  return NOT_PUSHED.filter(row => filled(config[row.form]) && applies(row, config));
 }
 
 // A protobuf-es message keeps a nested plain object as it is, so the page sends plain objects only.
@@ -358,9 +453,9 @@ function channelMessage(read, slot, context) {
 }
 
 /**
- * Return the admin call for one section of the diff: `{method, value}`, where `method` is the MeshDevice method.
+ * Return the admin call for one section of the diff: `{method, args}`, where `method` is the MeshDevice method.
  *
- * The device replaces the whole section, so `value` holds the device values with the profile values on top.
+ * The device replaces the whole section, so the message holds the device values with the profile values on top.
  *
  * Parameters:
  * - `read`: the device read of `readDevice`.
@@ -369,32 +464,37 @@ function channelMessage(read, slot, context) {
  * - `context`: `{protobuf, tzTable}`, as for `diffSections`.
  */
 export function sectionMessage(read, config, section, context) {
+  const profile = withAdminKeys(config);
   const [root, key] = section.split('.');
   let value;
   if (root === 'channels') {
     value = channelMessage(read, Number(key), context);
   } else {
-    value = plain(root === 'owner' ? read.owner : read[root][key]) ?? {};
+    value = plain(key === undefined ? read[root] : read[root][key]) ?? {};
   }
-  const written = new Set();
-  FIELD_MAP.filter(row => row.section === section && filled(config[row.form]) && applies(row, config)).forEach(row => {
-    const wanted = row.type.profile(String(config[row.form]), context);
-    if (wanted !== null) {
-      setValue(value, row.field, row.type.wire ? row.type.wire(wanted, context) : wanted);
-      written.add(row.form);
-    }
-  });
-  // USERPREFS_FIXED_BLUETOOTH sets the FIXED_PIN pairing mode with the PIN (`NodeDB::installDefaultConfig`).
-  if (written.has('bluetooth_fixed_pin')) {
-    value.mode = context.protobuf.Config.Config_BluetoothConfig_PairingMode.FIXED_PIN;
+  FIELD_MAP.filter(row => row.section === section && filled(profile[row.form]) && applies(row, profile))
+    .forEach(row => {
+      const wanted = row.type.profile(String(profile[row.form]), context);
+      if (wanted !== null) {
+        setValue(value, row.field, row.type.wire ? row.type.wire(wanted, context) : wanted);
+      }
+    });
+  if (section === 'config.security' && adminKeyCount(profile) > 0) {
+    value.adminKey = value.adminKey.slice(0, adminKeyCount(profile));
   }
   if (root === 'channels') {
-    return { method: 'setChannel', value };
+    return { method: 'setChannel', args: [value] };
   }
   if (root === 'owner') {
-    return { method: 'setOwner', value };
+    return { method: 'setOwner', args: [value] };
   }
-  return { method: root === 'config' ? 'setConfig' : 'setModuleConfig', value: { payloadVariant: { case: key, value } } };
+  if (root === 'position') {
+    // Core floors `degrees / 1e-7`, so the half step gives back the same integer.
+    const degrees = [value.latitudeI ?? 0, value.longitudeI ?? 0].map(integer => (integer + 0.5) / 1e7);
+    return { method: 'setFixedPosition', args: degrees };
+  }
+  const method = root === 'config' ? 'setConfig' : 'setModuleConfig';
+  return { method, args: [{ payloadVariant: { case: key, value } }] };
 }
 
 /**
@@ -413,18 +513,19 @@ export function createMeshDevice(core, transport) {
 /**
  * Return a connected MeshDevice for the transport `kind`, "usb" or "bluetooth".
  *
- * Test hook: when `window.__pushConfigTestDevice` is set before the page loads, the page uses that object
- * as the device and opens no transport. The object needs the MeshDevice members that the page calls:
- * `configure()`, `disconnect()`, and `subscribe` on the `events` members `onConfigPacket`, `onModuleConfigPacket`,
- * `onChannelPacket`, `onMyNodeInfo`, `onNodeInfoPacket` and `onDeviceStatus`. Push also calls `beginEditSettings()`,
- * `setConfig`, `setModuleConfig`, `setChannel`, `setOwner` and `commitEditSettings()`. Each of them returns a promise
+ * Test hook: when the template sets the test flag and `window.__pushConfigTestDevice` is set before the page loads,
+ * the page uses that object as the device and opens no transport. The object needs the MeshDevice members that the
+ * page calls: `configure()`, `disconnect()`, and `subscribe` on the `events` members `onConfigPacket`,
+ * `onModuleConfigPacket`, `onChannelPacket`, `onMyNodeInfo`, `onNodeInfoPacket` and `onDeviceStatus`. Push also calls
+ * `beginEditSettings()`, `setConfig`, `setModuleConfig`, `setChannel`, `setOwner`, `setFixedPosition` and
+ * `commitEditSettings()`. Each of them returns a promise
  * that resolves when the device acknowledges the message, and that rejects with `{id, error}` when the device rejects
  * it. After a restart, the page uses the same object again.
  *
  * Fails when the operator closes the browser picker (a `NotFoundError`) or when the transport does not open.
  */
 async function openDevice(library, kind) {
-  if (window.__pushConfigTestDevice) {
+  if (TEST_HOOKS && window.__pushConfigTestDevice) {
     return window.__pushConfigTestDevice;
   }
   // The transport opens the browser picker, so this call must come first in the click handler.
@@ -435,17 +536,21 @@ async function openDevice(library, kind) {
 }
 
 /**
- * Return the device read: `{config, moduleConfig, channels, owner}` (FR-push-config-4).
+ * Return the device read: `{config, moduleConfig, channels, owner, position}` (FR-push-config-4).
  *
  * `config` and `moduleConfig` hold each section by its protobuf case name, `channels` holds each channel by its index,
- * and `owner` is the `User` of the device node.
+ * and `owner` and `position` are the `User` and the `Position` of the device node.
  * Sends want_config, then collects the packets until the device ends its config.
- * Fails when the config has no security section, or when want_config does not send.
+ * Fails in these cases:
+ * - The config has no security section.
+ * - want_config does not send.
+ * - The device does not end its config in `READ_MS`.
+ * - The connection drops before the end of the config.
  */
 function readDevice(device) {
   return new Promise((resolve, reject) => {
-    const read = { config: {}, moduleConfig: {}, channels: {}, owner: undefined };
-    const users = new Map();
+    const read = { config: {}, moduleConfig: {}, channels: {}, owner: undefined, position: undefined };
+    const nodes = new Map();
     let myNodeNum;
     const store = target => packet => {
       // Core 2.6.7 dispatches a packet of an unknown variant with no case, and the page cannot compare it.
@@ -460,13 +565,17 @@ function readDevice(device) {
       events.onChannelPacket.subscribe(channel => { read.channels[channel.index] = channel; }),
       events.onMyNodeInfo.subscribe(info => { myNodeNum = info.myNodeNum; }),
       // The device sends a node info for each node that it knows, and the owner is the user of its own node.
-      events.onNodeInfoPacket.subscribe(node => { users.set(node.num, node.user); }),
+      events.onNodeInfoPacket.subscribe(node => { nodes.set(node.num, node); }),
       events.onDeviceStatus.subscribe(status => {
+        if (status === DEVICE_DISCONNECTED) {
+          fail(new Error(READ_DROPPED));
+        }
         if (status !== DEVICE_CONFIGURED) {
           return;
         }
         stop();
-        read.owner = users.get(myNodeNum);
+        read.owner = nodes.get(myNodeNum)?.user;
+        read.position = nodes.get(myNodeNum)?.position;
         if (read.config.security) {
           resolve(read);
         } else {
@@ -474,13 +583,16 @@ function readDevice(device) {
         }
       }),
     ];
+    const timer = setTimeout(() => fail(new Error(NO_CONFIG)), READ_MS);
     function stop() {
+      clearTimeout(timer);
       stops.forEach(unsubscribe => unsubscribe());
     }
-    device.configure().catch(error => {
+    function fail(error) {
       stop();
       reject(error);
-    });
+    }
+    device.configure().catch(fail);
   });
 }
 
@@ -530,15 +642,28 @@ function reenterRows(profile) {
   return FIELD_MAP.filter(row => profile.must_reenter.includes(row.form) && applies(row, profile.config));
 }
 
+function renderNotPushed(config) {
+  const rows = config ? notPushed(config) : [];
+  el('push-not-pushed-list').replaceChildren(...rows.map(row => {
+    const item = document.createElement('li');
+    item.dataset.notPushed = row.form;
+    item.textContent = `${row.form}: ${row.reason}`;
+    return item;
+  }));
+  el('push-not-pushed').hidden = rows.length === 0;
+}
+
 function renderDiff() {
   el('push-choose-profile').hidden = Boolean(state.profile);
   if (!state.read || !state.profile) {
     el('push-diff').hidden = true;
     el('push-no-changes').hidden = true;
+    renderNotPushed(null);
     updatePush();
     return;
   }
   const config = { ...state.profile.config, ...Object.fromEntries(state.secrets) };
+  renderNotPushed(config);
   const sections = diffSections(state.read, config, state.context);
   const container = el('push-diff-sections');
   // A new diff keeps each section that the operator cleared, so a secret entry does not select it again.
@@ -606,6 +731,7 @@ async function chooseProfile(id) {
   state.profile = null;
   state.secrets.clear();
   el('push-profile-failed').hidden = true;
+  el('push-profile-warning').hidden = true;
   if (id) {
     const response = await fetch(`/api/v1/profiles/${encodeURIComponent(id)}`);
     // The operator can choose another profile while this one loads, and the page shows only the last choice.
@@ -614,6 +740,9 @@ async function chooseProfile(id) {
     }
     if (response.ok) {
       state.profile = await response.json();
+      // The server sets `warning` when the page gets no stored secrets, so the operator knows why Push asks for them.
+      el('push-profile-warning').textContent = state.profile.warning ?? '';
+      el('push-profile-warning').hidden = !state.profile.warning;
     } else {
       el('push-profile-failed').hidden = false;
     }
@@ -649,14 +778,7 @@ async function connect(library, kind) {
   hidePushNotices();
   showState('push-reading');
   try {
-    const read = await readDevice(device);
-    if (read.config.security.isManaged) {
-      // A managed device accepts admin messages only with an admin key, so the page sends nothing (FR-push-config-11).
-      showState('push-managed');
-      await close(device);
-      return;
-    }
-    showConnected(device, kind, read);
+    await useDevice(device, kind, await readDevice(device));
   } catch (error) {
     // An open port makes the next Connect fail, so the page closes the connection before it shows the error.
     await close(device);
@@ -664,14 +786,26 @@ async function connect(library, kind) {
   }
 }
 
-function showConnected(device, kind, read) {
+/** Show the diff of the device read `read`, or the managed message for a managed device. Connect and reconnect. */
+async function useDevice(device, kind, read) {
+  if (read.config.security.isManaged) {
+    // A managed device accepts admin messages only with an admin key, so the page sends nothing (FR-push-config-11).
+    showState('push-managed');
+    await close(device);
+    return;
+  }
   Object.assign(state, { device, kind, read });
   showState('push-connected');
   renderDiff();
 }
 
 function hidePushNotices() {
-  ['push-results', 'push-restart', 'push-dropped', 'push-reconnect-failed'].forEach(id => { el(id).hidden = true; });
+  ['push-results', 'push-restart', 'push-dropped', 'push-unknown', 'push-reconnect-failed']
+    .forEach(id => { el(id).hidden = true; });
+}
+
+function setConnectDisabled(disabled) {
+  ['push-connect-usb', 'push-connect-bluetooth'].forEach(id => { el(id).disabled = disabled; });
 }
 
 function delay(ms) {
@@ -694,7 +828,8 @@ function showResult(section, text) {
 }
 
 /**
- * Send the selected sections in one transaction, and return "committed", "dropped" or "commit-failed".
+ * Send the selected sections in one transaction, and return "committed", "dropped", "commit-dropped" or
+ * "commit-failed".
  *
  * The page sends begin_edit_settings, one set message for each section, then commit_edit_settings (FR-push-config-7).
  * Core 2.6.7 sends begin_edit_settings only inside `setConfig`, so the page sends it itself (ADR 0008).
@@ -703,7 +838,7 @@ function showResult(section, text) {
  *
  * Parameters:
  * - `device`: the connected MeshDevice.
- * - `messages`: the `{section, method, value}` admin calls, in the order of the mapping table.
+ * - `messages`: the `{section, method, args}` admin calls, in the order of the mapping table.
  * - `drop`: a promise that resolves when the connection drops.
  */
 async function sendTransaction(device, messages, drop) {
@@ -715,15 +850,17 @@ async function sendTransaction(device, messages, drop) {
   }
   for (const message of messages) {
     // The page waits for each answer before the next message, so the results show the progress.
-    const error = await send(() => device[message.method](message.value));
+    const error = await send(() => device[message.method](...message.args));
     if (error === dropped) {
       return 'dropped';
     }
     showResult(message.section, error === null ? 'applied' : `failed, ${deviceError(error)}`);
   }
-  // A device on Bluetooth turns its radio off at the commit, so a drop after the commit is the restart.
   const error = await send(() => device.commitEditSettings());
-  if (error !== null && error !== dropped) {
+  if (error === dropped) {
+    return 'commit-dropped';
+  }
+  if (error !== null) {
     showError(new Error(`The device did not save the config: ${deviceError(error)}`));
     return 'commit-failed';
   }
@@ -739,6 +876,7 @@ async function push(library) {
   }));
   state.pushing = true;
   updatePush();
+  setConnectDisabled(true);
   hidePushNotices();
   el('push-results').replaceChildren();
   el('push-results').hidden = false;
@@ -751,13 +889,21 @@ async function push(library) {
   });
   try {
     const outcome = await sendTransaction(device, messages, drop);
+    state.device = null;
     if (outcome === 'commit-failed') {
+      await close(device);
       return;
     }
-    state.device = null;
     if (outcome === 'dropped') {
       el('push-results').hidden = true;
       el('push-dropped').hidden = false;
+      await close(device);
+      return;
+    }
+    // A device on Bluetooth turns its radio off at the commit, so a drop there is the restart.
+    // A USB port stays open through the restart, so a drop there can come before or after the device saves.
+    if (outcome === 'commit-dropped' && kind !== 'bluetooth') {
+      el('push-unknown').hidden = false;
       await close(device);
       return;
     }
@@ -768,6 +914,7 @@ async function push(library) {
     stop();
     state.pushing = false;
     updatePush();
+    setConnectDisabled(false);
   }
 }
 
@@ -777,18 +924,13 @@ async function push(library) {
  * A USB device can return as a new SerialPort. Web Serial then fires `connect` with it, and `ports.latest` holds it.
  */
 async function reopenDevice(library, kind, old, ports) {
-  if (window.__pushConfigTestDevice) {
+  if (TEST_HOOKS && window.__pushConfigTestDevice) {
     return window.__pushConfigTestDevice;
   }
   const transport = kind === 'bluetooth'
     ? await library.bluetooth.TransportWebBluetooth.createFromDevice(old.transport.gattServer.device)
     : await library.serial.TransportWebSerial.createFromPort(ports.latest ?? old.transport.connection);
   return createMeshDevice(library.core, transport);
-}
-
-function readWithTimeout(device) {
-  const late = delay(READ_MS).then(() => { throw new Error('The device did not send its config.'); });
-  return Promise.race([readDevice(device), late]);
 }
 
 /** Connect to the device again after the restart, and show the new diff (FR-push-config-9). */
@@ -804,7 +946,7 @@ async function reconnect(library, kind, old) {
       let device = null;
       try {
         device = await reopenDevice(library, kind, old, ports);
-        showConnected(device, kind, await readWithTimeout(device));
+        await useDevice(device, kind, await readDevice(device));
         return;
       } catch (error) {
         // The device is still starting, so the page tries again.
@@ -844,7 +986,7 @@ function bind(library) {
       try {
         await connect(library, kind);
       } finally {
-        button.disabled = false;
+        button.disabled = state.pushing;
       }
     });
     button.disabled = false;
