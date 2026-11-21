@@ -39,19 +39,9 @@
     </noscript>
     <div class="row g-3 align-items-end">
         <div class="col-md-5">
-            <label for="variant" class="form-label">Variant</label>
-            <select class="form-select" id="variant" name="variant">
-                <option value="" selected>Choose a variant...</option>
-                {% for manufacturer, variants in manufacturers.items() %}
-                <optgroup label="{{ manufacturer }}">
-                    {% for variant in variants %}
-                    <option value="{{ variant.id }}">{{ variant.name }}</option>
-                    {% endfor %}
-                </optgroup>
-                {% endfor %}
-            </select>
+            <label for="device-search" class="form-label">Variant</label>
+            <input type="search" class="form-control" id="device-search" name="q" placeholder="Search name, manufacturer or env" autocomplete="off">
         </div>
-        {# The variant picker of Epic 6 reads the chosen firmware version from this named field. #}
         <div class="col-md-4">
             <label for="firmware_version" class="form-label">Firmware version</label>
             <select class="form-select" id="firmware_version" name="firmware_version"{% if not firmware_sources %} disabled{% endif %}>
@@ -71,6 +61,7 @@
             </button>
         </div>
     </div>
+    {% include "partials/device_picker.html" %}
     <div id="build-panel" class="mt-3" aria-live="polite">
         {% if build %}
         {% include "partials/build_panel.html" %}

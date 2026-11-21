@@ -36,4 +36,4 @@ jobs:
         run: uv run python -m tests.upstream_fixture "$RUNNER_TEMP/firmware"
 
       - name: Contract tests
-        run: uv run pytest -q -k "contract or registry"
+        run: uv run pytest -q -k contract

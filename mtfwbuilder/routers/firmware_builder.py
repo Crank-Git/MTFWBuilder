@@ -10,11 +10,12 @@ from fastapi.responses import FileResponse, RedirectResponse, Response
 from pydantic import ValidationError
 from sse_starlette.sse import EventSourceResponse
 
-from mtfwbuilder.database import find_firmware_source, list_firmware_sources
+from mtfwbuilder.database import find_firmware_source, list_firmware_sources, list_variants
 from mtfwbuilder.htmx import fragment_or_json, is_htmx
 from mtfwbuilder.models import Artifact, ConfigRequest, FirmwareSource
 from mtfwbuilder.rate_limit import build_rate_limit, limiter
 from mtfwbuilder.services import build_service
+from mtfwbuilder.services.build_service import DeviceVariant
 from mtfwbuilder.services.jsonc_generator import generate_jsonc
 
 logger = logging.getLogger("mtfwbuilder.firmware_routes")
@@ -45,23 +46,21 @@ async def start_build(request: Request) -> Response:
 
     Returns:
     - 400 for a bad form.
-    - 422 with field errors for an invalid config, or for a firmware version that is not installed.
+    - 422 with field errors for an invalid config, for a firmware version that is not installed, or for a
+      variant that is not in the registry of the firmware version.
     - 503 when the build queue is full.
 
     The route validates the config before the build goes in the build queue.
     """
-    registry = request.app.state.device_registry
     form = await request.form()
 
     variant_id = form.get("variant")
     if not variant_id:
         raise HTTPException(status_code=400, detail="No device variant selected")
-    if not registry.exists(variant_id):
-        raise HTTPException(status_code=400, detail=f"Unknown device variant: {variant_id}")
-    variant = registry.get(variant_id)
-    config_content = await _config_content(form)
     # An empty field asks for the default firmware version, the same as no field.
     firmware_version = form.get("firmware_version") or None
+    variant = await _registry_variant(request, variant_id, firmware_version)
+    config_content = await _config_content(form)
 
     try:
         ctx = await request.app.state.build_queue.submit(variant, config_content, firmware_version)
@@ -79,6 +78,34 @@ async def start_build(request: Request) -> Response:
     # The page URL holds the build id, so a reload of the page shows the same build.
     response.headers["HX-Push-Url"] = f"/?build={ctx.build_id}"
     return response
+
+
+async def _registry_variant(request: Request, variant_id: str, firmware_version: str | None) -> DeviceVariant:
+    """Return the variant `variant_id` from the registry of the firmware version of the build.
+
+    `firmware_version` None selects the default firmware version. Raises a 422 field error:
+
+    - for `firmware_version` when it is not installed.
+    - for `variant` when the registry of the firmware version does not hold the variant. A firmware version
+      without registry rows holds no variant.
+    """
+    database_path = request.app.state.settings.database_path
+    source = await find_firmware_source(database_path, firmware_version)
+    if source is None:
+        if firmware_version is not None:
+            raise _field_error("firmware_version", f"firmware version {firmware_version} is not installed")
+        # With no firmware version installed, the build fails at submit and shows the admin link, so it never compiles.
+        return DeviceVariant(id=variant_id, name=variant_id, manufacturer="Other", architecture="")
+    entries = await list_variants(database_path, source["version"])
+    entry = next((e for e in entries if e["env"] == variant_id), None)
+    if entry is None:
+        raise _field_error("variant", f"Variant not in {source['version']}")
+    return DeviceVariant(
+        id=entry["env"],
+        name=entry["display_name"],
+        manufacturer=entry["manufacturer"],
+        architecture=entry["architecture"],
+    )
 
 
 def progress_url(build_id: str) -> str:

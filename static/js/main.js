@@ -81,6 +81,68 @@ document.addEventListener('htmx:sseMessage', function(evt) {
     }
 });
 
+// The variants route names the firmware version `version`, and the build route names it `firmware_version`.
+// Without an installed version the selector value is empty, and the route then answers with the no version state.
+document.addEventListener('htmx:configRequest', function(evt) {
+    const version = document.getElementById('firmware_version');
+    if (evt.detail.elt.id === 'device-picker' && version && version.value) {
+        evt.detail.parameters.version = version.value;
+    }
+});
+
+// The picker list reloads on each filter change, so the chosen row gets its pressed state again after each swap.
+function markChosenVariant() {
+    const chosen = document.getElementById('variant').value;
+    document.querySelectorAll('#device-results [data-env]').forEach(row => {
+        const pressed = row.dataset.env === chosen;
+        row.setAttribute('aria-pressed', String(pressed));
+        row.classList.toggle('active', pressed);
+    });
+}
+
+document.addEventListener('htmx:afterSwap', function(evt) {
+    if (evt.detail.target.id === 'device-results') {
+        markChosenVariant();
+    }
+});
+
+// The picker list holds only the envs that match the filters, so the full registry of the new version decides.
+// A chosen env that the new version lacks gives a build of an env that the firmware source does not have.
+document.addEventListener('change', async function(evt) {
+    const version = evt.target;
+    const variant = document.getElementById('variant');
+    if (version.id !== 'firmware_version' || !variant || !variant.value || !version.value) {
+        return;
+    }
+    const query = new URLSearchParams({version: version.value, experimental: 'true'});
+    const response = await fetch(`/api/v1/variants?${query}`);
+    const registry = response.ok ? await response.json() : [];
+    // A second version change during the request makes this answer out of date.
+    if (version.value !== query.get('version') || registry.some(entry => entry.env === variant.value)) {
+        return;
+    }
+    variant.value = '';
+    variant.dispatchEvent(new Event('change'));
+    markChosenVariant();
+});
+
+document.addEventListener('click', function(evt) {
+    const row = evt.target.closest('#device-results [data-env]');
+    if (row) {
+        const variant = document.getElementById('variant');
+        variant.value = row.dataset.env;
+        // A script change of a value fires no change event, and the Build control listens for one.
+        variant.dispatchEvent(new Event('change'));
+        markChosenVariant();
+        return;
+    }
+    if (evt.target.closest('#device-clear')) {
+        document.getElementById('device-search').value = '';
+        document.querySelectorAll('#device-results input[name="arch"]').forEach(chip => { chip.checked = false; });
+        htmx.trigger('#device-picker', 'picker:clear');
+    }
+});
+
 document.addEventListener('DOMContentLoaded', function() {
     // The browser can keep the chosen variant after a reload, so the check also runs at load.
     const variant = document.getElementById('variant');

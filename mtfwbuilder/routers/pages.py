@@ -14,23 +14,22 @@ async def index(request: Request, build: str | None = None):
     """Render the build page: the config form, the build controls and the progress panel.
 
     The build controls are the variant picker, the firmware version selector and the Build control.
-    The selector lists the ready firmware sources, and selects the newest installed stable firmware version.
+    The selector lists the installed firmware sources, and selects the newest installed stable firmware version.
 
     Args:
         build: The build id of the build that the progress panel shows (FR-frontend-htmx-10).
             An unknown build id shows "Build not found."
     """
     templates = request.app.state.templates
-    manufacturers: dict[str, list] = {}
-    for variant in request.app.state.device_registry.all_variants:
-        manufacturers.setdefault(variant.manufacturer, []).append(variant)
     database_path = request.app.state.settings.database_path
     default_source = await find_firmware_source(database_path)
     context = {
         "title": "Build",
-        "manufacturers": manufacturers,
         "build_id": build,
-        "firmware_sources": [s for s in await list_firmware_sources(database_path) if s["status"] == "ready"],
+        # A version with status `registry failed` stays in the selector, so the picker can say that its list failed.
+        "firmware_sources": [
+            s for s in await list_firmware_sources(database_path) if s["status"] in ("ready", "registry failed")
+        ],
         "default_firmware_version": default_source["version"] if default_source else None,
     }
     ctx = request.app.state.build_queue.get(build) if build else None
