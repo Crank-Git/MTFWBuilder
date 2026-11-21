@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Act as `pio run -e <env>` for the tests, so the tests run without PlatformIO.
+"""Act as `pio run -e <env>` and `pio pkg install` for the tests, so the tests run without PlatformIO.
 
 The fake writes the artifact names that upstream `bin/platformio-pre.py` and
 `bin/platformio-custom.py` give at firmware `v2.7.26.54e0d8d`. It prints the lines that
@@ -8,6 +8,10 @@ the build service parses, and one `-D` flag per userPrefs key, as upstream does.
 Environment variables:
 - `FAKE_PIO_FAIL=1` makes the build fail with exit code 1 and no artifacts.
 - `FAKE_PIO_SLEEP=<seconds>` holds the build after the first compile line.
+- `FAKE_PIO_PKG_FAIL=1` makes `pio pkg install` fail with exit code 1.
+- `FAKE_PIO_PKG_SLEEP=<seconds>` holds `pio pkg install` before it writes its marker file.
+
+`pio pkg install` writes `.pio/libdeps/fake/installed` in its working directory, so a test can see where it ran.
 """
 
 import argparse
@@ -67,7 +71,26 @@ def fail(build_dir: str, start: float) -> int:
     return 1
 
 
+def pkg_install() -> int:
+    """Act as `pio pkg install` in the project directory: the working directory."""
+    if not Path("platformio.ini").is_file():
+        out("Error: Not a PlatformIO project. `platformio.ini` file has not been found")
+        return 1
+    out("Resolving fake dependencies...")
+    time.sleep(float(os.environ.get("FAKE_PIO_PKG_SLEEP", "0")))
+    if os.environ.get("FAKE_PIO_PKG_FAIL") == "1":
+        out("Error: FAKE_PIO_PKG_FAIL is set")
+        return 1
+    marker = Path(".pio/libdeps/fake/installed")
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text("fake\n")
+    out("Already up-to-date.")
+    return 0
+
+
 def main() -> int:
+    if sys.argv[1:] == ["pkg", "install"]:
+        return pkg_install()
     parser = argparse.ArgumentParser(prog="pio")
     parser.add_argument("command", choices=["run"])
     parser.add_argument("-e", "--environment", required=True)

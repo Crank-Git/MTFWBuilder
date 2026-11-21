@@ -1,8 +1,8 @@
 """Admin routes — login, firmware update, cleanup, system info."""
 
-import asyncio
 import logging
 
+import requests
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
@@ -13,8 +13,8 @@ from mtfwbuilder.auth import (
     verify_password,
 )
 from mtfwbuilder.rate_limit import limiter
+from mtfwbuilder.services import firmware_updater
 from mtfwbuilder.services.cleanup_service import cleanup_old_builds
-from mtfwbuilder.services.firmware_updater import update_firmware
 
 logger = logging.getLogger("mtfwbuilder.admin")
 
@@ -64,25 +64,26 @@ async def admin_logout():
 
 @router.post("/api/v1/update-firmware", dependencies=[Depends(require_admin)])
 async def update_firmware_route(request: Request):
-    """Start firmware update from GitHub (admin only)."""
-    settings = request.app.state.settings
+    """Install the newest stable firmware version, and return the result after the install ends (admin only).
 
-    # The update replaces the firmware source, so it waits for the running build and blocks the next one.
-    lock = request.app.state.build_queue.firmware_lock
-    await lock.acquire()
-    update = asyncio.get_running_loop().run_in_executor(None, update_firmware, settings)
-    # A cancelled request cannot stop the update thread, so the lock stays held until the thread ends.
-    update.add_done_callback(lambda _future: lock.release())
+    This old route stays for the admin page until #38. It starts the same install as
+    `POST /api/v1/firmware/install` with `{"channel": "stable"}`, and waits for it.
+    """
+    installs: firmware_updater.FirmwareInstalls = request.app.state.firmware_installs
     try:
-        success = await asyncio.shield(update)
-    except Exception as e:
-        logger.error(f"Firmware update error: {e}")
-        return {"success": False, "error": str(e)}
-
-    if success:
-        return {"success": True, "message": "Firmware updated successfully."}
-    else:
-        return {"success": False, "error": "Firmware update failed. Check logs for details."}
+        install = await installs.start(channel="stable")
+    except firmware_updater.FirmwareVersionInstalled as e:
+        return {"success": True, "message": f"Firmware version {e} is installed."}
+    except firmware_updater.InstallActive as e:
+        install = e.install
+    except (firmware_updater.ReleaseNotFound, requests.RequestException) as e:
+        logger.error(f"No stable firmware version: {e}")
+        return {"success": False, "error": "Cannot get the firmware version list from GitHub."}
+    # The install is a task of its own, so a closed request does not stop it.
+    await install.wait()
+    if install.status == "ready":
+        return {"success": True, "message": f"Firmware version {install.version} is installed."}
+    return {"success": False, "error": install.error}
 
 
 @router.post("/api/v1/cleanup", dependencies=[Depends(require_admin)])

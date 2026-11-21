@@ -1,12 +1,8 @@
 """Tests for the firmware source records, the per-tag directories and the list route (feature 09)."""
 
 import asyncio
-import io
 import json
-import subprocess
 import time
-import zipfile
-from pathlib import Path
 
 import aiosqlite
 import pytest
@@ -15,7 +11,7 @@ from httpx import ASGITransport, AsyncClient
 from mtfwbuilder.database import find_firmware_source, init_db, record_firmware_source
 from mtfwbuilder.main import lifespan
 from mtfwbuilder.services import firmware_updater
-from mtfwbuilder.services.firmware_updater import import_old_firmware_source, update_firmware
+from mtfwbuilder.services.firmware_updater import import_old_firmware_source
 
 STABLE = "v2.7.26.54e0d8d"
 ALPHA = "v2.8.2.d5f1619"
@@ -135,93 +131,6 @@ async def test_helper_returns_none_when_no_firmware_version_is_installed(setting
 
     assert await find_firmware_source(settings.database_path) is None
     assert await find_firmware_source(settings.database_path, STABLE) is None
-
-
-# FR-firmware-versions-4
-
-
-def _zipball(top_dir="meshtastic-firmware-54e0d8d"):
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w") as zf:
-        zf.writestr(f"{top_dir}/platformio.ini", "[platformio]\n")
-        zf.writestr(f"{top_dir}/src/main.cpp", "int main() {}\n")
-    return buffer.getvalue()
-
-
-class _Response:
-    def __init__(self, body):
-        self.body = body
-
-    def raise_for_status(self):
-        pass
-
-    def iter_content(self, chunk_size):
-        yield self.body
-
-
-@pytest.fixture
-def upstream(monkeypatch):
-    """Replace GitHub and `pio pkg install` with fakes, and return the `pio` working directories."""
-    release = {"version": STABLE, "published_date": "2026-11-01", "release_data": {"zipball_url": "https://zip"}}
-    monkeypatch.setattr(firmware_updater, "get_latest_release_info", lambda: release)
-    monkeypatch.setattr(firmware_updater.requests, "get", lambda *_args, **_kwargs: _Response(_zipball()))
-    pio_dirs = []
-
-    def fake_run(cmd, cwd, **_kwargs):
-        pio_dirs.append(Path(cwd))
-        return subprocess.CompletedProcess(cmd, 0, "", "")
-
-    monkeypatch.setattr(firmware_updater.subprocess, "run", fake_run)
-    return pio_dirs
-
-
-async def test_update_installs_the_firmware_version_into_its_tag_directory(settings, upstream):
-    await init_db(settings)
-
-    assert update_firmware(settings) is True
-
-    source_dir = settings.firmware_dir / STABLE
-    assert (source_dir / "platformio.ini").is_file()
-    assert (source_dir / "src" / "main.cpp").is_file()
-    assert upstream == [source_dir]
-    assert not (settings.firmware_dir / "platformio.ini").exists()
-
-
-async def test_update_keeps_the_directory_of_another_firmware_version(settings, upstream):
-    await init_db(settings)
-    other = settings.firmware_dir / ALPHA
-    other.mkdir(parents=True)
-    (other / "platformio.ini").write_text("[alpha]\n")
-
-    update_firmware(settings)
-
-    assert (other / "platformio.ini").read_text() == "[alpha]\n"
-    assert (settings.firmware_dir / STABLE / "platformio.ini").is_file()
-
-
-async def test_update_writes_a_ready_stable_record_with_the_disk_size(settings, upstream):
-    await init_db(settings)
-
-    update_firmware(settings)
-
-    [row] = await _rows(settings)
-    assert row["version"] == STABLE
-    assert row["channel"] == "stable"
-    assert row["path"] == str(settings.firmware_dir / STABLE)
-    assert row["status"] == "ready"
-    assert row["size_bytes"] == len("[platformio]\n") + len("int main() {}\n")
-    assert row["installed_at"]
-
-
-async def test_update_refuses_a_release_whose_tag_is_not_a_firmware_version(settings, upstream, monkeypatch):
-    await init_db(settings)
-    release = {"version": "../escape", "published_date": "", "release_data": {"zipball_url": "https://zip"}}
-    monkeypatch.setattr(firmware_updater, "get_latest_release_info", lambda: release)
-
-    assert update_firmware(settings) is False
-
-    assert not (settings.base_dir / "escape").exists()
-    assert await _rows(settings) == []
 
 
 async def test_startup_moves_an_old_firmware_source_into_its_tag_directory(app, settings, monkeypatch):

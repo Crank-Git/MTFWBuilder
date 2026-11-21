@@ -214,6 +214,14 @@ class BuildQueue:
         """Return the build ids of the builds that have not ended."""
         return {build_id for build_id, ctx in self._builds.items() if not ctx.ended}
 
+    def unended_firmware_versions(self, default_version: str | None) -> set[str]:
+        """Return the firmware versions that the builds that have not ended use.
+
+        A queued build reads its firmware version when it starts, so it counts as a build of `default_version`.
+        """
+        versions = {ctx.firmware_version or default_version for ctx in self._builds.values() if not ctx.ended}
+        return versions - {None}
+
     def _record(self, ctx: BuildContext) -> None:
         self._records.put_nowait(ctx.record())
 

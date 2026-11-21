@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     build_timeout_seconds: int = 900  # 15 minutes
     cleanup_interval_seconds: int = 1800  # 30 minutes
     build_max_age_seconds: int = 3600  # 1 hour
+    install_timeout_seconds: int = 3600  # The time limit of `pio pkg install` for one firmware version
 
     # Auth
     admin_password_hash: str = ""
