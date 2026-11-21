@@ -42,6 +42,8 @@ features:
     file: features/14-fleet-builds.md
   - id: push-config
     file: features/15-push-config.md
+  - id: module-settings
+    file: features/16-module-settings.md
 pages:
   - id: inherit-reconciliation
     file: pages/inherit-reconciliation.md
@@ -143,6 +145,7 @@ the header of `userPrefs.jsonc` in `meshtastic/firmware` `develop@fe89ac1`.
 | ES module | noun | A JavaScript file that the browser loads with `import`. The project vendors ES modules in `static/vendor/`. | ESM bundle, module (alone) |
 | import map | noun | A `<script type="importmap">` element that maps a bare import name to a URL. | module map |
 | SSE | noun | Server-Sent Events: a one-way HTTP stream from server to browser. | websocket |
+| module setting | noun | A field of one of the 7 `module_config` sections that have no userPrefs key. A profile holds it, a build writes no key for it, and push config sends it. | module config field |
 
 ## Goals
 
@@ -209,6 +212,7 @@ changes what firmware versions the instance holds. The project has no other role
 | Browser flashing | [features/13-browser-flashing.md](features/13-browser-flashing.md) | planned | Epic 9: Browser flashing | [06-flash](mockups/06-flash.html) |
 | Fleet builds | [features/14-fleet-builds.md](features/14-fleet-builds.md) | planned | Epic 10: Profiles and build cache, Epic 11: Fleet runs | [07-fleet](mockups/07-fleet.html) |
 | Push config | [features/15-push-config.md](features/15-push-config.md) | planned | Epic 12: Push config | [08-push-config](mockups/08-push-config.html) |
+| Module settings | [features/16-module-settings.md](features/16-module-settings.md) | planned | Epic 13: Module settings | [09-module-settings](mockups/09-module-settings.html) |
 
 ## Architecture & stack
 
@@ -437,6 +441,7 @@ Planned: a test fixture holds a small firmware source subset (a few variant
 | 10 | Profiles and build cache | Saved profiles and artifact reuse by config hash | 14-fleet-builds (FR 1–9) | 2, 7 | A repeated build returns from the build cache. |
 | 11 | Fleet runs | One fleet run makes one build per device | 14-fleet-builds (FR 10–20) | 10 | A fleet run of 3 devices gives 3 artifacts and one zip. |
 | 12 | Push config | Push a config to a device without a build | 15-push-config | 7, 9 | A Chrome page sets channels on a connected device over Web Serial. |
+| 13 | Module settings | Profiles hold the 7 module sections that have no userPrefs key, and push config sends them | 16-module-settings | 12 | A push with a profile that sets the serial mode changes the serial mode of a fake device. |
 
 ## Milestones
 
@@ -447,6 +452,7 @@ Planned: a test fixture holds a small firmware source subset (a few variant
 3. **M3 — Fewer steps** (Epics 8–9). Channel share and browser flashing. Tag `v3.1.0`.
 4. **M4 — Fleets** (Epics 10–11). Tag `v3.2.0`.
 5. **M5 — No compile** (Epic 12). Tag `v3.3.0`.
+6. **M6 — Module settings** (Epic 13). Tag `v3.4.0`.
 
 ## Assumptions
 
@@ -748,3 +754,4 @@ Written by `/spec-to-issues` on 2026-11-21.
 - 2026-11-21 — Epic 11 shipped (#176). PM decisions from the batch review: a fleet run has a random public id, and the fleet page lists no past runs (the operator keeps the run URL). Fleet runs obey the rate limit and the build queue limit, and one fleet runs one fleet run at a time. Fleet device admin keys are the admin's public keys: the project stores them encrypted and puts them in every build (ADR 0007).
 - 2026-11-21 — Epic 9 shipped (#135). Owner rulings: Epic 9 merged without the manual hardware check, because no device was available. The check is #177, and #177 also holds the manual check of Epic 12. The flash panel shows for each ESP32 family member (`flash_method` is `web-serial`). Owner ruling on #139: the picker shows no device images, because the meshtastic/web-flasher images are proprietary. Owner ruling on #158: a config that holds a secret is never cached.
 - 2026-11-21 — Epic 12 shipped (#186). Owner rulings: build on `@meshtastic/core` 2.6.7, pinned, with three vendored ES modules and an import map (ADR 0008). FR-push-config-10 is deferred (#182), and the protobufs in core 2.6.7 lack `status_message` and `traffic_management`. PM decisions from the batch review: push config never sends managed mode, admin keys come only from the profile, and the test hook needs `MTFW_PUSH_TEST_HOOKS`. The manual device push is in #177.
+- 2026-11-21 — `/spec-update` change: new planned feature `module-settings` (16) and Epic 13. It restores FR-push-config-10 (owner ruling on #182). Owner rulings: the 7 module sections go in profiles and in a new Modules tab, the pin fields are optional, and `nag_timeout` comes from `ringtone_nag_secs`. The owner approved this round on 2026-11-21.

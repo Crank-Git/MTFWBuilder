@@ -158,6 +158,7 @@ body.rv-open .layout { padding-right:21rem; }
 <li><a href="feature-browser-flashing.html">Browser flashing</a></li>
 <li><a href="feature-fleet-builds.html">Fleet builds</a></li>
 <li><a class="current" href="feature-push-config.html">Push config</a></li>
+<li><a href="feature-module-settings.html">Module settings</a></li>
 </ul></aside>
 <main>
 <h1>Feature: Push config</h1>
@@ -222,7 +223,7 @@ body.rv-open .layout { padding-right:21rem; }
 <li>FR-push-config-10 — Push config covers the <code>module_config</code> sections that have no
 </li>
 </ul>
-<p>userPrefs key: serial, store_forward, range_test, external_notification, neighbor_info, detection_sensor, paxcounter. The protobufs in <code>@meshtastic/core</code> 2.6.7 are 2.7.8. They have no <code>statusmessage</code> or <code>traffic_management</code> field, so push config does not cover those two sections (owner ruling on #70). A newer library can add them again. <strong>Deferred</strong> (PM decision at the #73 gate): a profile has no field for these sections, so Epic 12 pushes only profile fields. <a href="https://github.com/Crank-Git/MTFWBuilder/issues/182">#182</a> carries the work.</p>
+<p>userPrefs key: serial, store_forward, range_test, external_notification, neighbor_info, detection_sensor, paxcounter. The protobufs in <code>@meshtastic/core</code> 2.6.7 are 2.7.8. They have no <code>statusmessage</code> or <code>traffic_management</code> field, so push config does not cover those two sections (owner ruling on #70). A newer library can add them again. <strong>Deferred</strong> (PM decision at the #73 gate): a profile has no field for these sections, so Epic 12 pushes only profile fields. <a href="https://github.com/Crank-Git/MTFWBuilder/issues/182">#182</a> carries the work. The planned feature <a href="feature-module-settings.html">module-settings</a> restores it.</p>
 <ul>
 <li>FR-push-config-11 — When the device has managed mode on, the page shows "This device
 </li>
@@ -415,7 +416,7 @@ body.rv-open .layout { padding-right:21rem; }
 </ul>
 <p>(ADR 0008).</p><h2>Mockups</h2><p>Mockups convey intent — the rough shape a user will see. An implementer may diverge where framework conventions, components, accessibility, or a better idea serve the feature's requirements; the FRs and acceptance criteria are the contract, not the pixels.</p><div class="mockup"><iframe src="../mockups/08-push-config.html" loading="lazy"></iframe><p><a href="../mockups/08-push-config.html" target="_blank">Open ../mockups/08-push-config.html in new tab</a></p></div><nav class="pager">
 <a href="feature-fleet-builds.html">&larr; Feature: Fleet builds</a>
-<span></span>
+<a href="feature-module-settings.html">Feature: Module settings &rarr;</a>
 </nav>
 </main>
 </div>

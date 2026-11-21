@@ -175,6 +175,7 @@ body.rv-open .layout { padding-right:21rem; }
 <li><a href="html/feature-browser-flashing.html">Browser flashing</a></li>
 <li><a href="html/feature-fleet-builds.html">Fleet builds</a></li>
 <li><a href="html/feature-push-config.html">Push config</a></li>
+<li><a href="html/feature-module-settings.html">Module settings</a></li>
 </ul></aside>
 <main>
 <p class="meta"><span class="badge">approved</span> &nbsp; created 2026-11-21 &nbsp; rendered 2026-11-21</p>
@@ -261,6 +262,7 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><td>ES module</td><td>noun</td><td>A JavaScript file that the browser loads with <code>import</code>. The project vendors ES modules in <code>static/vendor/</code>.</td><td>ESM bundle, module (alone)</td></tr>
 <tr><td>import map</td><td>noun</td><td>A <code>&lt;script type="importmap"&gt;</code> element that maps a bare import name to a URL.</td><td>module map</td></tr>
 <tr><td>SSE</td><td>noun</td><td>Server-Sent Events: a one-way HTTP stream from server to browser.</td><td>websocket</td></tr>
+<tr><td>module setting</td><td>noun</td><td>A field of one of the 7 <code>module_config</code> sections that have no userPrefs key. A profile holds it, a build writes no key for it, and push config sends it.</td><td>module config field</td></tr>
 </table></div>
 <h2 id="goals">Goals</h2>
 <ol>
@@ -356,6 +358,7 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><td>Browser flashing</td><td><a href="html/feature-browser-flashing.html">features/13-browser-flashing.md</a></td><td>planned</td><td>Epic 9: Browser flashing</td><td><a href="mockups/06-flash.html">06-flash</a></td></tr>
 <tr><td>Fleet builds</td><td><a href="html/feature-fleet-builds.html">features/14-fleet-builds.md</a></td><td>planned</td><td>Epic 10: Profiles and build cache, Epic 11: Fleet runs</td><td><a href="mockups/07-fleet.html">07-fleet</a></td></tr>
 <tr><td>Push config</td><td><a href="html/feature-push-config.html">features/15-push-config.md</a></td><td>planned</td><td>Epic 12: Push config</td><td><a href="mockups/08-push-config.html">08-push-config</a></td></tr>
+<tr><td>Module settings</td><td><a href="html/feature-module-settings.html">features/16-module-settings.md</a></td><td>planned</td><td>Epic 13: Module settings</td><td><a href="mockups/09-module-settings.html">09-module-settings</a></td></tr>
 </table></div>
 <h2 id="architecture-stack">Architecture &amp; stack</h2>
 <div class="diagram"><pre class="mermaid">flowchart LR
@@ -539,6 +542,7 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><td>10</td><td>Profiles and build cache</td><td>Saved profiles and artifact reuse by config hash</td><td>14-fleet-builds (FR 1–9)</td><td>2, 7</td><td>A repeated build returns from the build cache.</td></tr>
 <tr><td>11</td><td>Fleet runs</td><td>One fleet run makes one build per device</td><td>14-fleet-builds (FR 10–20)</td><td>10</td><td>A fleet run of 3 devices gives 3 artifacts and one zip.</td></tr>
 <tr><td>12</td><td>Push config</td><td>Push a config to a device without a build</td><td>15-push-config</td><td>7, 9</td><td>A Chrome page sets channels on a connected device over Web Serial.</td></tr>
+<tr><td>13</td><td>Module settings</td><td>Profiles hold the 7 module sections that have no userPrefs key, and push config sends them</td><td>16-module-settings</td><td>12</td><td>A push with a profile that sets the serial mode changes the serial mode of a fake device.</td></tr>
 </table></div>
 <h2 id="milestones">Milestones</h2>
 <ol>
@@ -557,6 +561,8 @@ body.rv-open .layout { padding-right:21rem; }
 <li><strong>M4 — Fleets</strong> (Epics 10–11). Tag <code>v3.2.0</code>.
 </li>
 <li><strong>M5 — No compile</strong> (Epic 12). Tag <code>v3.3.0</code>.
+</li>
+<li><strong>M6 — Module settings</strong> (Epic 13). Tag <code>v3.4.0</code>.
 </li>
 </ol>
 <h2 id="assumptions" class="callout-h">Assumptions</h2>
@@ -931,6 +937,8 @@ body.rv-open .layout { padding-right:21rem; }
 <li>2026-11-21 — Epic 9 shipped (#135). Owner rulings: Epic 9 merged without the manual hardware check, because no device was available. The check is #177, and #177 also holds the manual check of Epic 12. The flash panel shows for each ESP32 family member (<code>flash_method</code> is <code>web-serial</code>). Owner ruling on #139: the picker shows no device images, because the meshtastic/web-flasher images are proprietary. Owner ruling on #158: a config that holds a secret is never cached.
 </li>
 <li>2026-11-21 — Epic 12 shipped (#186). Owner rulings: build on <code>@meshtastic/core</code> 2.6.7, pinned, with three vendored ES modules and an import map (ADR 0008). FR-push-config-10 is deferred (#182), and the protobufs in core 2.6.7 lack <code>status_message</code> and <code>traffic_management</code>. PM decisions from the batch review: push config never sends managed mode, admin keys come only from the profile, and the test hook needs <code>MTFW_PUSH_TEST_HOOKS</code>. The manual device push is in #177.
+</li>
+<li>2026-11-21 — <code>/spec-update</code> change: new planned feature <code>module-settings</code> (16) and Epic 13. It restores FR-push-config-10 (owner ruling on #182). Owner rulings: the 7 module sections go in profiles and in a new Modules tab, the pin fields are optional, and <code>nag_timeout</code> comes from <code>ringtone_nag_secs</code>. The owner approved this round on 2026-11-21.
 </li>
 </ul><nav class="pager">
 <span></span>

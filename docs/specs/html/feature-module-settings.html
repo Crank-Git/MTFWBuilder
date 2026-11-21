@@ -1,0 +1,693 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MTFWBuilder — Feature: Module settings</title>
+<style>
+:root { --bg:#ffffff; --fg:#1a1a24; --muted:#5a5a68; --line:#e3e3ea; --accent:#3452c8;
+        --card:#f6f6f9; --warn-bg:#fff7e8; --warn-line:#e8b34a; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#14141b; --fg:#e8e8ee; --muted:#9a9aa8; --line:#2c2c38; --accent:#8ea6ff;
+          --card:#1c1c26; --warn-bg:#2a2318; --warn-line:#a87c2a; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--fg);
+       font:16px/1.6 system-ui,-apple-system,sans-serif; }
+.layout { display:flex; min-height:100vh; }
+aside.site { width:17rem; flex:none; border-right:1px solid var(--line);
+             padding:1.2rem 1rem 3rem; position:sticky; top:0; height:100vh;
+             overflow-y:auto; background:var(--card); }
+aside.site h2 { font-size:.8rem; text-transform:uppercase; letter-spacing:.06em;
+                color:var(--muted); margin:1.2rem 0 .3rem; border:none; padding:0; }
+aside.site ul { list-style:none; margin:0; padding:0; }
+aside.site li { margin:.15rem 0; }
+aside.site a { text-decoration:none; color:var(--fg); font-size:.92rem;
+               display:block; padding:.15rem .5rem; border-radius:6px; }
+aside.site a:hover { background:var(--bg); }
+aside.site a.current { background:var(--accent); color:#fff; }
+aside.site a.sub { padding-left:1.3rem; font-size:.84rem; color:var(--muted); }
+aside.site .brand { font-weight:700; font-size:1.05rem; }
+main { max-width:60rem; margin:0 auto; padding:2rem 1.5rem 6rem; min-width:0; flex:1; }
+h1,h2,h3,h4 { line-height:1.25; }
+h1 { font-size:2rem; margin:.2rem 0; }
+h2 { border-bottom:1px solid var(--line); padding-bottom:.3rem; margin-top:2.5rem; }
+a { color:var(--accent); }
+code { background:var(--card); padding:.1em .35em; border-radius:4px; font-size:.9em; }
+pre.code { background:var(--card); border:1px solid var(--line); border-radius:8px;
+           padding:1rem; overflow-x:auto; }
+pre.code code { background:none; padding:0; }
+.table-wrap { overflow-x:auto; }
+table { border-collapse:collapse; margin:1rem 0; min-width:50%; }
+th,td { border:1px solid var(--line); padding:.4rem .7rem; text-align:left; }
+th { background:var(--card); }
+blockquote { border-left:3px solid var(--accent); margin:1rem 0; padding:.2rem 1rem;
+             color:var(--muted); }
+.meta { color:var(--muted); margin-bottom:2rem; }
+.badge { display:inline-block; padding:.1rem .6rem; border-radius:999px;
+         border:1px solid var(--accent); color:var(--accent); font-size:.85rem; }
+.diagram { background:var(--card); border:1px solid var(--line); border-radius:8px;
+           padding:1rem; margin:1rem 0; overflow-x:auto; }
+.diagram pre.mermaid { margin:0; }
+.diagram.raw::before { content:"diagram source (assets/mermaid.min.js not vendored)";
+                       display:block; color:var(--muted); font-size:.8rem;
+                       margin-bottom:.5rem; }
+.callout-h, .callout-h ~ p, .callout-h ~ ul { background:var(--warn-bg); }
+.callout-h { border-left:4px solid var(--warn-line); padding:.3rem .8rem; }
+.mockup { margin:1.5rem 0; }
+.mockup iframe { width:100%; height:32rem; border:1px solid var(--line);
+                 border-radius:8px; background:#fff; }
+nav.pager { display:flex; justify-content:space-between; margin-top:3rem;
+            border-top:1px solid var(--line); padding-top:1rem; }
+@media (max-width: 900px) {
+  .layout { display:block; }
+  aside.site { width:auto; height:auto; position:static; border-right:none;
+               border-bottom:1px solid var(--line); }
+}
+h1[id]:hover .rv-add, h2[id]:hover .rv-add, h3[id]:hover .rv-add,
+h4[id]:hover .rv-add { opacity:1; }
+.rv-add { opacity:0; margin-left:.5rem; font-size:.75rem; cursor:pointer;
+          border:1px solid var(--accent); color:var(--accent); background:none;
+          border-radius:6px; padding:0 .45rem; vertical-align:middle;
+          transition:opacity .15s; }
+.rv-comment { border:1px solid var(--warn-line); border-left-width:4px;
+              background:var(--warn-bg); border-radius:8px; padding:.6rem .9rem;
+              margin:.8rem 0; font-size:.92rem; }
+.rv-comment.rv-resolved { opacity:.6; border-left-color:var(--line); }
+.rv-comment .rv-head { display:flex; gap:.6rem; align-items:center;
+                       color:var(--muted); font-size:.8rem; margin-bottom:.3rem; }
+.rv-comment .rv-head button { font-size:.75rem; cursor:pointer; background:none;
+                              border:1px solid var(--line); border-radius:6px;
+                              color:var(--muted); padding:0 .4rem; }
+.rv-comment .rv-body { white-space:pre-wrap; }
+.rv-editor textarea { width:100%; min-height:5rem; background:var(--bg);
+                      color:var(--fg); border:1px solid var(--line);
+                      border-radius:6px; padding:.5rem; font:inherit; }
+.rv-editor .rv-actions { margin-top:.4rem; display:flex; gap:.5rem; }
+.rv-editor button { cursor:pointer; border-radius:6px; padding:.2rem .8rem;
+                    border:1px solid var(--accent); background:var(--accent);
+                    color:#fff; }
+.rv-editor button.rv-cancel { background:none; color:var(--accent); }
+#rv-toggle { position:fixed; right:1rem; bottom:1rem; z-index:60;
+             background:var(--accent); color:#fff; border:none; cursor:pointer;
+             border-radius:999px; padding:.5rem 1rem; font-size:.85rem;
+             box-shadow:0 2px 10px rgba(0,0,0,.2); }
+#rv-drawer { position:fixed; top:0; right:0; bottom:0; width:21rem; z-index:55;
+             background:var(--card); border-left:1px solid var(--line);
+             display:flex; flex-direction:column; transform:translateX(100%);
+             transition:transform .2s ease; box-shadow:-4px 0 16px rgba(0,0,0,.12); }
+body.rv-open #rv-drawer { transform:none; }
+body.rv-open .layout { padding-right:21rem; }
+#rv-drawer header { padding:.8rem 1rem .5rem; border-bottom:1px solid var(--line); }
+#rv-drawer header .rv-count { color:var(--muted); font-size:.8rem; }
+#rv-drawer .rv-compose { padding:.8rem 1rem; border-bottom:1px solid var(--line); }
+#rv-drawer .rv-compose label { display:block; font-size:.75rem;
+                               color:var(--muted); margin-bottom:.25rem; }
+#rv-drawer .rv-compose select { width:100%; margin-bottom:.4rem;
+             background:var(--bg); color:var(--fg); border:1px solid var(--line);
+             border-radius:6px; padding:.3rem; font:inherit; font-size:.85rem; }
+#rv-drawer .rv-compose textarea { width:100%; min-height:5.5rem;
+             background:var(--bg); color:var(--fg); border:1px solid var(--line);
+             border-radius:6px; padding:.5rem; font:inherit; font-size:.9rem; }
+#rv-drawer .rv-compose .rv-live { font-size:.72rem; color:var(--muted); }
+#rv-drawer .rv-list { flex:1; overflow-y:auto; padding:.6rem 1rem; }
+#rv-drawer .rv-item { border:1px solid var(--line); border-left:3px solid
+             var(--warn-line); border-radius:8px; padding:.45rem .6rem;
+             margin-bottom:.6rem; font-size:.82rem; cursor:pointer; }
+#rv-drawer .rv-item.rv-resolved { opacity:.55; border-left-color:var(--line); }
+#rv-drawer .rv-item .rv-where { color:var(--accent); font-size:.72rem; }
+#rv-drawer .rv-item .rv-meta { color:var(--muted); font-size:.72rem;
+                               display:flex; gap:.5rem; align-items:center; }
+#rv-drawer .rv-item .rv-meta button { font-size:.7rem; cursor:pointer;
+             background:none; border:1px solid var(--line); border-radius:5px;
+             color:var(--muted); padding:0 .35rem; }
+#rv-drawer .rv-item .rv-text { white-space:pre-wrap; margin:.15rem 0; }
+#rv-drawer footer { padding:.6rem 1rem; border-top:1px solid var(--line);
+                    display:flex; gap:.5rem; flex-wrap:wrap; }
+#rv-drawer footer button, #rv-drawer .rv-compose button {
+  cursor:pointer; border:1px solid var(--accent); background:none;
+  color:var(--accent); border-radius:6px; padding:.2rem .7rem; font-size:.8rem; }
+#rv-drawer .rv-compose button.rv-primary { background:var(--accent); color:#fff; }
+#rv-drawer .rv-otherpages { color:var(--muted); font-size:.75rem;
+                            margin:.4rem 0 0; }
+@media (max-width: 1200px) { body.rv-open .layout { padding-right:0; } }
+</style>
+</head>
+<body data-page="feature-module-settings" data-rvkey="mtfwbuilder">
+<div class="layout">
+<aside class="site"><a class="brand" href="../spec.html">MTFWBuilder</a>
+<h2>Spec</h2><ul>
+<li><a href="../spec.html">Overview &amp; index</a></li>
+</ul>
+<h2>Pages</h2><ul>
+<li><a href="page-inherit-reconciliation.html">Inherit reconciliation and research</a></li>
+</ul>
+<h2>Features</h2><ul>
+<li><a href="feature-foundation.html">Foundation</a></li>
+<li><a href="feature-config-generator.html">Config generator</a></li>
+<li><a href="feature-firmware-builder.html">Firmware builder</a></li>
+<li><a href="feature-device-registry.html">Device registry</a></li>
+<li><a href="feature-admin.html">Admin</a></li>
+<li><a href="feature-userprefs-correctness.html">userPrefs correctness</a></li>
+<li><a href="feature-build-pipeline-repair.html">Build pipeline repair</a></li>
+<li><a href="feature-frontend-htmx.html">Frontend on htmx</a></li>
+<li><a href="feature-platform-modernization.html">Platform modernization</a></li>
+<li><a href="feature-firmware-versions.html">Firmware versions</a></li>
+<li><a href="feature-generated-registry.html">Generated registry</a></li>
+<li><a href="feature-config-coverage.html">Config coverage</a></li>
+<li><a href="feature-channel-share.html">Channel share</a></li>
+<li><a href="feature-browser-flashing.html">Browser flashing</a></li>
+<li><a href="feature-fleet-builds.html">Fleet builds</a></li>
+<li><a href="feature-push-config.html">Push config</a></li>
+<li><a class="current" href="feature-module-settings.html">Module settings</a></li>
+</ul></aside>
+<main>
+<h1>Feature: Module settings</h1>
+<p class="meta">Epic 13: Module settings &nbsp; <span class="badge">planned</span></p>
+<h3 id="module-settings-purpose">Purpose</h3>
+<p>This feature adds the 7 <code>module_config</code> sections that have no userPrefs key to the build form and to profiles: serial, store_forward, range_test, external_notification, neighbor_info, detection_sensor and paxcounter. A build writes no userPrefs key for these fields. Push config sends them to a connected device. This feature changes the built feature <a href="feature-push-config.html">push-config</a> and restores FR-push-config-10, which Epic 12 deferred (<a href="https://github.com/Crank-Git/MTFWBuilder/issues/182">#182</a>). It also changes what a profile holds (<a href="feature-fleet-builds.html">fleet-builds</a>).</p>
+<p>Owner rulings on #182 (2026-11-21):</p>
+<ul>
+<li>The fields go in profiles and in the build form.
+</li>
+<li>The pin and hardware fields are in profiles, and they are optional.
+</li>
+<li>The fields go in one new tab, "Modules".
+</li>
+<li><code>nag_timeout</code> comes from the existing build field "Ringtone nag seconds".
+</li>
+</ul>
+<h3 id="module-settings-user-stories">User stories</h3>
+<ul>
+<li>As an organizer, I want to keep the store and forward, range test and neighbor info
+</li>
+</ul>
+<p>settings in a profile, so that each device that I push gets the same module settings.</p>
+<ul>
+<li>As an operator, I want to set the serial module and the detection sensor of a board
+</li>
+</ul>
+<p>from the page, so that I do not use the Meshtastic app for each device.</p>
+<h3 id="module-settings-functional-requirements">Functional requirements</h3>
+<ul>
+<li>FR-module-settings-1 — The build form has an eleventh tab, "Modules", after
+</li>
+</ul>
+<p>"Advanced". The tab has one card for each section: Serial, Store and forward, Range test, External notification, Neighbor info, Detection sensor and Paxcounter.</p>
+<ul>
+<li>FR-module-settings-2 — The tab shows the note: "These settings are not compiled into
+</li>
+</ul>
+<p>the firmware. Push config sends them to a connected device."</p>
+<ul>
+<li>FR-module-settings-3 — Each card has the fields of its section in the table under
+</li>
+</ul>
+<p>Behaviour rules. Each field has the form field name of that table. Each field is empty by default, and an empty field means "keep the device value".</p>
+<ul>
+<li>FR-module-settings-4 — The pin and hardware fields have the label "(hardware)" and the
+</li>
+</ul>
+<p>help text "Leave empty to keep the pin of the device. A wrong pin can drive the wrong GPIO."</p>
+<ul>
+<li>FR-module-settings-5 — <code>ConfigRequest</code> validates each new field. A boolean is "true" or
+</li>
+</ul>
+<p>"false". An unsigned number is a whole number in the range of its proto type. A Paxcounter threshold is a whole number in the int32 range, and it can be negative. An enum is a name of its proto enum in <code>@meshtastic/core</code> 2.6.7. The detection sensor name has at most 20 bytes.</p>
+<ul>
+<li>FR-module-settings-6 — The generator writes no userPrefs key for a new field. The
+</li>
+</ul>
+<p>contract test lists the new fields as fields that write no userPrefs key.</p>
+<ul>
+<li>FR-module-settings-7 — A profile saves and loads the new fields as it does the other
+</li>
+</ul>
+<p>form fields. A profile export holds them. None of them is a secret.</p>
+<ul>
+<li>FR-module-settings-8 — Push config maps each new field to its <code>ModuleConfig</code> field
+</li>
+</ul>
+<p>(<code>moduleConfig.&lt;section&gt;</code>) and shows it in the diff. An empty field gives no diff row.</p>
+<ul>
+<li>FR-module-settings-9 — Push config sends the form field "Ringtone nag seconds"
+</li>
+</ul>
+<p>(<code>ringtone_nag_secs</code>) as <code>external_notification.nag_timeout</code>.</p>
+<ul>
+<li>FR-module-settings-10 — A diff row that changes a pin or hardware field shows the
+</li>
+</ul>
+<p>warning "This changes a pin. Check that the profile fits this board."</p>
+<ul>
+<li>FR-module-settings-11 — A neighbor info update interval below 14400 seconds shows the
+</li>
+</ul>
+<p>form error "The firmware uses at least 14400 seconds (4 hours)." This matches the firmware clamp in <code>AdminModule.cpp:991-994</code>.</p>
+<ul>
+<li>FR-module-settings-12 — A fleet device has no override for a new field. Each fleet
+</li>
+</ul>
+<p>device of a fleet run gets the profile value. Fleet builds write no key for these fields.</p>
+<h3 id="module-settings-user-flows">User flows</h3>
+<div class="diagram"><pre class="mermaid">flowchart LR
+  F[Build form: Modules tab] --&gt;|Save as profile| P[(Profile config_json)]
+  F --&gt;|Build| G[Generator]
+  G --&gt;|no key for module fields| U[userPrefs.jsonc]
+  P --&gt;|Load profile| C[Push config page]
+  D[Device] --&gt;|want_config| C
+  C --&gt;|diff incl. moduleConfig sections| O[Operator]
+  O --&gt;|Push| C
+  C --&gt;|set_module_config per section| D</pre></div>
+<ol>
+<li>The operator opens the Modules tab and fills the module fields that the profile must
+</li>
+</ol>
+<p>set.</p>
+<ol>
+<li>The operator saves the config as a profile.
+</li>
+<li>A build of this config writes no key for the module fields.
+</li>
+<li>On the push config page, the operator loads the profile and connects a device.
+</li>
+<li>The diff shows each module field that differs from the device. A pin change shows
+</li>
+</ol>
+<p>the pin warning.</p>
+<ol>
+<li>Push sends each selected module section with <code>set_module_config</code> inside the admin
+</li>
+</ol>
+<p>transaction.</p>
+<h3 id="module-settings-screens-states">Screens &amp; states</h3>
+<p>Mockup: <a href="../mockups/09-module-settings.html">09-module-settings</a>.</p>
+<div class="table-wrap"><table>
+<tr><th>State</th><th>What the operator sees</th></tr>
+<tr><td>Modules tab, empty</td><td>Seven cards, all fields empty, and the note of FR 2.</td></tr>
+<tr><td>Field error</td><td>The field error under the field, as on the other tabs.</td></tr>
+<tr><td>Hardware field</td><td>The "(hardware)" label and the help text of FR 4.</td></tr>
+<tr><td>Push diff, module section</td><td>A section per module with each changed field: device value → profile value.</td></tr>
+<tr><td>Push diff, pin change</td><td>The diff row and the pin warning of FR 10.</td></tr>
+</table></div>
+<h3 id="module-settings-behaviour-rules">Behaviour rules</h3>
+<p>The fields below are from the <code>ModuleConfig</code> descriptor in the vendored <code>@meshtastic/core</code> 2.6.7 (protobufs 2.7.8). HW marks a pin or hardware field.</p>
+<div class="table-wrap"><table>
+<tr><th>Section</th><th>Form field</th><th>Proto field</th><th>Type</th><th>HW</th></tr>
+<tr><td>Serial</td><td><code>serial_enabled</code></td><td><code>enabled</code></td><td>bool</td><td></td></tr>
+<tr><td>Serial</td><td><code>serial_echo</code></td><td><code>echo</code></td><td>bool</td><td></td></tr>
+<tr><td>Serial</td><td><code>serial_rxd</code></td><td><code>rxd</code></td><td>uint32</td><td>HW</td></tr>
+<tr><td>Serial</td><td><code>serial_txd</code></td><td><code>txd</code></td><td>uint32</td><td>HW</td></tr>
+<tr><td>Serial</td><td><code>serial_baud</code></td><td><code>baud</code></td><td>enum <code>Serial_Baud</code></td><td></td></tr>
+<tr><td>Serial</td><td><code>serial_timeout</code></td><td><code>timeout</code></td><td>uint32</td><td></td></tr>
+<tr><td>Serial</td><td><code>serial_mode</code></td><td><code>mode</code></td><td>enum <code>Serial_Mode</code></td><td></td></tr>
+<tr><td>Serial</td><td><code>serial_override_console_serial_port</code></td><td><code>override_console_serial_port</code></td><td>bool</td><td>HW</td></tr>
+<tr><td>Store and forward</td><td><code>store_forward_enabled</code></td><td><code>enabled</code></td><td>bool</td><td></td></tr>
+<tr><td>Store and forward</td><td><code>store_forward_heartbeat</code></td><td><code>heartbeat</code></td><td>bool</td><td></td></tr>
+<tr><td>Store and forward</td><td><code>store_forward_records</code></td><td><code>records</code></td><td>uint32</td><td></td></tr>
+<tr><td>Store and forward</td><td><code>store_forward_history_return_max</code></td><td><code>history_return_max</code></td><td>uint32</td><td></td></tr>
+<tr><td>Store and forward</td><td><code>store_forward_history_return_window</code></td><td><code>history_return_window</code></td><td>uint32</td><td></td></tr>
+<tr><td>Store and forward</td><td><code>store_forward_is_server</code></td><td><code>is_server</code></td><td>bool</td><td></td></tr>
+<tr><td>Range test</td><td><code>range_test_enabled</code></td><td><code>enabled</code></td><td>bool</td><td></td></tr>
+<tr><td>Range test</td><td><code>range_test_sender</code></td><td><code>sender</code></td><td>uint32 (seconds)</td><td></td></tr>
+<tr><td>Range test</td><td><code>range_test_save</code></td><td><code>save</code></td><td>bool</td><td></td></tr>
+<tr><td>External notification</td><td><code>ext_notify_enabled</code></td><td><code>enabled</code></td><td>bool</td><td></td></tr>
+<tr><td>External notification</td><td><code>ext_notify_output_ms</code></td><td><code>output_ms</code></td><td>uint32</td><td></td></tr>
+<tr><td>External notification</td><td><code>ext_notify_output</code></td><td><code>output</code></td><td>uint32</td><td>HW</td></tr>
+<tr><td>External notification</td><td><code>ext_notify_output_vibra</code></td><td><code>output_vibra</code></td><td>uint32</td><td>HW</td></tr>
+<tr><td>External notification</td><td><code>ext_notify_output_buzzer</code></td><td><code>output_buzzer</code></td><td>uint32</td><td>HW</td></tr>
+<tr><td>External notification</td><td><code>ext_notify_active</code></td><td><code>active</code></td><td>bool</td><td>HW</td></tr>
+<tr><td>External notification</td><td><code>ext_notify_alert_message</code></td><td><code>alert_message</code></td><td>bool</td><td></td></tr>
+<tr><td>External notification</td><td><code>ext_notify_alert_message_vibra</code></td><td><code>alert_message_vibra</code></td><td>bool</td><td></td></tr>
+<tr><td>External notification</td><td><code>ext_notify_alert_message_buzzer</code></td><td><code>alert_message_buzzer</code></td><td>bool</td><td></td></tr>
+<tr><td>External notification</td><td><code>ext_notify_alert_bell</code></td><td><code>alert_bell</code></td><td>bool</td><td></td></tr>
+<tr><td>External notification</td><td><code>ext_notify_alert_bell_vibra</code></td><td><code>alert_bell_vibra</code></td><td>bool</td><td></td></tr>
+<tr><td>External notification</td><td><code>ext_notify_alert_bell_buzzer</code></td><td><code>alert_bell_buzzer</code></td><td>bool</td><td></td></tr>
+<tr><td>External notification</td><td><code>ext_notify_use_pwm</code></td><td><code>use_pwm</code></td><td>bool</td><td>HW</td></tr>
+<tr><td>External notification</td><td><code>ext_notify_use_i2s_as_buzzer</code></td><td><code>use_i2s_as_buzzer</code></td><td>bool</td><td>HW</td></tr>
+<tr><td>External notification</td><td>(<code>ringtone_nag_secs</code>, FR 9)</td><td><code>nag_timeout</code></td><td>uint32</td><td></td></tr>
+<tr><td>Neighbor info</td><td><code>neighbor_info_enabled</code></td><td><code>enabled</code></td><td>bool</td><td></td></tr>
+<tr><td>Neighbor info</td><td><code>neighbor_info_update_interval</code></td><td><code>update_interval</code></td><td>uint32 (seconds)</td><td></td></tr>
+<tr><td>Neighbor info</td><td><code>neighbor_info_transmit_over_lora</code></td><td><code>transmit_over_lora</code></td><td>bool</td><td></td></tr>
+<tr><td>Detection sensor</td><td><code>detection_sensor_enabled</code></td><td><code>enabled</code></td><td>bool</td><td></td></tr>
+<tr><td>Detection sensor</td><td><code>detection_sensor_minimum_broadcast_secs</code></td><td><code>minimum_broadcast_secs</code></td><td>uint32</td><td></td></tr>
+<tr><td>Detection sensor</td><td><code>detection_sensor_state_broadcast_secs</code></td><td><code>state_broadcast_secs</code></td><td>uint32</td><td></td></tr>
+<tr><td>Detection sensor</td><td><code>detection_sensor_send_bell</code></td><td><code>send_bell</code></td><td>bool</td><td></td></tr>
+<tr><td>Detection sensor</td><td><code>detection_sensor_name</code></td><td><code>name</code></td><td>string, ≤ 20 bytes</td><td></td></tr>
+<tr><td>Detection sensor</td><td><code>detection_sensor_monitor_pin</code></td><td><code>monitor_pin</code></td><td>uint32</td><td>HW</td></tr>
+<tr><td>Detection sensor</td><td><code>detection_sensor_trigger_type</code></td><td><code>detection_trigger_type</code></td><td>enum <code>TriggerType</code></td><td></td></tr>
+<tr><td>Detection sensor</td><td><code>detection_sensor_use_pullup</code></td><td><code>use_pullup</code></td><td>bool</td><td>HW</td></tr>
+<tr><td>Paxcounter</td><td><code>paxcounter_enabled</code></td><td><code>enabled</code></td><td>bool</td><td></td></tr>
+<tr><td>Paxcounter</td><td><code>paxcounter_update_interval</code></td><td><code>paxcounter_update_interval</code></td><td>uint32 (seconds)</td><td></td></tr>
+<tr><td>Paxcounter</td><td><code>paxcounter_wifi_threshold</code></td><td><code>wifi_threshold</code></td><td>int32</td><td></td></tr>
+<tr><td>Paxcounter</td><td><code>paxcounter_ble_threshold</code></td><td><code>ble_threshold</code></td><td>int32</td><td></td></tr>
+</table></div>
+<p>Rules:</p>
+<ul>
+<li>Enum values are the names in core 2.6.7. <code>Serial_Mode</code> has DEFAULT, SIMPLE, PROTO,
+</li>
+</ul>
+<p>TEXTMSG, NMEA, CALTOPO, WS85 and VE_DIRECT. The newer MS_CONFIG, LOG, LOGTEXT and MODBUS are not in core 2.6.7, so the form does not offer them. <code>RangeTestConfig.clear_on_reboot</code> is not in core 2.6.7, so it has no form field.</p>
+<ul>
+<li>A push merges the profile values over the section that the device sent. A field that
+</li>
+</ul>
+<p>the profile leaves empty keeps the device value. This rule keeps the pins of a board when the profile has no pin.</p>
+<ul>
+<li>The fields are on the Modules tab for each firmware version. They have no
+</li>
+</ul>
+<p><code>data-userprefs-key</code>, so the key scan does not hide them.</p>
+<h3 id="module-settings-data-touched">Data touched</h3>
+<ul>
+<li><code>ConfigRequest</code> gets the new fields (<code>mtfwbuilder/models.py</code>).
+</li>
+<li>A profile <code>config_json</code> holds them. The table has no new column.
+</li>
+<li><code>static/js/push-config.js</code> <code>FIELD_MAP</code> gets a row for each field.
+</li>
+<li>No database change.
+</li>
+</ul>
+<h3 id="module-settings-interfaces">Interfaces</h3>
+<p>No new route. <code>POST /api/v1/generate</code>, the build routes and the profile routes accept the new fields, and the generator ignores them. The device protocol is <code>set_module_config</code> through <code>@meshtastic/core</code> 2.6.7 (ADR 0008).</p>
+<h3 id="module-settings-edge-cases-failures">Edge cases &amp; failures</h3>
+<ul>
+<li>A profile saved before this feature has no module field. Push config gives no module
+</li>
+</ul>
+<p>diff row for it, and the Modules tab stays empty after a load.</p>
+<ul>
+<li>A board without the pin that the profile names: the device takes the pin value. The
+</li>
+</ul>
+<p>pin warning of FR 10 is the only guard. The device checks a serial section with <code>SerialModule::isValidConfig</code> and can reject it. The push then shows the section as failed.</p>
+<ul>
+<li>A neighbor info interval below 14400: the form shows the error of FR 11. A push from
+</li>
+</ul>
+<p>an older profile with such a value sends it, and the device stores 21600.</p>
+<ul>
+<li>A Paxcounter threshold that is not a whole number in the int32 range: a form error.
+</li>
+</ul>
+<h3 id="module-settings-acceptance-criteria">Acceptance criteria</h3>
+<ul>
+<li>[ ] The build form has the Modules tab with the 7 cards, the note and every field of
+</li>
+</ul>
+<p>the Behaviour rules table.</p>
+<ul>
+<li>[ ] A build with every module field set writes no new key. The contract test passes.
+</li>
+<li>[ ] A profile with module fields saves and loads them unchanged.
+</li>
+<li>[ ] Push config with that profile and a fake device that differs shows a diff row for
+</li>
+</ul>
+<p>each changed module field, and sends <code>set_module_config</code> for each selected section.</p>
+<ul>
+<li>[ ] A profile with <code>serial_rxd</code> set shows the pin warning in the diff.
+</li>
+<li>[ ] An empty module field gives no diff row, and the push keeps the device value.
+</li>
+<li>[ ] <code>ringtone_nag_secs</code> reaches the device as <code>external_notification.nag_timeout</code>.
+</li>
+<li>[ ] <code>pytest</code>, <code>ruff check</code> and <code>ruff format --check</code> pass.
+</li>
+</ul>
+<h3 id="module-settings-out-of-scope">Out of scope</h3>
+<ul>
+<li>The other <code>module_config</code> sections (mqtt, telemetry, canned_message, audio,
+</li>
+</ul>
+<p>remote_hardware, ambient_lighting). They have userPrefs keys or are out of the product.</p>
+<ul>
+<li><code>status_message</code> and <code>traffic_management</code> (not in core 2.6.7).
+</li>
+<li>Per-device module overrides in a fleet run.
+</li>
+</ul>
+<h3 id="module-settings-open-questions" class="callout-h">Open questions</h3>
+<p>None.</p><h2>Mockups</h2><p>Mockups convey intent — the rough shape a user will see. An implementer may diverge where framework conventions, components, accessibility, or a better idea serve the feature's requirements; the FRs and acceptance criteria are the contract, not the pixels.</p><div class="mockup"><iframe src="../mockups/09-module-settings.html" loading="lazy"></iframe><p><a href="../mockups/09-module-settings.html" target="_blank">Open ../mockups/09-module-settings.html in new tab</a></p></div><nav class="pager">
+<a href="feature-push-config.html">&larr; Feature: Push config</a>
+<span></span>
+</nav>
+</main>
+</div>
+<script src="../assets/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true,theme:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'default'});</script>
+<script type="application/json" id="rv-embedded">[]</script>
+<script>
+(function(){
+  'use strict';
+  var PAGE = document.body.getAttribute('data-page');
+  // storage key carries the spec's slug: file:// pages can share one
+  // localStorage pool, and two specs must never share a comment store
+  var RVKEY = 'spec-review:' + (document.body.getAttribute('data-rvkey') || 'spec');
+  var EMBED = [];
+  var embedEl = document.getElementById('rv-embedded');
+  if (embedEl) { try { EMBED = JSON.parse(embedEl.textContent); } catch(e){} }
+  function loadLocal(){ try { return JSON.parse(localStorage.getItem(RVKEY)) || {comments:[], deleted:[]}; } catch(e){ return {comments:[], deleted:[]}; } }
+  function saveLocal(s){ try { localStorage.setItem(RVKEY, JSON.stringify(s)); } catch(e){} }
+  function cid(c){ return c.page + '|' + c.section + '|' + (c.date||'') + '|' + c.body.slice(0,24); }
+  function allComments(){
+    var s = loadLocal(), map = {};
+    EMBED.forEach(function(c){ map[cid(c)] = c; });
+    s.comments.forEach(function(c){ map[cid(c)] = c; });
+    s.deleted.forEach(function(id){ delete map[id]; });
+    return Object.keys(map).map(function(k){ return map[k]; });
+  }
+  function upsert(c){
+    var s = loadLocal(), id = cid(c);
+    s.comments = s.comments.filter(function(x){ return cid(x) !== id; });
+    s.comments.push(c);
+    s.deleted = s.deleted.filter(function(x){ return x !== id; });
+    saveLocal(s); refresh();
+  }
+  function remove(c){
+    var s = loadLocal(), id = cid(c);
+    s.comments = s.comments.filter(function(x){ return cid(x) !== id; });
+    if (EMBED.some(function(x){ return cid(x) === id; })) s.deleted.push(id);
+    saveLocal(s); refresh();
+  }
+  function today(){ return new Date().toISOString().slice(0,10); }
+  function exportMd(){
+    var lines = ['# Review comments', '',
+      '<!-- Exported from the spec review layer. Save this file as',
+      '     docs/specs/review-comments.md and re-run render-spec.py to embed',
+      '     every comment under its section for the next review round. -->', ''];
+    allComments().sort(function(a,b){
+      return (a.page+a.section).localeCompare(b.page+b.section);
+    }).forEach(function(c){
+      lines.push('## [' + c.page + '] ' + (c.section||''));
+      lines.push('status: ' + (c.status||'open'));
+      lines.push('date: ' + (c.date||today()));
+      lines.push(c.body); lines.push('');
+    });
+    var blob = new Blob([lines.join('\n')], {type:'text/markdown'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'review-comments.md';
+    a.click(); URL.revokeObjectURL(a.href);
+  }
+  function importMd(file){
+    var reader = new FileReader();
+    reader.onload = function(){
+      var text = String(reader.result);
+      var blocks = text.split(/^## /m).slice(1);
+      blocks.forEach(function(b){
+        var head = b.match(/^\[([^\]]+)\]\s*(\S*)/);
+        if (!head) return;
+        var status = (b.match(/^status:\s*(\S+)/m)||[])[1] || 'open';
+        var date = (b.match(/^date:\s*(\S+)/m)||[])[1] || today();
+        var body = b.replace(/^\[[^\]]*\]\s*\S*\s*\n/, '')
+                    .replace(/^status:.*\n?/m,'').replace(/^date:.*\n?/m,'').trim();
+        if (body) upsert({page:head[1], section:head[2]||'', status:status, date:date, body:body});
+      });
+      refresh();
+    };
+    reader.readAsText(file);
+  }
+  function commentBox(c){
+    var div = document.createElement('div');
+    div.className = 'rv-comment' + (c.status === 'resolved' ? ' rv-resolved' : '');
+    var head = document.createElement('div'); head.className = 'rv-head';
+    head.textContent = '💬 ' + (c.date||'') + ' · ' + (c.status||'open');
+    var tog = document.createElement('button');
+    tog.textContent = c.status === 'resolved' ? 'reopen' : 'resolve';
+    tog.onclick = function(){ remove(c); c = Object.assign({}, c, {status: c.status === 'resolved' ? 'open' : 'resolved'}); upsert(c); };
+    var del = document.createElement('button'); del.textContent = 'delete';
+    del.onclick = function(){ if (confirm('Delete this comment?')) remove(c); };
+    head.appendChild(tog); head.appendChild(del);
+    var body = document.createElement('div'); body.className = 'rv-body';
+    body.textContent = c.body;
+    div.appendChild(head); div.appendChild(body);
+    return div;
+  }
+  function editor(section, after){
+    var wrap = document.createElement('div');
+    wrap.className = 'rv-comment rv-editor';
+    var ta = document.createElement('textarea');
+    ta.placeholder = 'Comment on this section…';
+    var actions = document.createElement('div'); actions.className = 'rv-actions';
+    var save = document.createElement('button'); save.textContent = 'Save';
+    save.onclick = function(){
+      if (ta.value.trim()) upsert({page:PAGE, section:section, status:'open', date:today(), body:ta.value.trim()});
+      wrap.remove();
+    };
+    var cancel = document.createElement('button'); cancel.textContent = 'Cancel';
+    cancel.className = 'rv-cancel'; cancel.onclick = function(){ wrap.remove(); };
+    actions.appendChild(save); actions.appendChild(cancel);
+    wrap.appendChild(ta); wrap.appendChild(actions);
+    after.insertAdjacentElement('afterend', wrap);
+    ta.focus();
+  }
+  // --- headings, inline buttons ---
+  var mainH1 = document.querySelector('main h1');
+  if (mainH1 && !mainH1.id) { mainH1.id = 'page-title'; }
+  var headings = Array.prototype.slice.call(
+    document.querySelectorAll('main h1[id], main h2[id], main h3[id], main h4[id]'));
+  headings.forEach(function(h){
+    var b = document.createElement('button');
+    b.className = 'rv-add'; b.textContent = '💬 comment'; b.title = 'Comment on this section';
+    b.onclick = function(){ editor(h.id, h); };
+    h.appendChild(b);
+  });
+  function headingTitle(h){
+    var t = h.childNodes[0] ? h.childNodes[0].textContent : h.textContent;
+    return t.trim();
+  }
+  function titleFor(section){
+    var el = section && document.getElementById(section);
+    return el ? headingTitle(el) : (section || '(page)');
+  }
+
+  // --- drawer ---
+  var drawer = document.createElement('div');
+  drawer.id = 'rv-drawer';
+  drawer.innerHTML =
+    '<header><strong>Review</strong> <span class="rv-count"></span></header>' +
+    '<div class="rv-compose">' +
+    '<div class="rv-live">Commenting on the section in view:</div>' +
+    '<label for="rv-sec"></label><select id="rv-sec"></select>' +
+    '<textarea id="rv-text" placeholder="Type as you read… (Ctrl+Enter saves)"></textarea>' +
+    '<div style="margin-top:.4rem; display:flex; gap:.5rem;">' +
+    '<button class="rv-primary" id="rv-save">Save comment</button>' +
+    '<button id="rv-clear">Clear</button></div></div>' +
+    '<div class="rv-list"></div>' +
+    '<footer><button id="rv-export">Export .md</button>' +
+    '<button id="rv-import">Import</button>' +
+    '<span class="rv-otherpages"></span></footer>';
+  document.body.appendChild(drawer);
+  var toggle = document.createElement('button');
+  toggle.id = 'rv-toggle';
+  toggle.onclick = function(){
+    document.body.classList.toggle('rv-open');
+    try { localStorage.setItem(RVKEY + ':open', document.body.classList.contains('rv-open') ? '1' : ''); } catch(e){}
+  };
+  document.body.appendChild(toggle);
+  try { if (localStorage.getItem(RVKEY + ':open')) document.body.classList.add('rv-open'); } catch(e){}
+
+  var sel = drawer.querySelector('#rv-sec');
+  headings.forEach(function(h){
+    var opt = document.createElement('option');
+    opt.value = h.id; opt.textContent = headingTitle(h);
+    sel.appendChild(opt);
+  });
+  var followScroll = true;
+  sel.onchange = function(){ followScroll = false; };
+
+  // scroll spy: pick the last heading above the upper third of the viewport
+  function currentSection(){
+    var line = window.innerHeight * 0.33, best = headings[0];
+    for (var i = 0; i < headings.length; i++) {
+      if (headings[i].getBoundingClientRect().top <= line) best = headings[i];
+    }
+    return best ? best.id : '';
+  }
+  window.addEventListener('scroll', function(){
+    if (!followScroll) return;
+    var s = currentSection();
+    if (s && sel.value !== s) sel.value = s;
+  }, {passive:true});
+  // typing pins the target section so a stray scroll can't retarget the comment
+  drawer.querySelector('#rv-text').addEventListener('input', function(){
+    if (this.value.trim()) followScroll = false;
+    else followScroll = true;
+  });
+
+  function saveFromDrawer(){
+    var ta = drawer.querySelector('#rv-text');
+    if (!ta.value.trim()) return;
+    upsert({page:PAGE, section:sel.value, status:'open', date:today(), body:ta.value.trim()});
+    ta.value = ''; followScroll = true;
+  }
+  drawer.querySelector('#rv-save').onclick = saveFromDrawer;
+  drawer.querySelector('#rv-text').addEventListener('keydown', function(e){
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') saveFromDrawer();
+  });
+  drawer.querySelector('#rv-clear').onclick = function(){
+    drawer.querySelector('#rv-text').value = ''; followScroll = true;
+  };
+  drawer.querySelector('#rv-export').onclick = exportMd;
+  var fileIn = document.createElement('input');
+  fileIn.type = 'file'; fileIn.accept = '.md,text/markdown'; fileIn.style.display = 'none';
+  fileIn.onchange = function(){ if (fileIn.files[0]) importMd(fileIn.files[0]); };
+  drawer.appendChild(fileIn);
+  drawer.querySelector('#rv-import').onclick = function(){ fileIn.click(); };
+
+  function drawerItem(c){
+    var div = document.createElement('div');
+    div.className = 'rv-item' + (c.status === 'resolved' ? ' rv-resolved' : '');
+    var where = document.createElement('div'); where.className = 'rv-where';
+    where.textContent = titleFor(c.section);
+    var text = document.createElement('div'); text.className = 'rv-text';
+    text.textContent = c.body;
+    var meta = document.createElement('div'); meta.className = 'rv-meta';
+    meta.textContent = (c.date||'') + ' · ' + (c.status||'open');
+    var tog = document.createElement('button');
+    tog.textContent = c.status === 'resolved' ? 'reopen' : 'resolve';
+    tog.onclick = function(e){ e.stopPropagation(); remove(c);
+      upsert(Object.assign({}, c, {status: c.status === 'resolved' ? 'open' : 'resolved'})); };
+    var del = document.createElement('button'); del.textContent = 'delete';
+    del.onclick = function(e){ e.stopPropagation();
+      if (confirm('Delete this comment?')) remove(c); };
+    meta.appendChild(tog); meta.appendChild(del);
+    div.appendChild(where); div.appendChild(text); div.appendChild(meta);
+    div.onclick = function(){
+      var el = c.section && document.getElementById(c.section);
+      if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
+    };
+    return div;
+  }
+
+  function refresh(){
+    document.querySelectorAll('.rv-comment:not(.rv-editor)').forEach(function(el){ el.remove(); });
+    var all = allComments();
+    var mine = all.filter(function(c){ return c.page === PAGE; });
+    mine.forEach(function(c){
+      var target = c.section && document.getElementById(c.section);
+      var anchor = target || mainH1 || document.body.querySelector('main') || document.body;
+      anchor.insertAdjacentElement('afterend', commentBox(c));
+    });
+    var open = all.filter(function(c){ return c.status !== 'resolved'; }).length;
+    toggle.textContent = '💬 Review (' + open + ')';
+    drawer.querySelector('.rv-count').textContent =
+      open + ' open / ' + all.length + ' total';
+    var list = drawer.querySelector('.rv-list');
+    list.innerHTML = '';
+    mine.slice().reverse().forEach(function(c){ list.appendChild(drawerItem(c)); });
+    var others = {};
+    all.forEach(function(c){ if (c.page !== PAGE) others[c.page] = (others[c.page]||0) + 1; });
+    var otherKeys = Object.keys(others);
+    drawer.querySelector('.rv-otherpages').textContent = otherKeys.length
+      ? 'Other pages: ' + otherKeys.map(function(k){ return k + ' (' + others[k] + ')'; }).join(', ')
+      : '';
+  }
+  refresh();
+  var s0 = currentSection();
+  if (s0) sel.value = s0;
+})();
+</script>
+</body>
+</html>
