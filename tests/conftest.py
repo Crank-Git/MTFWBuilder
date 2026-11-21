@@ -9,7 +9,8 @@ import yaml
 
 from mtfwbuilder.config import _hash_password, load_settings
 from mtfwbuilder.main import create_app
-from mtfwbuilder.services.build_service import init_build_system
+from mtfwbuilder.rate_limit import limiter
+from mtfwbuilder.services.build_service import BuildQueue
 from mtfwbuilder.services.device_registry import DeviceRegistry
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -78,12 +79,16 @@ def settings(settings_env):
 
 @pytest.fixture
 def app(settings):
-    """Return an app with the lifespan state, built from the `settings` fixture."""
+    """Return an app with the lifespan state, built from the `settings` fixture.
+
+    The build queue has no build workers. A test that needs them calls `build_queue.start()`.
+    """
     app = create_app()
     app.state.settings = settings
     app.state.device_registry = DeviceRegistry(settings.devices_file)
-    init_build_system(settings)
-    app.state.active_builds = {}
+    app.state.build_queue = BuildQueue(settings)
+    # The rate limit counts across tests, so each test starts with an empty count.
+    limiter.reset()
     return app
 
 
