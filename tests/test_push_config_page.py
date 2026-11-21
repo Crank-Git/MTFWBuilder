@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from mtfwbuilder.config import load_settings
 from tests.conftest import REPO_ROOT
 
 ADR = REPO_ROOT / "docs" / "adr" / "0008-meshtastic-js-library.md"
@@ -140,3 +141,48 @@ async def test_push_config_page_loads_push_config_js_as_a_module(client):
 async def test_page_links_to_the_push_config_page(client, path):
     parser, _ = await _parse(client, path)
     assert "/push-config" in parser.links
+
+
+# Each package that the vendored builds hold, with its version and its license. The npm core 2.6.7 `dist/mod.js`
+# names the first five in `//#region` comments. esm.sh adds `crc` and the `unenv` stand-ins of `os`, `path` and `util`.
+BUNDLED = [
+    ("`@meshtastic/protobufs`", "2.7.8", "GPL-3.0-only"),
+    ("`@bufbuild/protobuf`", "2.8.0", "Apache-2.0 AND BSD-3-Clause"),
+    ("`ste-core`", "3.0.11", "MIT"),
+    ("`ste-simple-events`", "3.0.11", "MIT"),
+    ("`tslog`", "4.9.3", "MIT"),
+    ("`crc`", "4.3.2", "MIT"),
+    ("`unenv`", None, "MIT"),
+]
+
+
+@pytest.mark.parametrize(("package", "version", "license_id"), BUNDLED, ids=[row[0].strip("`") for row in BUNDLED])
+def test_vendor_readme_lists_each_bundled_dependency_with_its_license(package, version, license_id):
+    readme = (VENDOR_DIR / "README.md").read_text()
+    [row] = [line for line in readme.splitlines() if line.startswith(f"| {package} |")]
+
+    assert license_id in row
+    assert version is None or f"| {version} |" in row
+
+
+@pytest.mark.asyncio
+async def test_push_config_page_renders_no_test_hook_flag_by_default(client, settings):
+    _, html = await _parse(client, "/push-config")
+
+    assert settings.push_test_hooks is False
+    assert 'id="push-test-hooks"' not in html
+
+
+@pytest.mark.asyncio
+async def test_push_config_page_renders_the_test_hook_flag_when_the_setting_is_on(app, client):
+    app.state.settings.push_test_hooks = True
+
+    _, html = await _parse(client, "/push-config")
+
+    assert 'id="push-test-hooks"' in html
+
+
+def test_push_test_hooks_setting_reads_the_environment(settings_env, monkeypatch):
+    monkeypatch.setenv("MTFW_PUSH_TEST_HOOKS", "true")
+
+    assert load_settings().push_test_hooks is True

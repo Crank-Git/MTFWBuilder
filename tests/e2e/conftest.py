@@ -66,6 +66,8 @@ def _server_env(base) -> dict:
         "MTFW_TEMP_DIR": str(base / "tmp"),
         "MTFW_DATABASE_PATH": str(base / "mtfwbuilder.db"),
         "MTFW_FIRMWARE_DIR": str(base / "firmware"),
+        # The push config page uses `window.__pushConfigTestDevice` only when this setting is on.
+        "MTFW_PUSH_TEST_HOOKS": "true",
     }
 
 

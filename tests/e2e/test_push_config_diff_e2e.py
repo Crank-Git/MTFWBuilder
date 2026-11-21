@@ -5,11 +5,13 @@ Each test connects to the fake device of `test_push_config_e2e`, so no test open
 
 import base64
 import json
+import math
 from urllib.parse import urlsplit
 
 import pytest
 from playwright.sync_api import Page, expect
 
+from mtfwbuilder.models import ChannelConfig, ConfigRequest
 from tests.conftest import ADMIN_PASSWORD
 from tests.e2e.test_push_config_e2e import FAKE_DEVICE, SET_CALLS, device_calls, open_push_config
 
@@ -253,6 +255,10 @@ SECRET = ("s3cret-alpha", "s3cret-alpha", "s3cret-beta")
 PSK = (base64.b64encode(CHANNEL_0_KEY).decode(), {"$bytes": list(CHANNEL_0_KEY)}, {"$bytes": [1]})
 ADMIN_KEY = (bytes(range(32)).hex(), {"$bytes": list(range(32))}, {"$bytes": list(range(1, 33))})
 TZ = ("America/New_York", "EST5EDT,M3.2.0,M11.1.0", "UTC0")
+# Core sends `Math.floor(degrees / 1e-7)` in `setFixedPosition`, and the device sends that integer back.
+DEGREES = ("37.7749", math.floor(37.7749 / 1e-7), 0)
+# Any PIN in the profile means the FIXED_PIN pairing mode (1), and the other sample is RANDOM_PIN (0).
+PAIRING_MODE = ("123456", 1, 0)
 
 
 def _enum(prefix: str, name: str, number: int, other: int) -> tuple:
@@ -277,6 +283,8 @@ MAPPING = [
     ("position_broadcast_interval", "config.position", "positionBroadcastSecs", UINT),
     ("fixed_position", "config.position", "fixedPosition", BOOL),
     ("smart_position_enabled", "config.position", "positionBroadcastSmartEnabled", BOOL),
+    ("fixed_lat", "position", "latitudeI", DEGREES),
+    ("fixed_lon", "position", "longitudeI", DEGREES),
     ("lora_region", "config.lora", "region", _enum("Config_LoRaConfig_RegionCode", "EU_868", 3, 1)),
     ("lora_modem_preset", "config.lora", "modemPreset", _enum("Config_LoRaConfig_ModemPreset", "MEDIUM_FAST", 4, 0)),
     ("lora_channel_num", "config.lora", "channelNum", UINT),
@@ -303,7 +311,7 @@ MAPPING = [
     ("telemetry_air_quality_enabled", "moduleConfig.telemetry", "airQualityEnabled", BOOL),
     ("telemetry_air_quality_interval", "moduleConfig.telemetry", "airQualityInterval", UINT),
     ("bluetooth_fixed_pin", "config.bluetooth", "fixedPin", UINT),
-    ("security_is_managed", "config.security", "isManaged", BOOL),
+    ("bluetooth_fixed_pin", "config.bluetooth", "mode", PAIRING_MODE),
     *((f"admin_key_{n}", "config.security", f"adminKey.{n}", ADMIN_KEY) for n in range(3)),
     *(
         row
@@ -329,15 +337,16 @@ SWITCHES_ON = {
     "wifi_enabled": "true",
     "mqtt_enabled": "true",
     "button_pin_enabled": "true",
+    "fixed_position": "true",
     "channels_to_write": "8",
 }
 
 # The script finds the table row of `form`, finds its protobuf field in the core 2.6.7 schemas, and counts the
 # diff rows of `form` for a device value equal to the profile value and for one that differs.
-MAPPING_JS = """async ([form, raw, same, other, switches]) => {
+MAPPING_JS = """async ([form, path, raw, same, other, switches]) => {
   const page = await import('/static/js/push-config.js');
   const core = await import('@meshtastic/core');
-  const row = page.FIELD_MAP.find(candidate => candidate.form === form);
+  const row = page.FIELD_MAP.find(candidate => candidate.form === form && (path === null || candidate.field === path));
   if (!row) {
     return null;
   }
@@ -346,6 +355,7 @@ MAPPING_JS = """async ([form, raw, same, other, switches]) => {
     moduleConfig: core.Protobuf.ModuleConfig.ModuleConfigSchema,
     channels: core.Protobuf.Channel.ChannelSchema,
     owner: core.Protobuf.Mesh.UserSchema,
+    position: core.Protobuf.Mesh.PositionSchema,
   };
   const [root, ...rest] = row.section.split('.');
   let schema = roots[root];
@@ -368,7 +378,7 @@ MAPPING_JS = """async ([form, raw, same, other, switches]) => {
   const config = { ...switches, [form]: raw };
   const context = { protobuf: core.Protobuf, tzTable: page.tzTable };
   const count = read => page.diffSections(read, config, context)
-    .flatMap(section => section.rows).filter(diff => diff.form === form).length;
+    .flatMap(section => section.rows).filter(diff => diff.form === form && diff.path === row.field).length;
   return { section: row.section, field: row.field, found, same: count(deviceWith(same)),
            other: count(deviceWith(other)) };
 }"""
@@ -386,15 +396,17 @@ def table_page(browser, live_server: str):
 def test_mapping_table_maps_the_form_field_to_a_core_protobuf_field(table_page, form, section, field, sample):
     raw, same, other = sample
 
-    result = table_page.evaluate(MAPPING_JS, [form, raw, same, other, SWITCHES_ON])
+    result = table_page.evaluate(MAPPING_JS, [form, field, raw, same, other, SWITCHES_ON])
 
     assert result == {"section": section, "field": field, "found": True, "same": 0, "other": 1}
 
 
 def test_mapping_table_holds_only_the_tested_form_fields(table_page):
-    forms = table_page.evaluate("async () => (await import('/static/js/push-config.js')).FIELD_MAP.map(r => r.form)")
+    rows = table_page.evaluate(
+        "async () => (await import('/static/js/push-config.js')).FIELD_MAP.map(r => [r.form, r.field])"
+    )
 
-    assert sorted(forms) == sorted(row[0] for row in MAPPING)
+    assert sorted(rows) == sorted([row[0], row[2]] for row in MAPPING)
 
 
 @pytest.mark.parametrize(
@@ -405,13 +417,14 @@ def test_mapping_table_holds_only_the_tested_form_fields(table_page):
         ("wifi_ssid", TEXT, {"wifi_enabled": "false"}),
         ("mqtt_address", TEXT, {"network_enabled": "false"}),
         ("button_pin", UINT, {"button_pin_enabled": "false"}),
+        ("fixed_lat", DEGREES, {"fixed_position": "false"}),
         ("channel_1[name]", TEXT, {"channels_to_write": "1"}),
     ],
 )
 def test_field_behind_a_form_switch_that_is_off_gives_no_diff_row(table_page, form, sample, switches):
     raw, _same, other = sample
 
-    result = table_page.evaluate(MAPPING_JS, [form, raw, other, other, {**SWITCHES_ON, **switches}])
+    result = table_page.evaluate(MAPPING_JS, [form, None, raw, other, other, {**SWITCHES_ON, **switches}])
 
     assert (result["same"], result["other"]) == (0, 0)
 
@@ -420,6 +433,81 @@ def test_enum_value_that_core_does_not_name_gives_no_diff_row(table_page):
     # Push cannot send a value name with no number, so the diff shows no row for it.
     raw = "meshtastic_Config_DeviceConfig_Role_NEWER_ROLE"
 
-    result = table_page.evaluate(MAPPING_JS, ["device_role", raw, 0, 1, SWITCHES_ON])
+    result = table_page.evaluate(MAPPING_JS, ["device_role", None, raw, 0, 1, SWITCHES_ON])
 
     assert (result["same"], result["other"]) == (0, 0)
+
+
+# The form fields that only switch other fields on or count the channel slots. They hold no device value.
+FORM_SWITCHES = {"lora_enabled", "gps_enabled", "network_enabled", "button_pin_enabled", "channels_to_write"}
+TABLES_JS = """async () => {
+  const page = await import('/static/js/push-config.js');
+  return { mapped: page.FIELD_MAP.map(row => row.form), notPushed: page.NOT_PUSHED.map(row => row.form) };
+}"""
+
+
+def test_every_profile_form_field_is_mapped_not_pushed_or_a_form_switch(table_page):
+    tables = table_page.evaluate(TABLES_JS)
+    channel_forms = {f"channel_{n}[{name}]" for n in range(8) for name in ChannelConfig.model_fields}
+    plain = set(ConfigRequest.model_fields) - {f"channel_{n}" for n in range(8)} - {"preview_only"}
+
+    assert set(tables["mapped"]).isdisjoint(tables["notPushed"])
+    assert set(tables["mapped"]) | set(tables["notPushed"]) | FORM_SWITCHES == plain | channel_forms
+
+
+# Each Not pushed value whose reason is that core has no field, with the schema and the field that core lacks.
+NO_CORE_FIELD_JS = """async () => {
+  const core = await import('@meshtastic/core');
+  const fields = schema => schema.fields.map(field => field.localName);
+  return {
+    telemetry: fields(core.Protobuf.ModuleConfig.ModuleConfig_TelemetryConfigSchema),
+    security: fields(core.Protobuf.Config.Config_SecurityConfigSchema),
+    moduleConfig: fields(core.Protobuf.ModuleConfig.ModuleConfigSchema),
+  };
+}"""
+
+
+def test_not_pushed_values_with_no_core_field_have_no_field_in_core_2_6_7(table_page):
+    fields = table_page.evaluate(NO_CORE_FIELD_JS)
+    reasons = table_page.evaluate(
+        "async () => Object.fromEntries((await import('/static/js/push-config.js')).NOT_PUSHED"
+        ".map(row => [row.form, row.reason]))"
+    )
+
+    no_field = sorted(form for form, reason in reasons.items() if reason == "Core 2.6.7 has no field for this value.")
+    assert no_field == sorted(
+        ["security_packet_signature_policy", "telemetry_air_quality_screen_enabled"]
+        + [form for form in ConfigRequest.model_fields if form.startswith("mesh_beacon_")]
+    )
+    assert "airQualityScreenEnabled" not in fields["telemetry"]
+    assert "airQualityEnabled" in fields["telemetry"]
+    assert "packetSignaturePolicy" not in fields["security"]
+    assert "meshBeacon" not in fields["moduleConfig"]
+
+
+def test_device_with_the_profile_pin_and_the_random_pin_mode_shows_a_pairing_mode_row(page: Page, live_server: str):
+    read = {**DEVICE, "config": {**DEVICE["config"], "bluetooth": {"enabled": True, "mode": 0, "fixedPin": 123456}}}
+    create_profile(page, live_server, "Pin mode check", {"bluetooth_fixed_pin": "123456"})
+
+    connect(page, live_server, "Pin mode check", read=read)
+
+    assert {s["section"]: s["rows"] for s in diff_sections(page)} == {
+        "config.bluetooth": [["mode", "RANDOM_PIN", "FIXED_PIN"]],
+    }
+
+
+def test_profile_warning_shows_on_the_page(page: Page, live_server: str):
+    page.goto(f"{live_server}/admin")
+    page.fill("#adminKey", ADMIN_PASSWORD)
+    with page.expect_response(lambda response: urlsplit(response.url).path == "/admin/login"):
+        page.click("button[type=submit]:has-text('Sign in')")
+    page.goto(f"{live_server}/")
+    csrf = {"X-CSRF-Token": page.get_attribute("#saveProfileBtn", "data-csrf-token")}
+    config = {"network_enabled": "true", "wifi_enabled": "true", "wifi_psk": WIFI_PSK}
+    create_profile(page, live_server, "Warning check", config, headers=csrf)
+    # The profile stores secrets, so a page with no admin session gets the warning and no secret.
+    page.context.clear_cookies()
+
+    connect(page, live_server, "Warning check")
+
+    expect(page.locator("#push-profile-warning")).to_have_text("Sign in as admin to load the stored secrets.")
