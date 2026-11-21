@@ -395,6 +395,11 @@ Settings come from `config.yaml` and from `MTFW_*` environment variables. Values
 `config.yaml` win over environment variables (`mtfwbuilder/config.py:58-116`). The full
 list of names is in `docs/external.md`. Names only; no values are in this repository.
 
+The test hook flag: `MTFW_PUSH_TEST_HOOKS` (setting `push_test_hooks`, default `false`).
+When it is on, the push config page renders a test flag, and the page then accepts a fake
+device from the test (feature push-config). Only the E2E test config turns it on. A
+production server leaves it off.
+
 Seed data: none. The registry and the firmware source come from upstream at runtime.
 Planned: a test fixture holds a small firmware source subset (a few variant
 `platformio.ini` files and `userPrefs.jsonc`) so tests run without a download.

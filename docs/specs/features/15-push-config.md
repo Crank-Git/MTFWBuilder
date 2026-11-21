@@ -93,11 +93,16 @@ Mockup: [08-push-config](../mockups/08-push-config.html).
 | State | What the operator sees |
 |---|---|
 | Not connected | Connect via USB, Connect via Bluetooth, browser support note. |
-| Reading | "Reading device config…" with a step count. |
+| Profile warning | The `warning` text of the profile, for example "Sign in as admin to load the stored secrets." |
+| Reading | "Reading device config…". The page shows no step count. |
+| Read failed | The error. The page closes the port when the device sends no config in 10 seconds, or when the connection drops. |
+| Re-enter | A password field for each secret that the profile does not store. Push stays disabled until each one holds a valid value. |
 | Diff | Sections with changed fields: device value → profile value. Checkboxes per section. |
+| Not pushed | Each profile value that push config does not send, with the reason. |
 | No changes | "The device already matches this profile." |
-| Pushing | Progress per section. |
+| Pushing | Progress per section. Connect via USB and Connect via Bluetooth are disabled until the reconnect ends. |
 | Result | Applied / failed per section. Restart notice. |
+| Result unknown | "The result is unknown. Read the device again." The connection over USB dropped during the commit. |
 | Managed device | Managed message. Push disabled. |
 | Unsupported | "This browser cannot connect. Use Chrome or Edge on a desktop." |
 | Not secure | "Web Serial and Web Bluetooth need HTTPS. Open this page through the TLS proxy or on localhost." |
@@ -113,6 +118,35 @@ Mockup: [08-push-config](../mockups/08-push-config.html).
 - `meshtastic-sdk` (https://github.com/meshtastic/meshtastic-sdk) has no JS release, so
   the project does not use it (ADR 0008).
 - Web Bluetooth: Chrome and Edge on desktop and Android.
+- Managed mode: push config never sends `security.is_managed = true`. A managed device
+  ignores each local admin message (`AdminModule::handleReceivedProtobuf`,
+  `tests/fixtures/firmware/src/modules/AdminModule.cpp:86-89`), so a push cannot change
+  that device again. Managed mode stays a factory default that a build sets. The page
+  shows the field under "Not pushed" with "Set managed mode with a build. Push config
+  does not set it."
+- The page checks managed mode after each read: at connect and at the reconnect after a
+  restart.
+- Admin keys: when the profile sets an admin key, the push sends only the non-empty
+  profile slots, in slot order. The device keeps no old key, and the list has no gap.
+- Bluetooth: a profile PIN also sets the `FIXED_PIN` pairing mode, as
+  `USERPREFS_FIXED_BLUETOOTH` does (`NodeDB.cpp:736-737`). The diff compares the pairing
+  mode (#184).
+- Fixed position: the page sends the profile `fixed_lat` and `fixed_lon` with
+  `setFixedPosition` of core 2.6.7, inside the transaction and after the position config.
+  The firmware delays the save of `set_fixed_position` until the commit while a
+  transaction is open (`AdminModule::saveChanges`, `AdminModule.cpp:1364-1374`). The
+  firmware also sets `fixed_position` (`AdminModule.cpp:419-433`), so a later position
+  config would replace it. `setFixedPosition` takes no altitude, so `fixed_alt` is under
+  "Not pushed".
+- Not pushed: the page lists each profile value that push config does not send, with one
+  of these reasons:
+  - Core 2.6.7 has no field for this value.
+  - The firmware reads this value only from a build.
+  - Push config does not send this value.
+  - The managed mode text and the altitude text above.
+- Test hook: the page uses `window.__pushConfigTestDevice` only when the template renders
+  the test flag. The template renders it only when the `push_test_hooks` setting
+  (`MTFW_PUSH_TEST_HOOKS`) is on. Only the E2E test config turns it on.
 
 ## Data touched
 
@@ -124,11 +158,21 @@ Device protocol only, through the chosen library. No server routes.
 
 ## Edge cases & failures
 
-- The device has older firmware that lacks a field: the device rejects that message.
-  The page shows that section as failed, and the other sections still apply.
+- The device has older firmware that lacks a field: the device drops each field that its
+  protobufs do not have, and applies the rest of the message. The page shows that section
+  as applied.
+- The device rejects a set message: the page shows that section as failed with the device
+  error, and the other sections still apply.
 - The connection drops mid-transaction: no commit is sent, so the device keeps its old
   config. The page says so.
+- The connection drops during the commit over USB: the page cannot tell if the device
+  saved the config. It shows "The result is unknown. Read the device again." and closes
+  the port.
+- The connection drops during the commit over Bluetooth: the device turns its radio off
+  at the commit, so the page counts the drop as the restart and connects again.
+- The device rejects the commit: the page shows the device error and closes the port.
 - A profile with "must re-enter" secrets: the page asks for them before Push.
+- A profile with a `warning`: the page shows the warning text above the connect controls.
 
 ## Acceptance criteria
 
