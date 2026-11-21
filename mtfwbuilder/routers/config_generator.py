@@ -1,13 +1,14 @@
 """Config generator API routes — /api/v1/generate, /api/v1/preview, /api/v1/download."""
 
-import json
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, File, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import Response
+from pydantic import ValidationError
 
-from mtfwbuilder.models import FilePreviewResponse, PreviewResponse
+from mtfwbuilder.models import ConfigRequest, FilePreviewResponse, PreviewResponse
 from mtfwbuilder.services.jsonc_generator import generate_jsonc
 
 logger = logging.getLogger("mtfwbuilder.config_generator")
@@ -18,55 +19,40 @@ MAX_UPLOAD_SIZE = 65536  # 64KB
 
 
 @router.post("/generate")
-async def generate(request: Request) -> PreviewResponse:
+async def generate(config: ConfigRequest) -> PreviewResponse:
     """Generate JSONC configuration from form data."""
-    try:
-        form_data = await request.json()
-        jsonc_content = generate_jsonc(form_data)
-
-        if form_data.get("preview_only", False):
-            return PreviewResponse(success=True, content=jsonc_content)
-
-        return PreviewResponse(success=True, content=jsonc_content)
-    except Exception as e:
-        logger.error(f"Config generation error: {e}")
-        return PreviewResponse(success=False, error=str(e))
+    return PreviewResponse(success=True, content=generate_jsonc(config.generator_input()))
 
 
 @router.post("/preview")
-async def preview(request: Request) -> PreviewResponse:
+async def preview(config: ConfigRequest) -> PreviewResponse:
     """Generate a preview of the JSONC configuration."""
-    try:
-        form_data = await request.json()
-        jsonc_content = generate_jsonc(form_data)
-        return PreviewResponse(success=True, content=jsonc_content)
-    except Exception as e:
-        logger.error(f"Preview error: {e}")
-        return PreviewResponse(success=False, error=str(e))
+    return PreviewResponse(success=True, content=generate_jsonc(config.generator_input()))
 
 
-@router.post("/download")
+@router.post("/download", responses={422: {"description": "Validation Error"}})
 async def download(request: Request) -> Response:
-    """Download the generated JSONC configuration file."""
+    """Download the generated JSONC configuration file.
+
+    The body is a JSON `ConfigRequest`, or a form with the field `config` that holds one.
+    An invalid body returns 422 with field errors.
+    """
+    if "application/json" in request.headers.get("content-type", ""):
+        raw_config = await request.body()
+    else:
+        form = await request.form()
+        raw_config = form.get("config", "{}")
     try:
-        content_type = request.headers.get("content-type", "")
-        if "application/json" in content_type:
-            form_data = await request.json()
-        else:
-            form = await request.form()
-            config_str = form.get("config", "{}")
-            form_data = json.loads(config_str)
+        config = ConfigRequest.model_validate_json(raw_config)
+    except ValidationError as e:
+        errors = [{**error, "loc": ("body", *error["loc"])} for error in e.errors(include_url=False)]
+        raise RequestValidationError(errors) from e
 
-        jsonc_content = generate_jsonc(form_data)
-
-        return Response(
-            content=jsonc_content,
-            media_type="application/json",
-            headers={"Content-Disposition": "attachment; filename=userPrefs.jsonc"},
-        )
-    except Exception as e:
-        logger.error(f"Download error: {e}")
-        raise HTTPException(status_code=400, detail=str(e)) from e
+    return Response(
+        content=generate_jsonc(config.generator_input()),
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=userPrefs.jsonc"},
+    )
 
 
 @router.post("/preview-userprefs")
