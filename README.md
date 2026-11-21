@@ -28,6 +28,7 @@ In this README, "planned" marks a part that the code does not do yet. The spec i
 - **Device registry** — Each firmware version has its own registry. The install reads it from the firmware source with `pio project config --json-output`. ESP32 variants give `.bin` files. nRF52840 and RP2040 variants give `.uf2` files.
 - **Factory Binary Support** — ESP32 devices get both `firmware.bin` and `firmware.factory.bin`
 - **Build progress (planned)** — The progress stream `GET /api/v1/build-progress/{id}` exists. The build page does not open it yet.
+- **Profiles** — Save the config form as a profile, and load it again later. A profile stores no secret, so the build page marks each secret field to re-enter. The `/profiles` page loads, renames, exports as JSON and deletes a profile.
 - **Admin Dashboard** — Sign-in, firmware sources (install and remove firmware versions), build cleanup and recent builds.
 - **Dark Mode** — Default dark theme with light mode toggle
 
@@ -99,6 +100,10 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
 ### 4. Admin Panel
 
 The `/admin` page shows the sign-in form. Sign in with the admin password from `config.yaml`. The Firmware sources section then lists the installed firmware versions and the upstream firmware versions. It installs stable, alpha or an exact tag, shows the install progress, and removes a firmware version. When no firmware version is installed, Install stable is the first action.
+
+### 5. Profiles
+
+On the build page, type a profile name and select **Save as profile**. To use a profile again, select it in **Saved profile** and select **Load**. Load fills the config form and opens the tab of the first secret field to re-enter. The `/profiles` page lists each profile with Load, Export JSON, Rename and Delete.
 
 ## Architecture
 
