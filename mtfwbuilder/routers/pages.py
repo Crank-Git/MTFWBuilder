@@ -4,6 +4,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
 from mtfwbuilder import meshtastic_enums
+from mtfwbuilder.models import CHANNEL_SLOTS
 from mtfwbuilder.routers.firmware_builder import panel_context
 
 router = APIRouter(tags=["pages"])
@@ -28,6 +29,8 @@ async def index(request: Request, build: str | None = None):
         "region_options": meshtastic_enums.REGIONS.options(),
         "modem_preset_options": meshtastic_enums.MODEM_PRESETS.options(),
         "role_options": meshtastic_enums.ROLES.options(),
+        "rebroadcast_mode_options": meshtastic_enums.REBROADCAST_MODES.options(),
+        "channel_slots": CHANNEL_SLOTS,
         "gps_mode_options": meshtastic_enums.GPS_MODES.options(),
         "packet_signature_policy_options": meshtastic_enums.PACKET_SIGNATURE_POLICIES.options(),
         "router_role_message": meshtastic_enums.ROUTER_ROLE_MESSAGE,

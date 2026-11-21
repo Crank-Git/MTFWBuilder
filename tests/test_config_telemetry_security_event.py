@@ -7,11 +7,19 @@ from httpx import ASGITransport, AsyncClient
 from pydantic import ValidationError
 
 from mtfwbuilder.models import ConfigRequest
-from mtfwbuilder.services.jsonc_generator import KEYS_NOT_IN_V2_7_26, generate_jsonc
+from mtfwbuilder.services.jsonc_generator import VERSION_GATED_KEYS, generate_jsonc
 
 MANAGED_MODE_MESSAGE = "Managed mode needs an admin key, or the device cannot be changed again."
 ADMIN_KEY = "ab" * 32
 POLICY_PREFIX = "meshtastic_Config_SecurityConfig_PacketSignaturePolicy_"
+
+# The keys of this issue that the v2.7.26 fixture source does not read.
+NOT_IN_V2_7_26 = {
+    "USERPREFS_CONFIG_ENVIRONMENT_MEASUREMENT_ENABLED",
+    "USERPREFS_CONFIG_SECURITY_IS_MANAGED",
+    "USERPREFS_EVENT_MODE_HOP_LIMIT",
+    "USERPREFS_CANNED_MESSAGES",
+}
 
 
 @pytest.fixture
@@ -23,7 +31,7 @@ async def client(app):
 def generated(data: dict[str, str]) -> dict[str, str]:
     """Return the keys that a firmware version that reads every key gets for validated form data."""
     request = ConfigRequest(**data)
-    return json.loads(generate_jsonc(request.generator_input(), unread_keys=frozenset()))
+    return json.loads(generate_jsonc(request.generator_input(), firmware_keys=VERSION_GATED_KEYS))
 
 
 def error_messages(exc: ValidationError, field: str) -> list[str]:
@@ -213,6 +221,6 @@ def test_v2_7_26_output_leaves_out_each_key_that_the_version_does_not_read():
     }
     result = json.loads(generate_jsonc(ConfigRequest(**data).generator_input()))
 
-    assert not set(result) & KEYS_NOT_IN_V2_7_26
+    assert not set(result) & NOT_IN_V2_7_26
     assert result["USERPREFS_CONFIG_DEVICE_TELEM_UPDATE_INTERVAL"] == "900"
     assert result["USERPREFS_RINGTONE_NAG_SECS"] == "60"

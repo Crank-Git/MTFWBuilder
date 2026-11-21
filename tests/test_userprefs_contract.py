@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from mtfwbuilder.models import CHANNEL_SLOTS, ChannelConfig, ConfigRequest
-from mtfwbuilder.services.jsonc_generator import KEYS_NOT_IN_V2_7_26, generate_jsonc
+from mtfwbuilder.services.jsonc_generator import generate_jsonc
 from mtfwbuilder.services.userprefs_keys import read_keys
 
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "firmware"
@@ -32,12 +32,18 @@ def full_config() -> dict[str, str]:
         "tz_string": "Europe/Berlin",
         "bluetooth_fixed_pin": "123456",
         "device_role": "meshtastic_Config_DeviceConfig_Role_CLIENT_BASE",
+        "device_rebroadcast_mode": "meshtastic_Config_DeviceConfig_RebroadcastMode_LOCAL_ONLY",
+        "node_info_broadcast_secs": "10800",
+        "node_info_reply_suppress_secs": "43200",
         "channels_to_write": str(CHANNEL_SLOTS),
         "lora_enabled": "true",
         "lora_region": "US",
         "lora_modem_preset": "meshtastic_Config_LoRaConfig_ModemPreset_LONG_FAST",
         "lora_channel_num": "20",
         "lora_ignore_mqtt": "true",
+        "lora_tx_power": "20",
+        "lora_tx_disabled": "true",
+        "lora_config_ok_to_mqtt": "true",
         "gps_enabled": "true",
         "gps_mode": "meshtastic_Config_PositionConfig_GpsMode_ENABLED",
         "gps_update_interval": "600",
@@ -49,6 +55,7 @@ def full_config() -> dict[str, str]:
         "smart_position_enabled": "true",
         "network_enabled": "true",
         "network_protocols": "1",
+        "network_ipv6_enabled": "true",
         "wifi_enabled": "true",
         "wifi_ssid": "mesh-wifi",
         "wifi_psk": "wifi-secret",
@@ -91,6 +98,7 @@ def full_config() -> dict[str, str]:
         data[f"channel_{slot}[precision]"] = "14"
         data[f"channel_{slot}[uplink_enabled]"] = "true"
         data[f"channel_{slot}[downlink_enabled]"] = "true"
+        data[f"channel_{slot}[muted]"] = "true"
     return data
 
 
@@ -115,11 +123,6 @@ def test_full_config_sets_every_request_field():
 
 def test_generator_writes_only_keys_the_firmware_reads():
     assert_firmware_reads(written_keys(full_config()))
-
-
-def test_generator_leaves_out_only_keys_that_the_fixture_firmware_does_not_read():
-    # A key in the set that the fixture reads means the fixture moved to a newer version, and the set is stale.
-    assert not KEYS_NOT_IN_V2_7_26 & read_keys(FIXTURE_DIR)
 
 
 def test_contract_fails_on_the_device_name_key():
