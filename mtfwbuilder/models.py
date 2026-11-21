@@ -1,9 +1,52 @@
 """Pydantic models for request/response validation."""
 
-from pydantic import BaseModel, Field
+import base64
+import binascii
+import re
+from typing import Any
+
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+CHANNEL_SLOTS = 8
+PSK_LENGTHS = (0, 1, 16, 32)
+
+# The form posts each channel field as a flat key, for example `channel_0[psk]`.
+_FLAT_CHANNEL_KEY = re.compile(r"(channel_[0-7])\[(\w+)\]")
+_HEX = re.compile(r"(?:[0-9a-fA-F]{2})+")
+_BYTE_LIST = re.compile(r"\{\s*(0x[0-9a-fA-F]{1,2}(?:\s*,\s*0x[0-9a-fA-F]{1,2})*)?\s*\}")
 
 
-class ChannelConfig(BaseModel):
+def _psk_length(psk: str) -> int:
+    """Return the length in bytes of a PSK in hex, `{ 0x.. }` or base64 form.
+
+    Raises ValueError when the PSK is in none of the three forms.
+    """
+    if not psk:
+        return 0
+    if _HEX.fullmatch(psk):
+        return len(psk) // 2
+    byte_list = _BYTE_LIST.fullmatch(psk)
+    if byte_list:
+        return len(byte_list[1].split(",")) if byte_list[1] else 0
+    try:
+        return len(base64.b64decode(psk, validate=True))
+    except binascii.Error:
+        raise ValueError("the PSK is not hex, base64 or a { 0x.. } byte list") from None
+
+
+class _UserPrefsFields(BaseModel):
+    """Base model that rejects a string value with `//` in any field."""
+
+    @field_validator("*")
+    @classmethod
+    def _reject_double_slash(cls, value: Any) -> Any:
+        # The upstream parser removes all text after // on a line, so the device gets a cut value.
+        if isinstance(value, str) and "//" in value:
+            raise ValueError("the value contains //, which the firmware build reads as a comment")
+        return value
+
+
+class ChannelConfig(_UserPrefsFields):
     """Configuration for a single channel."""
 
     name: str | None = None
@@ -12,8 +55,15 @@ class ChannelConfig(BaseModel):
     uplink_enabled: str | None = None
     downlink_enabled: str | None = None
 
+    @field_validator("psk")
+    @classmethod
+    def _check_psk_length(cls, value: str | None) -> str | None:
+        if value is not None and _psk_length(value.strip()) not in PSK_LENGTHS:
+            raise ValueError("the PSK is not 0, 1, 16 or 32 bytes")
+        return value
 
-class ConfigRequest(BaseModel):
+
+class ConfigRequest(_UserPrefsFields):
     """Request body for generating a userPrefs.jsonc configuration."""
 
     # Basic device info
@@ -25,6 +75,14 @@ class ConfigRequest(BaseModel):
 
     # Channels
     channels_to_write: str = "1"
+    channel_0: ChannelConfig | None = None
+    channel_1: ChannelConfig | None = None
+    channel_2: ChannelConfig | None = None
+    channel_3: ChannelConfig | None = None
+    channel_4: ChannelConfig | None = None
+    channel_5: ChannelConfig | None = None
+    channel_6: ChannelConfig | None = None
+    channel_7: ChannelConfig | None = None
 
     # LoRa
     lora_enabled: str | None = None
@@ -74,6 +132,39 @@ class ConfigRequest(BaseModel):
     preview_only: bool = False
 
     model_config = {"extra": "allow"}
+
+    @model_validator(mode="before")
+    @classmethod
+    def _nest_flat_channel_keys(cls, data: Any) -> Any:
+        """Move each flat `channel_N[field]` key into a `channel_N` object.
+
+        The nested shape gives a field error the location `channel_N.field`.
+        """
+        if not isinstance(data, dict):
+            return data
+        nested: dict[str, Any] = {}
+        for key, value in data.items():
+            match = _FLAT_CHANNEL_KEY.fullmatch(key)
+            if match:
+                nested.setdefault(match[1], {})[match[2]] = value
+            else:
+                nested[key] = value
+        return nested
+
+    @field_validator("channels_to_write")
+    @classmethod
+    def _check_channels_to_write(cls, value: str) -> str:
+        if not value.isdecimal() or int(value) > CHANNEL_SLOTS:
+            raise ValueError(f"channels_to_write is not an integer from 0 to {CHANNEL_SLOTS}")
+        return value
+
+    def generator_input(self) -> dict[str, Any]:
+        """Return the flat dict that `generate_jsonc` reads, with `channel_N[field]` keys."""
+        data = self.model_dump(exclude_none=True)
+        for slot in range(CHANNEL_SLOTS):
+            for field, value in data.pop(f"channel_{slot}", {}).items():
+                data[f"channel_{slot}[{field}]"] = value
+        return data
 
 
 class BuildRequest(BaseModel):
