@@ -160,14 +160,3 @@ PACKET_SIGNATURE_POLICIES = MeshtasticEnum(
         "PACKET_SIGNATURE_POLICY_STRICT": "Strict - Require Signatures",
     },
 )
-
-
-def role_c_value(value: str) -> str:
-    """Return a role that the form offers, with its C prefix.
-
-    Raises:
-        ValueError: The role is a router role, with the router-role message, or the form does not offer it.
-    """
-    if value.removeprefix(ROLES.c_prefix) in ROUTER_ROLES:
-        raise ValueError(ROUTER_ROLE_MESSAGE)
-    return ROLES.c_value(value)

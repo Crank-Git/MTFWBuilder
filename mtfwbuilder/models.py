@@ -174,7 +174,9 @@ class ConfigRequest(_UserPrefsFields):
     @classmethod
     def _check_device_role(cls, value: str | None) -> str | None:
         """Return an offered role with its C prefix, and reject a router role with the router-role message."""
-        return meshtastic_enums.role_c_value(value) if value else value
+        if value and value.removeprefix(meshtastic_enums.ROLES.c_prefix) in meshtastic_enums.ROUTER_ROLES:
+            raise ValueError(meshtastic_enums.ROUTER_ROLE_MESSAGE)
+        return meshtastic_enums.ROLES.c_value(value) if value else value
 
     @field_validator("lora_region", "lora_modem_preset", "gps_mode")
     @classmethod
