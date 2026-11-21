@@ -241,10 +241,10 @@ body.rv-open .layout { padding-right:21rem; }
 <ul>
 <li>FR-fleet-builds-14 — A fleet holds at most <code>MTFW_MAX_FLEET_SIZE</code> devices (default 50).
 </li>
-<li>FR-fleet-builds-15 — A fleet run makes one build per fleet device. The build queue
+<li>FR-fleet-builds-15 — A fleet run makes one build per fleet device. The fleet run
 </li>
 </ul>
-<p>limit of feature 06 does not count fleet run builds; the fleet run feeds them one at a time.</p>
+<p>feeds the builds to the build queue one at a time. Each build counts toward the build queue limit of feature 06.</p>
 <ul>
 <li>FR-fleet-builds-16 — The fleet run page shows one row per fleet device with its build
 </li>
@@ -254,7 +254,7 @@ body.rv-open .layout { padding-right:21rem; }
 <li>FR-fleet-builds-17 — A failed fleet device build does not stop the fleet run. The
 </li>
 </ul>
-<p>fleet run ends <code>partial</code>.</p>
+<p>fleet run ends <code>partial</code> when a fleet device has a complete build. The fleet run ends <code>failed</code> when no fleet device has a complete build.</p>
 <ul>
 <li>FR-fleet-builds-18 — "Retry failed" queues the failed fleet devices again.
 </li>
@@ -306,9 +306,10 @@ body.rv-open .layout { padding-right:21rem; }
 <div class="table-wrap"><table>
 <tr><th>Screen</th><th>States</th></tr>
 <tr><td>Profiles list</td><td>Empty ("No profiles yet. Save one from the build page."), populated, delete confirm.</td></tr>
-<tr><td>Fleet editor</td><td>Empty table, populated, CSV paste dialog, row errors.</td></tr>
+<tr><td>Fleet editor</td><td>Empty table, populated, CSV paste dialog, row errors, "Clear admin key" on a row with a saved admin key, CSV file that is not UTF-8.</td></tr>
 <tr><td>Fleet run</td><td>Queued, running (rows update live), complete, partial, failed.</td></tr>
 </table></div>
+<p>The fleet editor does not list the past fleet runs of a fleet. The fleet run URL holds the fleet run id, and no page links to it after the fleet run page closes. The operator keeps the fleet run URL, the same as the URL of a single build.</p>
 <h3 id="fleet-builds-behaviour-rules">Behaviour rules</h3>
 <ul>
 <li>Per-device overrides write these userPrefs keys: <code>USERPREFS_CONFIG_OWNER_LONG_NAME</code>,
@@ -320,6 +321,60 @@ body.rv-open .layout { padding-right:21rem; }
 </li>
 </ul>
 <p>the whole fleet run. The project holds them in memory for that fleet run only.</p>
+<ul>
+<li>The project drops the held secrets of a fleet run in these cases:
+<ul>
+<li>the fleet run ends <code>complete</code>.
+</li>
+<li>the fleet run stops because of an internal error.
+</li>
+<li><code>build_max_age_seconds</code> passes after the fleet run ends.
+</li>
+<li>the operator deletes the fleet.
+</li>
+</ul>
+</li>
+<li>Retry failed uses the held secrets. A secret that the operator enters again replaces
+</li>
+</ul>
+<p>the held secret.</p>
+<ul>
+<li>Retry failed uses the profile of the fleet run, also after the fleet gets another
+</li>
+</ul>
+<p>profile.</p>
+<ul>
+<li>A fleet run of an admin session uses the stored secrets of the profile, so it needs the
+</li>
+</ul>
+<p>CSRF token.</p>
+<ul>
+<li>A fleet device id stays the same after a save. The fleet editor sends the id of each
+</li>
+</ul>
+<p>saved row, so a renamed label keeps its fleet device. A row without an id gets the saved fleet device with the same label.</p>
+<ul>
+<li>A label is unique in a fleet and holds at most 64 characters.
+</li>
+<li>A fleet device position needs both <code>lat</code> and <code>lon</code>. One coordinate alone is a row
+</li>
+</ul>
+<p>error.</p>
+<ul>
+<li>When the profile has GPS off, a fleet device position writes only the
+</li>
+</ul>
+<p><code>USERPREFS_FIXED_GPS*</code> keys. The other GPS keys of the profile stay out.</p>
+<ul>
+<li>A <code>manifest.csv</code> cell that starts with <code>=</code>, <code>+</code>, <code>-</code>, <code>@</code>, a tab or a carriage return
+</li>
+</ul>
+<p>gets a <code>'</code> before it, so a spreadsheet does not run it as a formula.</p>
+<ul>
+<li>A zip folder name is unique without regard to case. It has no trailing dot. A Windows
+</li>
+</ul>
+<p>reserved name, for example <code>CON</code>, gets a <code>_</code> before it.</p>
 <ul>
 <li>The per-device role accepts only the roles of FR-config-coverage-4. A row with
 </li>
@@ -340,12 +395,18 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><td>GET/PUT/DELETE</td><td><code>/api/v1/profiles/{id}</code></td><td>profile / 200 / 204</td></tr>
 <tr><td>GET/POST</td><td><code>/api/v1/fleets</code></td><td>list / 201</td></tr>
 <tr><td>GET/PUT/DELETE</td><td><code>/api/v1/fleets/{id}</code></td><td>fleet / 200 / 204; 422 above <code>MTFW_MAX_FLEET_SIZE</code> devices</td></tr>
-<tr><td>PUT</td><td><code>/api/v1/fleets/{id}/devices</code></td><td>200; 422 with row errors</td></tr>
-<tr><td>POST</td><td><code>/api/v1/fleets/{id}/runs</code></td><td>202 <code>{run_id, progress_url}</code></td></tr>
-<tr><td>GET</td><td><code>/api/v1/fleet-runs/{id}</code></td><td>status per fleet device</td></tr>
-<tr><td>POST</td><td><code>/api/v1/fleet-runs/{id}/retry</code></td><td>202</td></tr>
-<tr><td>GET</td><td><code>/api/v1/fleet-runs/{id}/download</code></td><td>zip</td></tr>
+<tr><td>PUT</td><td><code>/api/v1/fleets/{id}/devices</code></td><td>200 with no admin key; 422 with row errors</td></tr>
+<tr><td>POST</td><td><code>/api/v1/fleets/{id}/devices/csv</code></td><td>200 with no admin key; 422 with row errors, or one error above <code>MTFW_MAX_FLEET_SIZE</code> rows or 65536 characters</td></tr>
+<tr><td>DELETE</td><td><code>/api/v1/fleets/{id}</code></td><td>204; 409 while a fleet run of the fleet runs</td></tr>
+<tr><td>POST</td><td><code>/api/v1/fleets/{id}/runs</code></td><td>202 <code>{run_id, progress_url}</code> with the fleet run id; 403 for an admin session without the CSRF token; 409 while a fleet run of the fleet runs; 429 above the build rate limit; 503 when the build queue is full</td></tr>
+<tr><td>GET</td><td><code>/api/v1/fleet-runs/{id}</code></td><td>status per fleet device; 404 for a row id</td></tr>
+<tr><td>POST</td><td><code>/api/v1/fleet-runs/{id}/retry</code></td><td>202; 409 while a fleet run of the fleet runs or with no failed fleet device; 403, 429 and 503 as for a start</td></tr>
+<tr><td>GET</td><td><code>/api/v1/fleet-runs/{id}/download</code></td><td>zip; 409 while the fleet run runs</td></tr>
+<tr><td>GET</td><td><code>/fleets</code></td><td>Fleets page</td></tr>
+<tr><td>GET</td><td><code>/fleets/{id}</code></td><td>Fleet editor page</td></tr>
+<tr><td>GET</td><td><code>/fleet-runs/{id}</code></td><td>Fleet run page; an htmx request gets the state only</td></tr>
 </table></div>
+<p>In each <code>/fleet-runs/{id}</code> path, <code>{id}</code> is the fleet run id.</p>
 <h3 id="fleet-builds-edge-cases-failures">Edge cases &amp; failures</h3>
 <ul>
 <li>Two fleet devices with the same label: a row error.
@@ -355,7 +416,12 @@ body.rv-open .layout { padding-right:21rem; }
 <li>The server restarts during a fleet run: the fleet run shows <code>partial</code>, and Retry
 </li>
 </ul>
-<p>failed continues it.</p>
+<p>failed continues it. If every fleet device has a complete build, the fleet run shows <code>complete</code>.</p>
+<ul>
+<li>Single builds fill the build queue during a fleet run: the next build of the fleet run
+</li>
+</ul>
+<p>waits until the build queue has space.</p>
 <h3 id="fleet-builds-acceptance-criteria">Acceptance criteria</h3>
 <ul>
 <li>A saved profile holds no PSK in the database.
