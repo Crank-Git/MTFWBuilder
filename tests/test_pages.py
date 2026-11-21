@@ -12,7 +12,7 @@ from tests.conftest import REPO_ROOT
 # The client sends requests to this host, so `url_for` builds URLs on it.
 OWN_HOST = "test"
 
-PAGES = ["/", "/admin"]
+PAGES = ["/", "/admin", "/profiles"]
 
 
 @pytest.fixture
