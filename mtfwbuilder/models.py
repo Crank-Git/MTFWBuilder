@@ -245,3 +245,26 @@ class FirmwareSource(BaseModel):
     installed_at: datetime
     size_bytes: int
     status: str
+
+
+class InstallRequest(BaseModel):
+    """The body of `POST /api/v1/firmware/install`: one channel or one exact tag."""
+
+    channel: Literal["stable", "alpha"] | None = None
+    # The tag is also a directory name, so the pattern keeps a path separator out of it.
+    tag: str | None = Field(default=None, pattern=r"^v\d+\.\d+\.\d+\.[0-9a-f]{7}$")
+
+    @model_validator(mode="after")
+    def _one_of_channel_and_tag(self):
+        if (self.channel is None) == (self.tag is None):
+            raise ValueError("Give one of channel and tag")
+        return self
+
+
+class InstallStatus(BaseModel):
+    """SSE event for install progress."""
+
+    install_id: str
+    version: str
+    status: Literal["downloading", "extracting", "installing packages", "ready", "failed"]
+    error: str = ""

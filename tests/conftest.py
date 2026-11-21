@@ -14,6 +14,7 @@ from mtfwbuilder.main import create_app
 from mtfwbuilder.rate_limit import limiter
 from mtfwbuilder.services.build_service import BuildQueue
 from mtfwbuilder.services.device_registry import DeviceRegistry
+from mtfwbuilder.services.firmware_updater import FirmwareInstalls
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -93,6 +94,7 @@ def app(settings):
     app.state.settings = settings
     app.state.device_registry = DeviceRegistry(settings.devices_file)
     app.state.build_queue = BuildQueue(settings)
+    app.state.firmware_installs = FirmwareInstalls(settings, app.state.build_queue)
     # The rate limit counts across tests, so each test starts with an empty count.
     limiter.reset()
     return app

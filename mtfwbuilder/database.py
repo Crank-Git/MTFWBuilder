@@ -160,6 +160,13 @@ async def find_firmware_source(database_path: Path, version: str | None = None) 
     return None if row is None else dict(row)
 
 
+async def delete_firmware_source(database_path: Path, version: str) -> None:
+    """Delete the firmware source record of `version`."""
+    async with aiosqlite.connect(database_path) as db:
+        await db.execute("DELETE FROM firmware_sources WHERE version = ?", (version,))
+        await db.commit()
+
+
 async def list_firmware_sources(database_path: Path) -> list[dict]:
     """Return every firmware source record, the newest installed first."""
     async with aiosqlite.connect(database_path) as db:

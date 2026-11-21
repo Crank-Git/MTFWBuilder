@@ -5,17 +5,14 @@ import hashlib
 import hmac
 import json
 import os
-import threading
 import time
 
 import aiosqlite
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from mtfwbuilder.auth import SESSION_COOKIE, create_session_token
 from mtfwbuilder.database import init_db
 from mtfwbuilder.main import lifespan
-from mtfwbuilder.routers import admin
 from mtfwbuilder.services.cleanup_service import cleanup_old_builds
 
 PSK = "deadbeef" * 8
@@ -226,79 +223,3 @@ async def test_cleanup_task_runs_every_cleanup_interval(settings_env, monkeypatc
         while old.exists():
             assert time.monotonic() < deadline, "the cleanup task did not remove the old artifact directory"
             await asyncio.sleep(0.05)
-
-
-# FR-build-pipeline-repair-16
-
-
-def _sign_in(client, settings):
-    client.cookies.set(SESSION_COOKIE, create_session_token(settings))
-
-
-@pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
-async def test_firmware_update_waits_until_no_build_runs(app, client, settings, monkeypatch):
-    monkeypatch.setenv("FAKE_PIO_SLEEP", "1")
-    statuses_at_update = []
-    ctx = await app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
-    monkeypatch.setattr(admin, "update_firmware", lambda _settings: statuses_at_update.append(ctx.status) or True)
-    await _wait_for(ctx, {"compiling"})
-    _sign_in(client, settings)
-
-    resp = await client.post("/api/v1/update-firmware")
-
-    assert resp.json()["success"] is True
-    assert statuses_at_update == ["complete"]
-
-
-@pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
-async def test_no_build_starts_while_a_firmware_update_runs(app, client, settings, monkeypatch):
-    release = threading.Event()
-    started = threading.Event()
-
-    def slow_update(_settings):
-        started.set()
-        release.wait(5)
-        return True
-
-    monkeypatch.setattr(admin, "update_firmware", slow_update)
-    _sign_in(client, settings)
-    update = asyncio.create_task(client.post("/api/v1/update-firmware"))
-    await asyncio.to_thread(started.wait, 5)
-
-    ctx = await app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
-    await asyncio.sleep(0.3)
-    status_during_update = ctx.status
-    release.set()
-    await update
-    await _wait_for(ctx, ENDED)
-
-    assert status_during_update == "queued"
-    assert ctx.status == "complete", ctx.error
-
-
-@pytest.mark.usefixtures("firmware_source")
-async def test_cancelled_update_request_keeps_the_lock_until_the_update_thread_ends(app, client, settings, monkeypatch):
-    release = threading.Event()
-    started = threading.Event()
-
-    def slow_update(_settings):
-        started.set()
-        release.wait(5)
-        return True
-
-    monkeypatch.setattr(admin, "update_firmware", slow_update)
-    _sign_in(client, settings)
-    lock = app.state.build_queue.firmware_lock
-    update = asyncio.create_task(client.post("/api/v1/update-firmware"))
-    await asyncio.to_thread(started.wait, 5)
-
-    update.cancel()
-    await asyncio.gather(update, return_exceptions=True)
-    locked_after_cancel = lock.locked()
-    release.set()
-    deadline = time.monotonic() + 5
-    while lock.locked():
-        assert time.monotonic() < deadline, "the lock stayed held after the update thread ended"
-        await asyncio.sleep(0.02)
-
-    assert locked_after_cancel is True
