@@ -182,14 +182,15 @@ async def get_build(build_id: str, request: Request) -> Response:
     """Return the build status of the build, as JSON or as the progress panel for htmx.
 
     The panel calls this route on each `status` event of the progress stream. For a build that
-    has not ended, the fragment holds the steps, and the build log as an out-of-band swap.
-    For an ended build, the fragment is the whole panel without the progress stream.
+    has not ended, the fragment holds only the steps. The page adds each log line from the `log`
+    events, and a log in this fragment would remove a line that arrives after this read.
+    For an ended build, the fragment is the whole panel with the full log, without the progress stream.
     Returns 404 for an unknown build.
     """
     ctx = _get_build(request, build_id)
     data = {"build_id": ctx.build_id, **json.loads(ctx.status_event())}
     if not ctx.ended:
-        return fragment_or_json(request, "partials/build_state.html", {**panel_context(ctx), "oob_log": True}, data)
+        return fragment_or_json(request, "partials/build_state.html", panel_context(ctx), data)
     response = fragment_or_json(request, "partials/build_panel.html", panel_context(ctx), data)
     # A swap of the element that holds the progress stream closes the stream, so the browser does not reconnect.
     response.headers["HX-Retarget"] = "#build-panel"

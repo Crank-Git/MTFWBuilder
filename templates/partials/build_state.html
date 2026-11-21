@@ -47,4 +47,3 @@
     <i class="bi bi-arrow-clockwise me-2"></i>{{ "Retry" if build.status == "failed" else "Build again" }}
 </button>
 {% endif %}
-{% if oob_log %}{% include "partials/build_log.html" %}{% endif %}

@@ -1,6 +1,7 @@
 """Tests for the progress panel of the build page (FR-frontend-htmx-7 to -10 and -20)."""
 
 import asyncio
+import html
 import json
 import shutil
 import subprocess
@@ -211,7 +212,7 @@ async def test_failed_build_shows_the_error_the_open_log_and_a_retry_control(app
 
 
 @pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
-async def test_running_build_update_returns_the_build_status_and_the_log_out_of_band(app, client, monkeypatch):
+async def test_running_build_update_returns_the_build_status_and_leaves_the_log_alone(app, client, monkeypatch):
     monkeypatch.setenv("FAKE_PIO_SLEEP", "30")
     _, ctx = await _start(app, client)
     await _wait_for(ctx, {"compiling"})
@@ -221,7 +222,21 @@ async def test_running_build_update_returns_the_build_status_and_the_log_out_of_
     assert "HX-Retarget" not in resp.headers
     panel = _parse(resp.text)
     assert panel.steps()["compiling"] == "current"
-    assert panel.by_id("build-log")["hx-swap-oob"] == "true"
+    # A log line can arrive on the progress stream after this read, so a log in the update would remove it.
+    assert panel.by_id("build-log") is None
+    assert "hx-swap-oob" not in resp.text
+
+
+@pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
+async def test_ended_build_update_holds_every_log_line(app, client):
+    _, ctx = await _start(app, client)
+    await _wait_for(ctx, ENDED)
+
+    resp = await client.get(f"/api/v1/builds/{ctx.build_id}", headers=HX)
+
+    log = resp.text.split('id="build-log"', 1)[1].split(">", 1)[1].split("</pre>", 1)[0]
+    assert len(ctx.build_log) > 1
+    assert html.unescape(log).splitlines() == ctx.build_log
 
 
 async def test_build_update_returns_json_without_htmx(app, client, firmware_source):
