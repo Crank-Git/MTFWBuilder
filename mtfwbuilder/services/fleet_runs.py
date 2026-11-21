@@ -2,10 +2,15 @@
 
 A fleet run holds its "must re-enter" secrets and the userPrefs file of each build in memory only. The process loses
 them on a restart, so an unfinished fleet run then shows `partial`, and Retry failed needs the secrets again.
+The process also drops the held secrets when the fleet run ends `complete`, ends by an internal error, or ended
+`build_max_age_seconds` ago, and when its fleet is deleted.
+
+A route names a fleet run by its random public id. The integer row id stays inside the database and this process.
 """
 
 import asyncio
 import csv
+import dataclasses
 import io
 import logging
 import re
@@ -27,8 +32,10 @@ from mtfwbuilder.services import fleets, profiles
 from mtfwbuilder.services.build_service import (
     BuildContext,
     BuildQueue,
+    BuildQueueFull,
     DeviceVariant,
     FirmwareVersionNotInstalled,
+    generate_build_id,
     installed_firmware_source,
 )
 from mtfwbuilder.services.userprefs_keys import KeyScan, find_key_scan
@@ -47,9 +54,14 @@ OVERRIDES = {
 }
 # The generator writes `USERPREFS_FIXED_GPS_*` only when `gps_enabled` and `fixed_position` are both true.
 FIXED_POSITION_FIELDS = ("lat", "lon", "alt")
+# With `gps_enabled`, the generator also writes these fields. A profile with GPS off must not get them from a position.
+GPS_ONLY_FIELDS = ("gps_mode", "gps_update_interval", "position_broadcast_interval", "smart_position_enabled")
 # A fleet device without a build in the fleet run waits for the fleet run to give it to the build queue.
 NOT_SUBMITTED = "queued"
 UNREADABLE_ADMIN_KEY = "the admin key does not decrypt with the current secret_key, so enter it again"
+FLEET_RUNNING = "The fleet has a running fleet run."
+# Single builds can fill the build queue during a fleet run, so the next build of the fleet run waits this long.
+QUEUE_FULL_WAIT_SECONDS = 1.0
 
 DEVICE_ROWS = """
 SELECT frb.fleet_device_id, frb.build_id, fd.label, fd.variant, b.variant AS build_variant, b.status,
@@ -62,6 +74,10 @@ ORDER BY fd.position, frb.fleet_device_id
 """
 # The zip has a folder for each fleet device label, so a label never makes a path outside its folder.
 UNSAFE_FOLDER_CHARACTERS = re.compile(r"[^\w.-]")
+# Windows opens a device, not a folder, for these names with any extension.
+WINDOWS_RESERVED_NAME = re.compile(r"(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?", re.IGNORECASE)
+# A spreadsheet runs a cell that starts with one of these as a formula, so the manifest puts a quote before it.
+FORMULA_STARTS = ("=", "+", "-", "@", "\t", "\r")
 MANIFEST_COLUMNS = (
     "label",
     "folder",
@@ -96,6 +112,15 @@ class _Job:
     config_content: str
 
 
+@dataclass
+class _Held:
+    """The "must re-enter" secrets of one fleet run, held for Retry failed until `expiry` drops them."""
+
+    fleet_id: int
+    secrets: dict[str, str] = dataclasses.field(repr=False)
+    expiry: asyncio.TimerHandle | None = None
+
+
 def _invalid(*errors: tuple[tuple, str]) -> RequestValidationError:
     return RequestValidationError([field_error(location, message) for location, message in errors])
 
@@ -107,6 +132,9 @@ def _device_fields(base: dict[str, Any], device: dict[str, Any]) -> dict[str, An
         if device[name] is not None:
             fields[field] = str(device[name])
     if any(device[name] is not None for name in FIXED_POSITION_FIELDS):
+        if base.get("gps_enabled") != "true":
+            for name in GPS_ONLY_FIELDS:
+                fields.pop(name, None)
         fields.update(gps_enabled="true", fixed_position="true")
     return fields
 
@@ -207,9 +235,19 @@ async def _firmware_version(settings: Settings, version: str | None) -> str:
 
 
 def _ended_status(statuses: list[str]) -> str:
+    """Return `complete`, `partial`, or `failed` when no fleet device has a complete build (FR-fleet-builds-17)."""
     if all(status == "complete" for status in statuses):
         return "complete"
     return "partial" if "complete" in statuses else "failed"
+
+
+def _stopped_status(statuses: list[str]) -> str:
+    """Return the status of a fleet run that its row shows as running, but that no process runs.
+
+    The process stopped during the fleet run. The status is `partial`, so Retry failed continues it. When every
+    fleet device has a complete build, the process stopped after the last build and the status is `complete`.
+    """
+    return "complete" if statuses and all(status == "complete" for status in statuses) else "partial"
 
 
 async def _wait_until_ended(ctx: BuildContext) -> None:
@@ -224,15 +262,21 @@ async def _wait_until_ended(ctx: BuildContext) -> None:
 def _folder(label: str, used: set[str]) -> str:
     """Return a zip folder name for `label` that `used` does not hold, and add it to `used`.
 
-    A folder name starts with no dot, so the folder is not hidden and no `..` path leaves the zip.
+    A folder name starts with no dot, so the folder is not hidden and no `..` path leaves the zip. Windows removes
+    a trailing dot, opens a device for a reserved name, and ignores case, so the name is unique there too.
     """
-    name = UNSAFE_FOLDER_CHARACTERS.sub("_", label)
-    if name.startswith("."):
+    name = UNSAFE_FOLDER_CHARACTERS.sub("_", label).rstrip(".")
+    if not name or name.startswith(".") or WINDOWS_RESERVED_NAME.fullmatch(name):
         name = f"_{name}"
-    while name in used:
+    while name.casefold() in used:
         name = f"{name}_"
-    used.add(name)
+    used.add(name.casefold())
     return name
+
+
+def _manifest_cell(value: str) -> str:
+    """Return the manifest cell of `value`, with a quote before a value that a spreadsheet runs as a formula."""
+    return f"'{value}" if value.startswith(FORMULA_STARTS) else value
 
 
 async def _build_records(database_path: Path, build_ids: list[str]) -> dict[str, aiosqlite.Row]:
@@ -255,7 +299,7 @@ def _write_zip(file: IO[bytes], entries: list[tuple[dict[str, str], list[Path]]]
         for row, paths in entries:
             for path in paths:
                 archive.write(path, f"{row['folder']}/{path.name}")
-            writer.writerow(row)
+            writer.writerow({name: _manifest_cell(value) for name, value in row.items()})
         archive.writestr("manifest.csv", manifest.getvalue())
 
 
@@ -265,104 +309,146 @@ class FleetRuns:
     def __init__(self, settings: Settings, build_queue: BuildQueue):
         self.settings = settings
         self.build_queue = build_queue
+        # Each key is the row id of a fleet run. A route gives the public id, and `_load` finds the row id.
         self._tasks: dict[int, asyncio.Task] = {}
-        self._secrets: dict[int, dict[str, str]] = {}
+        self._task_fleets: dict[int, int] = {}
+        self._held: dict[int, _Held] = {}
+        # A start and a retry read the state of the fleet runs before they launch one, so only one runs at a time.
+        self._lock = asyncio.Lock()
 
     def running(self, run_id: int) -> bool:
-        """Return True while this process feeds the builds of the fleet run to the build queue."""
+        """Return True while this process feeds the builds of the fleet run with the row id to the build queue."""
         return run_id in self._tasks
 
-    async def start(self, fleet_id: int, profile_secret_key: str | None, entered: dict[str, str]) -> int:
-        """Return the id of a new fleet run of the fleet, after its first build goes to the build queue.
+    def runs_fleet(self, fleet_id: int) -> bool:
+        """Return True while this process runs a fleet run of the fleet."""
+        return fleet_id in self._task_fleets.values()
+
+    def forget_fleet(self, fleet_id: int) -> None:
+        """Drop the held secrets of each fleet run of the fleet, because a fleet delete removes its fleet runs."""
+        for run_id in [run_id for run_id, held in self._held.items() if held.fleet_id == fleet_id]:
+            self._forget(run_id)
+
+    async def start(self, fleet_id: int, profile_secret_key: str | None, entered: dict[str, str]) -> str:
+        """Return the public id of a new fleet run of the fleet, after its first build goes to the build queue.
 
         `entered` holds the "must re-enter" secrets of the profile. `profile_secret_key` None gives the profile
         without its stored secrets. The server decrypts the admin key of each fleet device for the build only.
 
         Raises:
         - `FleetNotFound` when no fleet has the id.
+        - `FleetRunConflict` when a fleet run of the fleet runs.
         - `RequestValidationError` with each error of the fleet, the profile or the secrets.
+        - `BuildQueueFull` when the build queue holds `max_queue_size` builds.
         """
-        fleet = await fleets.get_fleet(self.settings.database_path, fleet_id, self.settings.secret_key)
-        if fleet is None:
-            raise FleetNotFound(fleet_id)
-        version = await _firmware_version(self.settings, fleet["firmware_version"])
-        base = await _base_fields(self.settings.database_path, fleet["profile_id"], profile_secret_key, entered)
-        jobs = await _jobs(self.settings.database_path, fleet, base, version)
-        async with aiosqlite.connect(self.settings.database_path) as db:
-            cursor = await db.execute(
-                "INSERT INTO fleet_runs (fleet_id, firmware_version, status) VALUES (?, ?, 'running')",
-                (fleet_id, version),
-            )
-            run_id = cursor.lastrowid
-            await db.executemany(
-                "INSERT INTO fleet_run_builds (fleet_run_id, fleet_device_id) VALUES (?, ?)",
-                [(run_id, job.fleet_device_id) for job in jobs],
-            )
-            await db.commit()
-        self._launch(run_id, version, jobs, entered)
-        return run_id
+        async with self._lock:
+            fleet = await fleets.get_fleet(self.settings.database_path, fleet_id, self.settings.secret_key)
+            if fleet is None:
+                raise FleetNotFound(fleet_id)
+            if self.runs_fleet(fleet_id):
+                raise FleetRunConflict(FLEET_RUNNING)
+            version = await _firmware_version(self.settings, fleet["firmware_version"])
+            base = await _base_fields(self.settings.database_path, fleet["profile_id"], profile_secret_key, entered)
+            jobs = await _jobs(self.settings.database_path, fleet, base, version)
+            if self.build_queue.is_full():
+                raise BuildQueueFull
+            public_id = generate_build_id()
+            async with aiosqlite.connect(self.settings.database_path) as db:
+                cursor = await db.execute(
+                    "INSERT INTO fleet_runs (public_id, fleet_id, profile_id, firmware_version, status) "
+                    "VALUES (?, ?, ?, ?, 'running')",
+                    (public_id, fleet_id, fleet["profile_id"], version),
+                )
+                run_id = cursor.lastrowid
+                await db.executemany(
+                    "INSERT INTO fleet_run_builds (fleet_run_id, fleet_device_id) VALUES (?, ?)",
+                    [(run_id, job.fleet_device_id) for job in jobs],
+                )
+                await db.commit()
+            self._launch(run_id, fleet_id, version, jobs, entered)
+            return public_id
 
-    async def retry(self, run_id: int, profile_secret_key: str | None, entered: dict[str, str]) -> None:
+    async def retry(self, public_id: str, profile_secret_key: str | None, entered: dict[str, str]) -> None:
         """Give each fleet device of the fleet run without a complete build to the build queue again (FR 18).
 
-        Without `entered`, the retry uses the secrets that this process holds for the fleet run.
+        The retry uses the profile of the fleet run. The secrets are the held secrets, with `entered` over them.
 
         Raises:
-        - `FleetRunNotFound` when no fleet run has the id.
-        - `FleetRunConflict` when the fleet run runs, has no failed fleet device, or its fleet devices changed.
+        - `FleetRunNotFound` when no fleet run has the public id.
+        - `FleetRunConflict` in these cases:
+          - a fleet run of the fleet runs.
+          - the fleet run has no failed fleet device.
+          - the fleet devices of the fleet run changed.
         - `RequestValidationError` with each error of the fleet, the profile or the secrets.
+        - `BuildQueueFull` when the build queue holds `max_queue_size` builds.
         """
-        run = await self.get(run_id)
-        if run is None:
-            raise FleetRunNotFound(run_id)
-        retry_ids = self._retry_ids(run)
-        fleet = await fleets.get_fleet(self.settings.database_path, run["fleet_id"], self.settings.secret_key)
-        # A removed fleet device has no row, so the fleet run cannot build it again.
-        if retry_ids - {device["id"] for device in fleet["devices"]}:
-            raise FleetRunConflict("The fleet devices changed after this fleet run. Start a new fleet run.")
-        version = await _firmware_version(self.settings, run["firmware_version"])
-        secrets = entered or self._secrets.get(run_id, {})
-        base = await _base_fields(self.settings.database_path, fleet["profile_id"], profile_secret_key, secrets)
-        jobs = await _jobs(self.settings.database_path, fleet, base, version, retry_ids)
-        # Another retry can start during the reads, so the check runs again with no wait before the launch.
-        self._retry_ids(run)
-        self._launch(run_id, version, jobs, secrets)
+        async with self._lock:
+            loaded = await self._load("public_id", public_id)
+            if loaded is None:
+                raise FleetRunNotFound(public_id)
+            run_id, run, profile_id = loaded
+            retry_ids = self._retry_ids(run_id, run)
+            fleet = await fleets.get_fleet(self.settings.database_path, run["fleet_id"], self.settings.secret_key)
+            # A removed fleet device has no row, so the fleet run cannot build it again.
+            if retry_ids - {device["id"] for device in fleet["devices"]}:
+                raise FleetRunConflict("The fleet devices changed after this fleet run. Start a new fleet run.")
+            version = await _firmware_version(self.settings, run["firmware_version"])
+            held = self._held.get(run_id)
+            secrets = {**(held.secrets if held else {}), **entered}
+            # A fleet run from before the `profile_id` column uses the profile of its fleet.
+            profile_id = fleet["profile_id"] if profile_id is None else profile_id
+            base = await _base_fields(self.settings.database_path, profile_id, profile_secret_key, secrets)
+            jobs = await _jobs(self.settings.database_path, fleet, base, version, retry_ids)
+            if self.build_queue.is_full():
+                raise BuildQueueFull
+            self._launch(run_id, run["fleet_id"], version, jobs, secrets)
 
-    def _retry_ids(self, run: dict[str, Any]) -> set[int]:
-        if self.running(run["id"]):
+    def _retry_ids(self, run_id: int, run: dict[str, Any]) -> set[int]:
+        if self.running(run_id):
             raise FleetRunConflict("The fleet run is running.")
+        if self.runs_fleet(run["fleet_id"]):
+            raise FleetRunConflict(FLEET_RUNNING)
         retry_ids = {device["fleet_device_id"] for device in run["devices"] if device["status"] != "complete"}
         if not retry_ids:
             raise FleetRunConflict("The fleet run has no failed fleet device.")
         return retry_ids
 
-    async def get(self, run_id: int) -> dict[str, Any] | None:
+    async def get(self, public_id: str) -> dict[str, Any] | None:
         """Return the fleet run with the build status of each fleet device, or None when no fleet run has the id.
 
         A fleet run that its row shows as running, but that this process does not run, stopped with the process.
-        It shows `partial`, so Retry failed continues it.
+        It shows `partial`, so Retry failed continues it, or `complete` when each fleet device has a complete build.
+        """
+        loaded = await self._load("public_id", public_id)
+        return loaded[1] if loaded else None
+
+    async def _load(self, column: str, value: str | int) -> tuple[int, dict[str, Any], int | None] | None:
+        """Return the row id, the fleet run and the profile id of the fleet run, or None when no fleet run matches.
+
+        `column` is `public_id` for the id that a route gives, or `id` for the row id of this process.
         """
         async with aiosqlite.connect(self.settings.database_path) as db:
             db.row_factory = aiosqlite.Row
-            cursor = await db.execute("SELECT * FROM fleet_runs WHERE id = ?", (run_id,))
+            cursor = await db.execute(f"SELECT * FROM fleet_runs WHERE {column} = ?", (value,))
             row = await cursor.fetchone()
             if row is None:
                 return None
-            cursor = await db.execute(DEVICE_ROWS, (run_id,))
+            cursor = await db.execute(DEVICE_ROWS, (row["id"],))
             devices = [self._device(device) for device in await cursor.fetchall()]
         status = row["status"]
-        if self.running(run_id):
+        if self.running(row["id"]):
             status = "running"
         elif status == "running":
-            status = "partial"
-        return {
-            "id": row["id"],
+            status = _stopped_status([device["status"] for device in devices])
+        run = {
+            "id": row["public_id"],
             "fleet_id": row["fleet_id"],
             "firmware_version": row["firmware_version"],
             "status": status,
             "created_at": row["created_at"],
             "devices": devices,
         }
+        return row["id"], run, row["profile_id"]
 
     def _device(self, row: aiosqlite.Row) -> dict[str, Any]:
         # The build queue holds the current build status, and the `builds` row gets each change after it.
@@ -380,18 +466,40 @@ class FleetRuns:
             "error": error,
         }
 
-    def _launch(self, run_id: int, version: str, jobs: list[_Job], secrets: dict[str, str]) -> None:
+    def _launch(self, run_id: int, fleet_id: int, version: str, jobs: list[_Job], secrets: dict[str, str]) -> None:
+        self._forget(run_id)
         if secrets:
-            self._secrets[run_id] = secrets
+            self._held[run_id] = _Held(fleet_id, secrets)
         task = asyncio.create_task(self._feed(run_id, version, jobs))
         self._tasks[run_id] = task
+        self._task_fleets[run_id] = fleet_id
         task.add_done_callback(lambda done: self._ended(run_id, done))
+
+    def _forget(self, run_id: int) -> None:
+        held = self._held.pop(run_id, None)
+        if held is not None and held.expiry is not None:
+            held.expiry.cancel()
 
     def _ended(self, run_id: int, task: asyncio.Task) -> None:
         self._tasks.pop(run_id, None)
+        self._task_fleets.pop(run_id, None)
         if not task.cancelled() and task.exception() is not None:
             # The row still shows `running`, so the fleet run shows `partial` and Retry failed continues it.
             logger.error(f"Fleet run {run_id} stopped because of an internal error", exc_info=task.exception())
+            self._forget(run_id)
+        elif (held := self._held.get(run_id)) is not None:
+            # A held secret is for Retry failed only, so it stays no longer than the builds of the fleet run.
+            held.expiry = asyncio.get_running_loop().call_later(
+                self.settings.build_max_age_seconds, self._forget, run_id
+            )
+
+    async def _submit(self, run_id: int, version: str, job: _Job) -> BuildContext:
+        """Return the build of the job, after a wait while single builds fill the build queue."""
+        while True:
+            try:
+                return await self.build_queue.submit(job.variant, job.config_content, version, fleet_run_id=run_id)
+            except BuildQueueFull:
+                await asyncio.sleep(QUEUE_FULL_WAIT_SECONDS)
 
     async def _feed(self, run_id: int, version: str, jobs: list[_Job]) -> None:
         """Give each job to the build queue after the build of the previous job ends (FR-fleet-builds-15)."""
@@ -406,7 +514,7 @@ class FleetRuns:
             await db.commit()
         for job in jobs:
             try:
-                ctx = await self.build_queue.submit(job.variant, job.config_content, version, fleet_run_id=run_id)
+                ctx = await self._submit(run_id, version, job)
             except FirmwareVersionNotInstalled:
                 logger.warning(f"Fleet run {run_id} stops, because firmware version {version} is not installed")
                 break
@@ -418,17 +526,17 @@ class FleetRuns:
                 await db.commit()
             # A failed build does not stop the fleet run (FR-fleet-builds-17).
             await _wait_until_ended(ctx)
-        run = await self.get(run_id)
+        _, run, _ = await self._load("id", run_id)
         status = _ended_status([device["status"] for device in run["devices"]])
         async with aiosqlite.connect(database_path) as db:
             await db.execute("UPDATE fleet_runs SET status = ? WHERE id = ?", (status, run_id))
             await db.commit()
         if status == "complete":
             # A complete fleet run has nothing to retry, so the process keeps its secrets no longer.
-            self._secrets.pop(run_id, None)
+            self._forget(run_id)
         logger.info(f"Fleet run {run_id} ended {status}")
 
-    async def archive(self, run_id: int) -> IO[bytes]:
+    async def archive(self, public_id: str) -> IO[bytes]:
         """Return a temporary file that holds the zip of the fleet run, read from its start (FR-fleet-builds-19, -20).
 
         The zip has a folder with the artifacts of each fleet device with a complete build, and `manifest.csv`.
@@ -436,12 +544,12 @@ class FleetRuns:
         The file is in `temp_dir`, so the zip never holds all the artifacts in memory. A close deletes the file.
 
         Raises:
-        - `FleetRunNotFound` when no fleet run has the id.
+        - `FleetRunNotFound` when no fleet run has the public id.
         - `FleetRunConflict` while the fleet run runs.
         """
-        run = await self.get(run_id)
+        run = await self.get(public_id)
         if run is None:
-            raise FleetRunNotFound(run_id)
+            raise FleetRunNotFound(public_id)
         if run["status"] == "running":
             raise FleetRunConflict("The fleet run is running.")
         build_ids = [device["build_id"] for device in run["devices"] if device["build_id"]]

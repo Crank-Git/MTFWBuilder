@@ -84,7 +84,7 @@
     {% endfor %}
     {% endif %}
     <ul id="run-errors" class="text-danger small mb-2" role="alert"></ul>
-    <button type="button" class="btn btn-success" id="startRunBtn">Start fleet run ({{ fleet.devices | length }} builds)</button>
+    <button type="button" class="btn btn-success" id="startRunBtn"{% if run_csrf_token %} data-csrf-token="{{ run_csrf_token }}"{% endif %}>Start fleet run ({{ fleet.devices | length }} builds)</button>
 </div>
 
 <div class="config-section" id="fleet-csv">

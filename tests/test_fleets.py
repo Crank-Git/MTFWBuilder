@@ -249,8 +249,10 @@ async def test_a_long_name_of_25_bytes_returns_201(client, profile_id):
     ],
 )
 async def test_a_coordinate_out_of_range_returns_422(client, profile_id, field, bad, good):
-    rejected = await _create(client, profile_id, [{"label": "x", field: bad}])
-    accepted = await _create(client, profile_id, [{"label": "x", field: good}])
+    # A position needs both lat and lon, so each case gives the other coordinate a valid value.
+    other = {"lat": {"lon": 0}, "lon": {"lat": 0}}.get(field, {})
+    rejected = await _create(client, profile_id, [{"label": "x", field: bad, **other}])
+    accepted = await _create(client, profile_id, [{"label": "x", field: good, **other}])
 
     assert rejected.status_code == 422
     assert _errors(rejected, field)

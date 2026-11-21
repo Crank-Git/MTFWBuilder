@@ -16,6 +16,7 @@ from httpx import ASGITransport, AsyncClient
 
 from mtfwbuilder.database import init_db
 from mtfwbuilder.services import fleet_runs
+from mtfwbuilder.services.build_service import BuildQueueFull
 from tests.conftest import fixture_variant, sign_in_admin
 from tests.test_fleet_runs import (
     DEVICES,
@@ -67,6 +68,11 @@ async def _partial_run(client, monkeypatch, config=None, secrets=None) -> tuple[
     assert (await _wait_until_ended(client, run_id))["status"] == "partial"
     monkeypatch.delenv("FAKE_PIO_FAIL_MATCH")
     return fleet_id, run_id
+
+
+def _held_secrets(app) -> str:
+    """Return the JSON of every secret that the process holds for Retry failed."""
+    return json.dumps([held.secrets for held in app.state.fleet_runs._held.values()])
 
 
 def _manifest(response) -> list[dict]:
@@ -131,8 +137,10 @@ async def test_init_db_gives_an_old_fleet_run_a_public_id_and_a_profile_id(setti
 async def test_the_fleet_run_routes_use_the_build_rate_limit(client, settings):
     settings.build_rate_limit = "1/minute"
 
+    # The limiter counts each route on its own.
     assert (await _start(client, 999)).status_code == 404
     assert (await _start(client, 999)).status_code == 429
+    assert (await client.post("/api/v1/fleet-runs/none/retry", json={})).status_code == 404
     assert (await client.post("/api/v1/fleet-runs/none/retry", json={})).status_code == 429
 
 
@@ -170,7 +178,7 @@ async def test_a_fleet_build_counts_toward_the_build_queue_limit(app, settings):
 
     await build_queue.submit(fixture_variant("heltec-v3"), "{}", fleet_run_id=1)
 
-    with pytest.raises(fleet_runs.BuildQueueFull):
+    with pytest.raises(BuildQueueFull):
         await build_queue.submit(fixture_variant("heltec-v3"), '{"a": "1"}')
 
 
@@ -221,7 +229,7 @@ async def test_a_manifest_cell_that_starts_a_formula_gets_a_quote_prefix(client)
 
 
 def test_a_cell_that_starts_with_a_tab_or_a_carriage_return_gets_a_quote_prefix():
-    assert [fleet_runs.manifest_cell(value) for value in ("\tx", "\rx", "x=1", "")] == ["'\tx", "'\rx", "x=1", ""]
+    assert [fleet_runs._manifest_cell(value) for value in ("\tx", "\rx", "x=1", "")] == ["'\tx", "'\rx", "x=1", ""]
 
 
 # Ruling 5: folder names are unique on any filesystem.
@@ -306,11 +314,11 @@ async def test_the_held_secrets_expire_after_build_max_age_seconds(client, setti
 @pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
 async def test_a_fleet_delete_clears_the_held_secrets_of_its_fleet_runs(app, client, monkeypatch):
     fleet_id, _ = await _partial_run(client, monkeypatch, PSK_CONFIG, {"channel_0[psk]": PSK})
-    assert PSK in repr(app.state.fleet_runs._secrets)
+    assert PSK in _held_secrets(app)
 
     assert (await client.delete(f"/api/v1/fleets/{fleet_id}")).status_code == 204
 
-    assert PSK not in repr(app.state.fleet_runs._secrets)
+    assert PSK not in _held_secrets(app)
 
 
 @pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
@@ -323,7 +331,7 @@ async def test_an_internal_error_clears_the_held_secrets(app, client, monkeypatc
 
     await _wait_until_ended(client, run_id)
 
-    assert PSK not in repr(app.state.fleet_runs._secrets)
+    assert PSK not in _held_secrets(app)
 
 
 @pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
@@ -423,8 +431,8 @@ async def test_a_stopped_fleet_run_whose_devices_are_all_complete_reads_complete
 # Ruling 10: fleet device ids are stable.
 
 
-async def _editor_fleet(client) -> int:
-    profile_id = await _profile(client, "Event", {})
+async def _editor_fleet(client, profile_name="Event") -> int:
+    profile_id = await _profile(client, profile_name, {})
     response = await client.post("/api/v1/fleets", json={"name": "F", "profile_id": profile_id})
     return response.json()["id"]
 
@@ -448,7 +456,7 @@ async def test_put_devices_matches_a_renamed_row_by_its_id_and_keeps_its_admin_k
 
 async def test_put_devices_with_an_id_of_another_fleet_makes_a_new_fleet_device(client):
     first = await _editor_fleet(client)
-    second = await _editor_fleet(client)
+    second = await _editor_fleet(client, "Other")
     other_id = (await client.put(f"/api/v1/fleets/{first}/devices", json={"devices": [{"label": "a"}]})).json()[
         "devices"
     ][0]["id"]
