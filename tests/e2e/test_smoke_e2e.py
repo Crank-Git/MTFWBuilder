@@ -86,6 +86,10 @@ def test_build_of_a_variant_not_in_the_chosen_firmware_version_shows_the_variant
     # The stable registry holds `heltec-v4`, and the alpha registry holds it under the name `heltec-v4-r2`.
     choose_variant(page, "heltec-v4")
     page.select_option("#firmware_version", ALPHA_VERSION)
+    # The page clears an env that the new version lacks, so a script puts the old env back to reach the server check.
+    expect(page.locator("#variant")).to_have_value("")
+    page.evaluate("() => { const v = document.getElementById('variant'); v.value = 'heltec-v4'; }")
+    page.dispatch_event("#variant", "change")
 
     page.click("#buildBtn")
 
