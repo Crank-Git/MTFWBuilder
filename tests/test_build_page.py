@@ -354,7 +354,8 @@ const errorsAfter = {};
   ['build-retry', false],
 ].forEach(([id, inForm]) => {
   slot.textContent = 'the PSK is not 0, 1, 16 or 32 bytes';
-  fire('htmx:beforeRequest', { detail: { elt: { id, closest: sel => (inForm && sel === '#configForm' ? {} : null) } } });
+  const elt = { id, closest: sel => (inForm && sel === '#configForm' ? {} : null) };
+  fire('htmx:beforeRequest', { detail: { elt } });
   errorsAfter[id] = slot.textContent;
 });
 console.log(JSON.stringify({

@@ -367,16 +367,20 @@ const failures = {};
   [500, 'Internal Server Error'],
 ].forEach(([status, responseText]) => {
   panel.children = null;
-  const evt = { detail: { elt: buildBtn, target: panel, xhr: { status, responseText }, shouldSwap: false, isError: true } };
+  const xhr = { status, responseText };
+  const evt = { detail: { elt: buildBtn, target: panel, xhr, shouldSwap: false, isError: true } };
   fire('htmx:beforeSwap', evt);
   const [alert] = panel.children || [];
-  failures[status] = alert && { tag: alert.tag, text: alert.textContent, role: alert.attributes.role, shouldSwap: evt.detail.shouldSwap };
+  failures[status] = alert && {
+    tag: alert.tag, text: alert.textContent, role: alert.attributes.role, shouldSwap: evt.detail.shouldSwap,
+  };
 });
 const closed = [];
 ['compiling', 'complete'].forEach(status => fire('htmx:sseMessage', {
   detail: { type: 'status', data: JSON.stringify({ status }), target: { close: () => closed.push(status) } },
 }));
-console.log(JSON.stringify({ before, after: button.disabled, appended, prevented, swap: { shouldSwap: swap.detail.shouldSwap }, closed, failures }));
+const result = { before, after: button.disabled, appended, prevented, closed, failures };
+console.log(JSON.stringify({ ...result, swap: { shouldSwap: swap.detail.shouldSwap } }));
 """
 
 
