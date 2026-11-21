@@ -66,6 +66,99 @@ _ENUM_FIELDS = (
 )
 
 
+# Feature module-settings: these fields hold `ModuleConfig` values, which push config sends and no build writes.
+# The types come from the `ModuleConfig` descriptor of the vendored `@meshtastic/core` 2.6.7 (protobufs 2.7.8).
+MODULE_BOOL_FIELDS = (
+    "serial_enabled",
+    "serial_echo",
+    "serial_override_console_serial_port",
+    "store_forward_enabled",
+    "store_forward_heartbeat",
+    "store_forward_is_server",
+    "range_test_enabled",
+    "range_test_save",
+    "ext_notify_enabled",
+    "ext_notify_active",
+    "ext_notify_alert_message",
+    "ext_notify_alert_message_vibra",
+    "ext_notify_alert_message_buzzer",
+    "ext_notify_alert_bell",
+    "ext_notify_alert_bell_vibra",
+    "ext_notify_alert_bell_buzzer",
+    "ext_notify_use_pwm",
+    "ext_notify_use_i2s_as_buzzer",
+    "neighbor_info_enabled",
+    "neighbor_info_transmit_over_lora",
+    "detection_sensor_enabled",
+    "detection_sensor_send_bell",
+    "detection_sensor_use_pullup",
+    "paxcounter_enabled",
+)
+# Protobufs v2.7.8 `module_config.options` gives `output_vibra`, `output_buzzer` and `monitor_pin` `int_size:8`.
+MAX_UINT8 = 2**8 - 1
+MIN_INT32 = -(2**31)
+MAX_INT32 = 2**31 - 1
+# Upstream `src/modules/AdminModule.cpp` replaces a neighbor info interval below 14400 seconds with 21600.
+MIN_NEIGHBOR_INFO_INTERVAL_SECS = 14400
+NEIGHBOR_INFO_INTERVAL_MESSAGE = "The firmware uses at least 14400 seconds (4 hours)."
+# The lowest and the highest value of each number field.
+MODULE_NUMBER_LIMITS = {
+    "serial_rxd": (0, MAX_UINT32),
+    "serial_txd": (0, MAX_UINT32),
+    "serial_timeout": (0, MAX_UINT32),
+    "store_forward_records": (0, MAX_UINT32),
+    "store_forward_history_return_max": (0, MAX_UINT32),
+    "store_forward_history_return_window": (0, MAX_UINT32),
+    "range_test_sender": (0, MAX_UINT32),
+    "ext_notify_output_ms": (0, MAX_UINT32),
+    "ext_notify_output": (0, MAX_UINT32),
+    "ext_notify_output_vibra": (0, MAX_UINT8),
+    "ext_notify_output_buzzer": (0, MAX_UINT8),
+    "neighbor_info_update_interval": (MIN_NEIGHBOR_INFO_INTERVAL_SECS, MAX_UINT32),
+    "detection_sensor_minimum_broadcast_secs": (0, MAX_UINT32),
+    "detection_sensor_state_broadcast_secs": (0, MAX_UINT32),
+    "detection_sensor_monitor_pin": (0, MAX_UINT8),
+    "paxcounter_update_interval": (0, MAX_UINT32),
+    "paxcounter_wifi_threshold": (MIN_INT32, MAX_INT32),
+    "paxcounter_ble_threshold": (MIN_INT32, MAX_INT32),
+}
+# A number field below its lowest value gives this message instead of the range message.
+_BELOW_LIMIT_MESSAGES = {"neighbor_info_update_interval": NEIGHBOR_INFO_INTERVAL_MESSAGE}
+# The value names of each enum field, in proto order. Core 2.6.7 has no newer value, for example `Serial_Mode` MODBUS.
+MODULE_ENUMS = {
+    "serial_baud": (
+        "BAUD_DEFAULT",
+        "BAUD_110",
+        "BAUD_300",
+        "BAUD_600",
+        "BAUD_1200",
+        "BAUD_2400",
+        "BAUD_4800",
+        "BAUD_9600",
+        "BAUD_19200",
+        "BAUD_38400",
+        "BAUD_57600",
+        "BAUD_115200",
+        "BAUD_230400",
+        "BAUD_460800",
+        "BAUD_576000",
+        "BAUD_921600",
+    ),
+    "serial_mode": ("DEFAULT", "SIMPLE", "PROTO", "TEXTMSG", "NMEA", "CALTOPO", "WS85", "VE_DIRECT"),
+    "detection_sensor_trigger_type": (
+        "LOGIC_LOW",
+        "LOGIC_HIGH",
+        "FALLING_EDGE",
+        "RISING_EDGE",
+        "EITHER_EDGE_ACTIVE_LOW",
+        "EITHER_EDGE_ACTIVE_HIGH",
+    ),
+}
+# Upstream `module_config.pb.h` declares `char name[20]`, and nanopb keeps one byte for the null terminator.
+MAX_DETECTION_SENSOR_NAME_BYTES = 19
+MODULE_FIELDS = (*MODULE_BOOL_FIELDS, *MODULE_NUMBER_LIMITS, *MODULE_ENUMS, "detection_sensor_name")
+
+
 def _check_role(value: str | None) -> str | None:
     """Return an offered role with its C prefix, and reject a router role with the router-role message."""
     if value and value.removeprefix(meshtastic_enums.ROLES.c_prefix) in meshtastic_enums.ROUTER_ROLES:
@@ -256,6 +349,54 @@ class ConfigRequest(_UserPrefsFields):
     mesh_beacon_target_3_preset: str | None = None
     mesh_beacon_target_3_region: str | None = None
 
+    # Module settings. The generator writes no userPrefs key for them.
+    serial_enabled: str | None = None
+    serial_echo: str | None = None
+    serial_rxd: str | None = None
+    serial_txd: str | None = None
+    serial_baud: str | None = None
+    serial_timeout: str | None = None
+    serial_mode: str | None = None
+    serial_override_console_serial_port: str | None = None
+    store_forward_enabled: str | None = None
+    store_forward_heartbeat: str | None = None
+    store_forward_records: str | None = None
+    store_forward_history_return_max: str | None = None
+    store_forward_history_return_window: str | None = None
+    store_forward_is_server: str | None = None
+    range_test_enabled: str | None = None
+    range_test_sender: str | None = None
+    range_test_save: str | None = None
+    ext_notify_enabled: str | None = None
+    ext_notify_output_ms: str | None = None
+    ext_notify_output: str | None = None
+    ext_notify_output_vibra: str | None = None
+    ext_notify_output_buzzer: str | None = None
+    ext_notify_active: str | None = None
+    ext_notify_alert_message: str | None = None
+    ext_notify_alert_message_vibra: str | None = None
+    ext_notify_alert_message_buzzer: str | None = None
+    ext_notify_alert_bell: str | None = None
+    ext_notify_alert_bell_vibra: str | None = None
+    ext_notify_alert_bell_buzzer: str | None = None
+    ext_notify_use_pwm: str | None = None
+    ext_notify_use_i2s_as_buzzer: str | None = None
+    neighbor_info_enabled: str | None = None
+    neighbor_info_update_interval: str | None = None
+    neighbor_info_transmit_over_lora: str | None = None
+    detection_sensor_enabled: str | None = None
+    detection_sensor_minimum_broadcast_secs: str | None = None
+    detection_sensor_state_broadcast_secs: str | None = None
+    detection_sensor_send_bell: str | None = None
+    detection_sensor_name: str | None = None
+    detection_sensor_monitor_pin: str | None = None
+    detection_sensor_trigger_type: str | None = None
+    detection_sensor_use_pullup: str | None = None
+    paxcounter_enabled: str | None = None
+    paxcounter_update_interval: str | None = None
+    paxcounter_wifi_threshold: str | None = None
+    paxcounter_ble_threshold: str | None = None
+
     # Preview flag
     preview_only: bool = False
 
@@ -324,6 +465,7 @@ class ConfigRequest(_UserPrefsFields):
         "event_block_position",
         "mesh_beacon_listen_enabled",
         "mesh_beacon_broadcast_enabled",
+        *MODULE_BOOL_FIELDS,
     )
     @classmethod
     def _check_true_or_false(cls, value: str | None) -> str | None:
@@ -430,6 +572,37 @@ class ConfigRequest(_UserPrefsFields):
         # The protobufs number the frequency slot from 1, and slot 0 means unset.
         if value and not (_is_whole_number(value) and int(value) >= 1):
             raise ValueError("the frequency slot is not a whole number of 1 or more")
+        return value
+
+    @field_validator(*MODULE_NUMBER_LIMITS)
+    @classmethod
+    def _check_module_number(cls, value: str | None, info: ValidationInfo) -> str | None:
+        """Accept a whole number in the range of the proto type of the field, with a minus sign if the range has one."""
+        if not value:
+            return value
+        low, high = MODULE_NUMBER_LIMITS[info.field_name]
+        digits = value.removeprefix("-") if low < 0 else value
+        if not _is_whole_number(digits):
+            raise ValueError(f"the value is not a whole number from {low} to {high}")
+        if int(value) < low and info.field_name in _BELOW_LIMIT_MESSAGES:
+            raise ValueError(_BELOW_LIMIT_MESSAGES[info.field_name])
+        if not low <= int(value) <= high:
+            raise ValueError(f"the value is not a whole number from {low} to {high}")
+        return value
+
+    @field_validator(*MODULE_ENUMS)
+    @classmethod
+    def _check_module_enum(cls, value: str | None, info: ValidationInfo) -> str | None:
+        # Push config gives the value name to `@meshtastic/core` 2.6.7, which knows only the names of its version.
+        if value and value not in MODULE_ENUMS[info.field_name]:
+            raise ValueError(f"the value is not one of {', '.join(MODULE_ENUMS[info.field_name])}")
+        return value
+
+    @field_validator("detection_sensor_name")
+    @classmethod
+    def _check_detection_sensor_name(cls, value: str | None) -> str | None:
+        if value and len(value.encode("utf-8")) > MAX_DETECTION_SENSOR_NAME_BYTES:
+            raise ValueError(f"the detection sensor name is longer than {MAX_DETECTION_SENSOR_NAME_BYTES} bytes")
         return value
 
     @field_validator("channels_to_write")

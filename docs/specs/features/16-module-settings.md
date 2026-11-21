@@ -48,7 +48,9 @@ Owner rulings on #182 (2026-11-21):
 - FR-module-settings-5 — `ConfigRequest` validates each new field. A boolean is "true" or
   "false". An unsigned number is a whole number in the range of its proto type. A
   Paxcounter threshold is a whole number in the int32 range, and it can be negative. An enum is a name of its proto
-  enum in `@meshtastic/core` 2.6.7. The detection sensor name has at most 20 bytes.
+  enum in `@meshtastic/core` 2.6.7. The detection sensor name has at most 19 bytes.
+  Firmware `module_config.pb.h` declares `char name[20]`, and nanopb keeps one byte of it
+  for the null terminator.
 - FR-module-settings-6 — The generator writes no userPrefs key for a new field. The
   contract test lists the new fields as fields that write no userPrefs key.
 - FR-module-settings-7 — A profile saves and loads the new fields as it does the other
@@ -148,7 +150,7 @@ The fields below are from the `ModuleConfig` descriptor in the vendored
 | Detection sensor | `detection_sensor_minimum_broadcast_secs` | `minimum_broadcast_secs` | uint32 | |
 | Detection sensor | `detection_sensor_state_broadcast_secs` | `state_broadcast_secs` | uint32 | |
 | Detection sensor | `detection_sensor_send_bell` | `send_bell` | bool | |
-| Detection sensor | `detection_sensor_name` | `name` | string, ≤ 20 bytes | |
+| Detection sensor | `detection_sensor_name` | `name` | string, ≤ 19 bytes | |
 | Detection sensor | `detection_sensor_monitor_pin` | `monitor_pin` | uint32 | HW |
 | Detection sensor | `detection_sensor_trigger_type` | `detection_trigger_type` | enum `TriggerType` | |
 | Detection sensor | `detection_sensor_use_pullup` | `use_pullup` | bool | HW |

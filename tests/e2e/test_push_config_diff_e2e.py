@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 import pytest
 from playwright.sync_api import Page, expect
 
-from mtfwbuilder.models import ChannelConfig, ConfigRequest
+from mtfwbuilder.models import MODULE_FIELDS, ChannelConfig, ConfigRequest
 from tests.conftest import ADMIN_PASSWORD
 from tests.e2e.test_push_config_e2e import FAKE_DEVICE, SET_CALLS, device_calls, open_push_config
 
@@ -452,6 +452,8 @@ def test_every_profile_form_field_is_mapped_not_pushed_or_a_form_switch(table_pa
     tables = table_page.evaluate(TABLES_JS)
     channel_forms = {f"channel_{n}[{name}]" for n in range(8) for name in ChannelConfig.model_fields}
     plain = set(ConfigRequest.model_fields) - {f"channel_{n}" for n in range(8)} - {"preview_only"}
+    # TODO(#191): Remove this line when `FIELD_MAP` maps the module fields.
+    plain -= set(MODULE_FIELDS)
 
     assert set(tables["mapped"]).isdisjoint(tables["notPushed"])
     assert set(tables["mapped"]) | set(tables["notPushed"]) | FORM_SWITCHES == plain | channel_forms

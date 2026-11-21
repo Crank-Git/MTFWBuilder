@@ -212,7 +212,7 @@ body.rv-open .layout { padding-right:21rem; }
 <li>FR-module-settings-5 — <code>ConfigRequest</code> validates each new field. A boolean is "true" or
 </li>
 </ul>
-<p>"false". An unsigned number is a whole number in the range of its proto type. A Paxcounter threshold is a whole number in the int32 range, and it can be negative. An enum is a name of its proto enum in <code>@meshtastic/core</code> 2.6.7. The detection sensor name has at most 20 bytes.</p>
+<p>"false". An unsigned number is a whole number in the range of its proto type. A Paxcounter threshold is a whole number in the int32 range, and it can be negative. An enum is a name of its proto enum in <code>@meshtastic/core</code> 2.6.7. The detection sensor name has at most 19 bytes. Firmware <code>module_config.pb.h</code> declares <code>char name[20]</code>, and nanopb keeps one byte of it for the null terminator.</p>
 <ul>
 <li>FR-module-settings-6 — The generator writes no userPrefs key for a new field. The
 </li>
@@ -332,7 +332,7 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><td>Detection sensor</td><td><code>detection_sensor_minimum_broadcast_secs</code></td><td><code>minimum_broadcast_secs</code></td><td>uint32</td><td></td></tr>
 <tr><td>Detection sensor</td><td><code>detection_sensor_state_broadcast_secs</code></td><td><code>state_broadcast_secs</code></td><td>uint32</td><td></td></tr>
 <tr><td>Detection sensor</td><td><code>detection_sensor_send_bell</code></td><td><code>send_bell</code></td><td>bool</td><td></td></tr>
-<tr><td>Detection sensor</td><td><code>detection_sensor_name</code></td><td><code>name</code></td><td>string, ≤ 20 bytes</td><td></td></tr>
+<tr><td>Detection sensor</td><td><code>detection_sensor_name</code></td><td><code>name</code></td><td>string, ≤ 19 bytes</td><td></td></tr>
 <tr><td>Detection sensor</td><td><code>detection_sensor_monitor_pin</code></td><td><code>monitor_pin</code></td><td>uint32</td><td>HW</td></tr>
 <tr><td>Detection sensor</td><td><code>detection_sensor_trigger_type</code></td><td><code>detection_trigger_type</code></td><td>enum <code>TriggerType</code></td><td></td></tr>
 <tr><td>Detection sensor</td><td><code>detection_sensor_use_pullup</code></td><td><code>use_pullup</code></td><td>bool</td><td>HW</td></tr>
