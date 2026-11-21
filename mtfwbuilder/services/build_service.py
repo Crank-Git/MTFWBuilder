@@ -200,8 +200,8 @@ def worker_firmware_source(settings: Settings, worker: int) -> Path:
     """Return the firmware source that build worker `worker` builds in.
 
     Build worker 0 builds in the firmware source itself. Each other build worker builds in a copy at
-    `<firmware_dir>/.worker-<worker>/`. The copy is made on first use and again when the firmware version
-    changes. A copy without its version file is incomplete, so it is made again.
+    `<firmware_dir>/.worker-<worker>/`. The function makes the copy on first use, and again when the firmware
+    version changes. A copy without its version file is incomplete, so the function makes it again.
     """
     source = settings.firmware_dir
     if worker == 0:
@@ -212,28 +212,21 @@ def worker_firmware_source(settings: Settings, worker: int) -> Path:
     version_file = copy / COPY_VERSION_FILE
     if version_file.exists() and version_file.read_text() == version:
         return copy
-    if copy.exists():
-        shutil.rmtree(copy)
-    shutil.copytree(source, copy, symlinks=True, ignore=_copy_ignore(source))
-    version_file.write_text(version)
-    logger.info(f"Copied the firmware source for build worker {worker}")
-    return copy
 
-
-def _copy_ignore(source: Path) -> Callable[[str, list[str]], set[str]]:
-    """Return the `copytree` filter that leaves out the files of a running build and the other copies.
-
-    Build worker 0 can build in the source during the copy, so its userPrefs file and object files hold secrets.
-    """
-
-    def ignore(directory: str, names: list[str]) -> set[str]:
+    def running_build_files(directory: str, names: list[str]) -> set[str]:
+        # Build worker 0 can build in the source during the copy, so its userPrefs file and object files hold secrets.
         if Path(directory) == source:
             return {n for n in names if n == "userPrefs.jsonc" or n.startswith(".worker-")}
         if Path(directory) == source / ".pio":
             return {n for n in names if n in ("build", "build_cache")}
         return set()
 
-    return ignore
+    if copy.exists():
+        shutil.rmtree(copy)
+    shutil.copytree(source, copy, symlinks=True, ignore=running_build_files)
+    version_file.write_text(version)
+    logger.info(f"Copied the firmware source for build worker {worker}")
+    return copy
 
 
 class BuildQueue:
