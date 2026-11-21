@@ -277,7 +277,7 @@ startup. No code reads or writes them.
 | Entity | Fields | Notes |
 |---|---|---|
 | `builds` | `id` TEXT PK, `variant`, `architecture`, `firmware_format` TEXT NOT NULL, `status` TEXT NOT NULL default `queued`, `firmware_path`, `build_log`, `error_message` TEXT, `created_at` default now, `completed_at` | Unused. Builds live in memory (`app.state.active_builds`). |
-| `config_profiles` | `id` INTEGER PK, `name` TEXT NOT NULL, `config_json` TEXT NOT NULL, `created_at`, `updated_at` | Unused. `name` is not unique. |
+| `config_profiles` | `id` INTEGER PK, `name` TEXT NOT NULL, `config_json` TEXT NOT NULL, `created_at`, `updated_at` | Unused. `name` is not unique. Since Epic 10 (#61), `init_db` drops it, and the `profiles` table replaces it. |
 
 The registry was a YAML file at the inherit (`devices/variants.yaml`, 150 entries). Since Epic 6 (#145) it is the `variants` table, generated per firmware version.
 
@@ -289,7 +289,7 @@ The registry was a YAML file at the inherit (`devices/variants.yaml`, 150 entrie
 | VARIANT | generated-registry | `env` + `version` PK, `display_name`, `manufacturer`, `architecture`, `support_level`, `hw_model`, `image`, `requires_dfu` | regenerated when a firmware source becomes ready |
 | BUILD | build-pipeline-repair | `id` (random, 128-bit), `version`, `variant`, `status`, `config_hash`, `created_at`, `completed_at`, `error_message`, `fleet_run_id` | queued → compiling → linking → packaging → complete / failed / cancelled → expired |
 | CACHE_ENTRY | fleet-builds | `config_hash` PK, `artifact_paths`, `created_at`, `last_used_at` | created on complete, removed by TTL |
-| PROFILE | fleet-builds | `id`, `name` UNIQUE, `config_json` without secrets, `created_at`, `updated_at` | created → updated → deleted |
+| PROFILE | fleet-builds | `id`, `name` UNIQUE, `config_json` without secrets, `must_reenter_json`, `stores_secrets`, `created_at`, `updated_at` | created → updated → deleted |
 | FLEET | fleet-builds | `id`, `name`, `profile_id` | created → deleted |
 | FLEET_DEVICE | fleet-builds | `id`, `fleet_id`, `label`, `variant`, `long_name`, `short_name`, `role`, `fixed_lat`, `fixed_lon`, `fixed_alt`, `admin_key` | created → deleted |
 | FLEET_RUN | fleet-builds | `id`, `fleet_id`, `version`, `status`, `created_at` | queued → running → complete / partial / failed |

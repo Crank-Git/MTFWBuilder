@@ -25,10 +25,12 @@ CREATE TABLE IF NOT EXISTS builds (
     firmware_version TEXT
 );
 
-CREATE TABLE IF NOT EXISTS config_profiles (
+CREATE TABLE IF NOT EXISTS profiles (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
+    name TEXT NOT NULL UNIQUE,
     config_json TEXT NOT NULL,
+    must_reenter_json TEXT NOT NULL,
+    stores_secrets INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -63,6 +65,9 @@ CREATE TABLE IF NOT EXISTS variants (
 CREATE INDEX IF NOT EXISTS idx_builds_status ON builds(status);
 CREATE INDEX IF NOT EXISTS idx_builds_created ON builds(created_at);
 """
+
+# Migration for feature fleet-builds: `profiles` replaces `config_profiles`, which no code wrote, so it holds no rows.
+DROP_CONFIG_PROFILES = "DROP TABLE IF EXISTS config_profiles"
 
 # `CREATE TABLE IF NOT EXISTS` does not change a table that exists, so an older database gets these columns here.
 ADDED_BUILD_COLUMNS = {"config_hash": "TEXT", "firmware_version": "TEXT"}
@@ -114,9 +119,10 @@ def _default_order(record: dict) -> tuple:
 
 
 async def init_db(settings: Settings) -> None:
-    """Create the tables, and add the columns that an older database does not have."""
+    """Create the tables, drop the unused `config_profiles` table, and add the columns that an old database lacks."""
     async with aiosqlite.connect(settings.database_path) as db:
         await db.executescript(SCHEMA)
+        await db.execute(DROP_CONFIG_PROFILES)
         cursor = await db.execute("PRAGMA table_info(builds)")
         columns = {row[1] for row in await cursor.fetchall()}
         for name, sql_type in ADDED_BUILD_COLUMNS.items():

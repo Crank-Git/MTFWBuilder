@@ -108,7 +108,7 @@ MTFWBuilder/
 │   ├── main.py                     # App factory, lifespan, middleware
 │   ├── config.py                   # Settings (config.yaml, then MTFW_* env vars)
 │   ├── auth.py                     # Bcrypt + signed cookie sessions
-│   ├── database.py                 # SQLite (build history, config profiles, firmware sources)
+│   ├── database.py                 # SQLite (build history, profiles, firmware sources)
 │   ├── models.py                   # Pydantic request/response validation
 │   ├── rate_limit.py               # slowapi rate limiting
 │   ├── routers/
@@ -116,6 +116,7 @@ MTFWBuilder/
 │   │   ├── firmware_builder.py     # /api/v1/build-firmware, SSE progress
 │   │   ├── firmware.py             # /api/v1/firmware, installed and upstream firmware versions
 │   │   ├── variants.py             # /api/v1/variants, registry of a firmware version, device images
+│   │   ├── profiles.py             # /api/v1/profiles, saved configs without secrets
 │   │   ├── admin.py                # Login, firmware updates, cleanup
 │   │   └── pages.py                # HTML page routes
 │   └── services/
@@ -124,6 +125,7 @@ MTFWBuilder/
 │       ├── registry_generator.py   # Registry of a firmware source, from its PlatformIO config
 │       ├── firmware_updater.py     # GitHub firmware source downloads
 │       ├── firmware_catalog.py     # Upstream stable and alpha firmware versions
+│       ├── profiles.py             # Profile records, secret removal on save
 │       └── cleanup_service.py      # Build artifact and PSK cleanup
 ├── templates/                      # Jinja2 templates (htmx planned)
 ├── static/                         # CSS, JS
@@ -139,7 +141,7 @@ MTFWBuilder/
 | Backend | FastAPI + uvicorn | Async builds, WebSocket-ready, auto OpenAPI docs |
 | Frontend | Jinja2 + Bootstrap 5 (htmx planned) | Dynamic UI without a JS build pipeline |
 | Build Progress | Server-Sent Events (SSE) | One-way progress, proxy-friendly. The build page does not open it yet. |
-| Database | SQLite (aiosqlite) | Zero-config. Build history and profiles are planned. |
+| Database | SQLite (aiosqlite) | Zero-config. Holds build records, firmware sources, the registry and profiles. |
 | Auth | bcrypt + itsdangerous | Hashed passwords, signed cookie sessions |
 | Device Registry | YAML | Human-readable, git-diffable, easy to contribute |
 | Build System | PlatformIO | Industry standard for embedded firmware |
@@ -190,6 +192,20 @@ Key endpoints:
   list of the build page as HTML, grouped by manufacturer.
 - `GET /api/v1/variants/{env}/image?version=` — The SVG or PNG device image from the firmware source.
   Returns 404 when the firmware source does not hold the image file named in `custom_meshtastic_images`.
+- `GET /api/v1/profiles` — Every profile in name order. A profile has `id`, `name`, `config`,
+  `must_reenter`, `stores_secrets`, `created_at` and `updated_at`.
+- `POST /api/v1/profiles` — Save `{"name": "<name>", "config": {...}}` as a profile. Returns 201 with the
+  profile, and 409 when another profile has the name. The save removes each secret: the channel PSKs,
+  the WiFi PSK, the MQTT password, the admin keys and the mesh beacon offer PSK. `must_reenter` names
+  each removed field.
+- `GET /api/v1/profiles/{id}` — The profile. Returns 404 for an unknown profile.
+- `PUT /api/v1/profiles/{id}` — Rename with `{"name": ...}`, replace the config with `{"config": {...}}`,
+  or both. Returns 409 when another profile has the new name.
+- `DELETE /api/v1/profiles/{id}` — Delete the profile. Returns 204.
+- `GET /api/v1/profiles/{id}/export` — The profile as a JSON file with `name`, `config` and
+  `must_reenter`, without secrets.
+
+Each operator of the instance uses each profile. The profile routes need no admin session.
 
 Each admin POST and DELETE requires the CSRF token. A form sends it in the field `csrf_token`.
 A JSON request and a DELETE request send it in the header `X-CSRF-Token`. Without a valid token,
