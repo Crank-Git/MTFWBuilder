@@ -581,6 +581,42 @@ class Fleet(BaseModel):
     updated_at: str
 
 
+class FleetRunRequest(BaseModel):
+    """The body of `POST /api/v1/fleets/{id}/runs` and of the retry: the "must re-enter" secrets of the profile.
+
+    Each key is a name from `must_reenter` of the profile, for example `channel_0[psk]`. The project holds the
+    secrets in memory for the fleet run only.
+    """
+
+    secrets: dict[str, str] = {}
+
+
+class FleetRunDevice(BaseModel):
+    """One fleet device of a fleet run with its build status (FR-fleet-builds-16).
+
+    `build_id` is None until the fleet run gives the fleet device to the build queue. `label` and `variant` are None
+    when the fleet device is no longer in the fleet.
+    """
+
+    fleet_device_id: int
+    label: str | None
+    variant: str | None
+    build_id: str | None
+    status: str
+    error: str | None
+
+
+class FleetRun(BaseModel):
+    """A fleet run: `running`, `complete`, `partial` (a fleet device has no complete build) or `failed` (none has)."""
+
+    id: int
+    fleet_id: int
+    firmware_version: str | None
+    status: Literal["running", "complete", "partial", "failed"]
+    created_at: str
+    devices: list[FleetRunDevice]
+
+
 class BuildRequest(BaseModel):
     """Request to build firmware."""
 

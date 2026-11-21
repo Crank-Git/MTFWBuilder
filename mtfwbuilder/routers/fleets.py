@@ -1,10 +1,20 @@
-"""Fleet API routes: create, list, load, change and delete a fleet (feature fleet-builds, FR 10, 11 and 14)."""
+"""Fleet API routes: fleets (feature fleet-builds, FR 10, 11 and 14) and fleet runs (FR 15 to 18)."""
 
 from fastapi import APIRouter, HTTPException, Request, Response
 
-from mtfwbuilder.models import Fleet, FleetCsv, FleetDevice, FleetDeviceRows, FleetRequest, FleetUpdate
+from mtfwbuilder.models import (
+    Fleet,
+    FleetCsv,
+    FleetDevice,
+    FleetDeviceRows,
+    FleetRequest,
+    FleetRun,
+    FleetRunRequest,
+    FleetUpdate,
+)
 from mtfwbuilder.routers.profiles import NO_STORE, is_admin
 from mtfwbuilder.services import fleets
+from mtfwbuilder.services.fleet_runs import FleetNotFound, FleetRunConflict, FleetRunNotFound
 
 router = APIRouter(prefix="/api/v1", tags=["fleets"])
 
@@ -145,3 +155,66 @@ async def delete_fleet(fleet_id: int, request: Request) -> Response:
     if not await fleets.delete_fleet(request.app.state.settings.database_path, fleet_id):
         raise _not_found(fleet_id)
     return Response(status_code=204)
+
+
+def _run_not_found(run_id: int) -> HTTPException:
+    return HTTPException(status_code=404, detail=f"Fleet run {run_id} does not exist")
+
+
+def _accepted(run_id: int) -> dict:
+    return {"run_id": run_id, "progress_url": f"/api/v1/fleet-runs/{run_id}"}
+
+
+def _profile_secret_key(request: Request) -> str | None:
+    """Return `secret_key` for an admin session, so only an admin session builds with stored secrets (ADR 0007)."""
+    return request.app.state.settings.secret_key if is_admin(request) else None
+
+
+@router.post("/fleets/{fleet_id}/runs", status_code=202)
+async def post_fleet_run(fleet_id: int, request: Request, body: FleetRunRequest | None = None) -> dict:
+    """Start a fleet run that makes one build per fleet device (FR-fleet-builds-15), and return its URL.
+
+    The body holds each "must re-enter" secret of the profile once, for the whole fleet run. Returns:
+
+    - 404 when no fleet has the id.
+    - 422 with field errors, before a build starts, in these cases:
+      - a "must re-enter" secret is missing, or the profile does not ask for a secret of the body.
+      - a fleet device has no variant, or a variant that is not in the firmware version.
+      - a fleet device or the profile gives a config that is not valid.
+      - the firmware version is not installed, or the fleet holds no fleet device.
+    """
+    secrets = body.secrets if body else {}
+    try:
+        run_id = await request.app.state.fleet_runs.start(fleet_id, _profile_secret_key(request), secrets)
+    except FleetNotFound as e:
+        raise _not_found(fleet_id) from e
+    return _accepted(run_id)
+
+
+@router.get("/fleet-runs/{run_id}", response_model=FleetRun)
+async def get_fleet_run(run_id: int, request: Request):
+    """Return the fleet run with the build status of each fleet device, or 404 when no fleet run has the id."""
+    run = await request.app.state.fleet_runs.get(run_id)
+    if run is None:
+        raise _run_not_found(run_id)
+    return run
+
+
+@router.post("/fleet-runs/{run_id}/retry", status_code=202)
+async def retry_fleet_run(run_id: int, request: Request, body: FleetRunRequest | None = None) -> dict:
+    """Give each fleet device of the fleet run without a complete build to the build queue again (FR-fleet-builds-18).
+
+    After a restart, the process holds no secrets of the fleet run, so the body gives them again. Returns:
+
+    - 404 when no fleet run has the id.
+    - 409 when the fleet run runs, has no failed fleet device, or its fleet devices changed.
+    - 422 for the errors of `POST /api/v1/fleets/{id}/runs`.
+    """
+    secrets = body.secrets if body else {}
+    try:
+        await request.app.state.fleet_runs.retry(run_id, _profile_secret_key(request), secrets)
+    except FleetRunNotFound as e:
+        raise _run_not_found(run_id) from e
+    except FleetRunConflict as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    return _accepted(run_id)
