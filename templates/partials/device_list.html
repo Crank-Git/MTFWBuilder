@@ -1,0 +1,41 @@
+{# The device picker list of one firmware version, which GET /api/v1/variants sends to an htmx request. #}
+{% if source is none %}
+<p class="text-body-secondary mb-0">No firmware version is installed.</p>
+{% elif source.status == "registry failed" %}
+<div class="alert alert-danger mb-0" role="alert">The device list for {{ source.version }} failed to load. An admin must reinstall it.</div>
+{% else %}
+<fieldset class="mb-2">
+    <legend class="form-label small mb-1">Architecture</legend>
+    {% for architecture in architectures %}
+    <input type="checkbox" class="btn-check" id="device-arch-{{ architecture }}" name="arch" value="{{ architecture }}" autocomplete="off"{% if architecture in arch %} checked{% endif %}>
+    <label class="btn btn-sm btn-outline-success rounded-pill mb-1" for="device-arch-{{ architecture }}">{{ architecture }}</label>
+    {% endfor %}
+</fieldset>
+{% for manufacturer, variants in manufacturers.items() %}
+<section class="mb-2" data-manufacturer="{{ manufacturer }}">
+    <h4 class="fs-6 mb-1">{{ manufacturer }}</h4>
+    <div class="list-group">
+        {% for variant in variants %}
+        <button type="button" class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-env="{{ variant.env }}" aria-pressed="false">
+            {% if variant.image_url %}
+            <img class="device-image" src="{{ variant.image_url }}" alt="" width="40" height="40">
+            {% else %}
+            <span class="device-image device-image-placeholder" aria-hidden="true"><i class="bi bi-cpu"></i></span>
+            {% endif %}
+            <span class="flex-grow-1">
+                <span class="fw-semibold">{{ variant.display_name }}</span> <code>{{ variant.env }}</code><br>
+                <small class="text-body-secondary">{{ variant.architecture }}</small>
+            </span>
+            {% if not variant.actively_supported %}
+            <span class="badge rounded-pill text-bg-warning">Not actively supported</span>
+            {% endif %}
+            <span class="badge rounded-pill support-{{ variant.support_level }}">{{ variant.support_level }}</span>
+        </button>
+        {% endfor %}
+    </div>
+</section>
+{% else %}
+<p class="mb-1">{% if q %}No device matches '{{ q }}'.{% else %}No device matches the filters.{% endif %}</p>
+<button type="button" class="btn btn-sm btn-outline-secondary" id="device-clear">Clear</button>
+{% endfor %}
+{% endif %}
