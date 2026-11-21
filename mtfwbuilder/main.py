@@ -13,7 +13,7 @@ from slowapi.errors import RateLimitExceeded
 
 from mtfwbuilder.config import load_settings
 from mtfwbuilder.database import init_db
-from mtfwbuilder.rate_limit import limiter
+from mtfwbuilder.rate_limit import configure_rate_limits, limiter
 from mtfwbuilder.routers.admin import router as admin_router
 from mtfwbuilder.routers.config_generator import router as config_router
 from mtfwbuilder.routers.firmware_builder import router as firmware_router
@@ -51,6 +51,7 @@ async def lifespan(app: FastAPI):
     """Application startup and shutdown."""
     settings = load_settings()
     app.state.settings = settings
+    configure_rate_limits(settings)
 
     # Logging
     setup_logging(settings.log_level, settings.log_json)

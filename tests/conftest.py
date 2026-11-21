@@ -8,6 +8,7 @@ import yaml
 
 from mtfwbuilder.config import _hash_password, load_settings
 from mtfwbuilder.main import create_app
+from mtfwbuilder.rate_limit import configure_rate_limits
 from mtfwbuilder.services.build_service import init_build_system
 from mtfwbuilder.services.device_registry import DeviceRegistry
 
@@ -66,6 +67,7 @@ def app(settings):
     """Return an app with the lifespan state, built from the `settings` fixture."""
     app = create_app()
     app.state.settings = settings
+    configure_rate_limits(settings)
     app.state.device_registry = DeviceRegistry(settings.devices_file)
     init_build_system(settings)
     app.state.active_builds = {}

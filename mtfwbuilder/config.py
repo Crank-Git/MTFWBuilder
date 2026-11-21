@@ -6,10 +6,12 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
+from typing import Annotated
 
 import bcrypt
 import yaml
-from pydantic_settings import BaseSettings
+from pydantic import IPvAnyNetwork, field_validator
+from pydantic_settings import BaseSettings, NoDecode
 
 logger = logging.getLogger("mtfwbuilder")
 
@@ -24,9 +26,6 @@ class DataDirError(RuntimeError):
 class Settings(BaseSettings):
     """Application settings loaded from config.yaml and environment variables."""
 
-    # Server
-    host: str = "0.0.0.0"
-    port: int = 5000
     debug: bool = False
 
     # Paths
@@ -53,12 +52,21 @@ class Settings(BaseSettings):
     # Rate limiting
     build_rate_limit: str = "5/minute"
     login_rate_limit: str = "10/minute"
+    trusted_proxies: Annotated[list[IPvAnyNetwork], NoDecode] = []
 
     # Logging
     log_level: str = "INFO"
     log_json: bool = False
 
     model_config = {"env_prefix": "MTFW_"}
+
+    @field_validator("trusted_proxies", mode="before")
+    @classmethod
+    def _split_proxy_list(cls, value):
+        # An operator writes MTFW_TRUSTED_PROXIES as a comma-separated list, not as JSON.
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
 
     def model_post_init(self, __context) -> None:
         if self.data_dir is None:

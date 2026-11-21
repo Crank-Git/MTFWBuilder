@@ -24,10 +24,9 @@ Settings read `config.yaml` first, then `MTFW_<FIELD>` environment variables
 | `MTFW_ADMIN_PASSWORD_HASH` | Admin bcrypt hash | built |
 | `MTFW_SECRET_KEY` | Session and CSRF signing key | built |
 | `MTFW_SESSION_MAX_AGE` | Session length | built |
-| `MTFW_BUILD_RATE_LIMIT`, `MTFW_LOGIN_RATE_LIMIT` | Rate limits | built (unused); used by feature 08 |
-| `MTFW_HOST`, `MTFW_PORT` | Not read | removed by feature 08 |
+| `MTFW_BUILD_RATE_LIMIT`, `MTFW_LOGIN_RATE_LIMIT` | Rate limits of the build route and the login route, in slowapi notation (`5/minute`) | built |
 | `MTFW_DATA_DIR` | Data directory. Holds firmware sources, artifacts, the database and `config.yaml`. Default `data/` in the project root, `/data` in Docker. | built |
-| `MTFW_TRUSTED_PROXIES` | Proxies whose `X-Forwarded-For` is trusted | planned, feature 08 |
+| `MTFW_TRUSTED_PROXIES` | Comma-separated addresses or subnets of the proxies whose `X-Forwarded-For` the rate limiter reads. Default empty: the limiter counts the peer address. | built |
 | `MTFW_BUILD_WORKERS` | Number of build workers | planned, feature 06 |
 | `MTFW_INSTALL_TIMEOUT_SECONDS` | Firmware install timeout | planned, feature 09 |
 | `MTFW_CACHE_ENABLED`, `MTFW_CACHE_TTL_SECONDS` | Build cache | planned, feature 14 |

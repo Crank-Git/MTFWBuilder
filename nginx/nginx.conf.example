@@ -7,9 +7,11 @@ http {
         server mtfwbuilder:5000;
     }
 
+    # The app counts requests per X-Forwarded-For client only when MTFW_TRUSTED_PROXIES lists this nginx.
+    # Set MTFW_TRUSTED_PROXIES to the address or the subnet of nginx, for example the Docker network subnet.
+
     # Rate limiting
     limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
-    limit_req_zone $binary_remote_addr zone=download:10m rate=2r/s;
 
     # Security headers
     add_header X-Frame-Options DENY;
@@ -54,17 +56,20 @@ http {
             proxy_set_header X-Forwarded-Proto $scheme;
         }
 
-        location /download/ {
-            limit_req zone=download burst=5 nodelay;
+        # Build progress stream (server-sent events)
+        # nginx closes a connection after proxy_read_timeout with no data, and a build can run for many minutes.
+        location /api/v1/build-progress/ {
             proxy_pass http://mtfwbuilder;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
-            
-            # Longer timeout for firmware builds
-            proxy_read_timeout 300s;
-            proxy_connect_timeout 75s;
+
+            # A buffered event reaches the browser only when the buffer fills or the build ends.
+            proxy_buffering off;
+            proxy_read_timeout 1h;
+            proxy_http_version 1.1;
+            proxy_set_header Connection "";
         }
 
         # Main application
@@ -95,7 +100,7 @@ http {
         }
 
         # Health check
-        location /health {
+        location = /healthz {
             access_log off;
             proxy_pass http://mtfwbuilder;
         }
