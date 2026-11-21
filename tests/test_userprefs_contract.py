@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from mtfwbuilder.models import CHANNEL_SLOTS, ChannelConfig, ConfigRequest
-from mtfwbuilder.services.jsonc_generator import generate_jsonc
+from mtfwbuilder.services.jsonc_generator import KEYS_NOT_IN_V2_7_26, generate_jsonc
 from mtfwbuilder.services.userprefs_keys import read_keys
 
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "firmware"
@@ -70,6 +70,20 @@ def full_config() -> dict[str, str]:
         "button_pin": "36",
         "button_pin_enabled": "true",
         "event_mode": "1",
+        "telemetry_device_interval": "900",
+        "telemetry_environment_enabled": "true",
+        "telemetry_environment_interval": "900",
+        "telemetry_environment_screen_enabled": "true",
+        "telemetry_air_quality_enabled": "true",
+        "telemetry_air_quality_screen_enabled": "true",
+        "telemetry_air_quality_interval": "900",
+        "security_is_managed": "true",
+        "security_packet_signature_policy": "PACKET_SIGNATURE_POLICY_BALANCED",
+        "event_mode_hop_limit": "3",
+        "event_block_position": "true",
+        "canned_messages": "Hi\nBye",
+        "ringtone_rtttl": "24:d=32,o=5,b=565:f6,p,f6",
+        "ringtone_nag_secs": "60",
     }
     for slot in range(CHANNEL_SLOTS):
         data[f"channel_{slot}[name]"] = f"Chan{slot}"
@@ -101,6 +115,11 @@ def test_full_config_sets_every_request_field():
 
 def test_generator_writes_only_keys_the_firmware_reads():
     assert_firmware_reads(written_keys(full_config()))
+
+
+def test_generator_leaves_out_only_keys_that_the_fixture_firmware_does_not_read():
+    # A key in the set that the fixture reads means the fixture moved to a newer version, and the set is stale.
+    assert not KEYS_NOT_IN_V2_7_26 & read_keys(FIXTURE_DIR)
 
 
 def test_contract_fails_on_the_device_name_key():

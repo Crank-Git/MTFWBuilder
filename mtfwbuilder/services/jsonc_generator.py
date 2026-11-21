@@ -15,9 +15,49 @@ ADMIN_KEY_SLOTS = 3
 # Upstream `src/mesh/Channels.cpp` reads `USERPREFS_CHANNEL_<n>_*` keys for channels 0 to 2 only.
 FIRMWARE_CHANNEL_SLOTS = 3
 
+# Firmware v2.7.26 reads none of these keys. Upstream `develop` reads them (commit `fe89ac1`, 2026-11-21).
+# TODO(#46): Replace this set with the keys that the chosen firmware version does not read.
+KEYS_NOT_IN_V2_7_26 = frozenset(
+    {
+        "USERPREFS_CONFIG_ENVIRONMENT_MEASUREMENT_ENABLED",
+        "USERPREFS_CONFIG_ENV_TELEM_UPDATE_INTERVAL",
+        "USERPREFS_CONFIG_ENV_SCREEN_SCREEN_ENABLED",
+        "USERPREFS_CONFIG_AQ_MEASUREMENT_ENABLED",
+        "USERPREFS_CONFIG_AQ_SCREEN_ENABLED",
+        "USERPREFS_CONFIG_AQ_TELEM_UPDATE_INTERVAL",
+        "USERPREFS_CONFIG_SECURITY_IS_MANAGED",
+        "USERPREFS_CONFIG_SECURITY_PACKET_SIGNATURE_POLICY",
+        "USERPREFS_EVENT_MODE_HOP_LIMIT",
+        "USERPREFS_BLOCK_POSITION_ON_EVENT_CHANNEL",
+        "USERPREFS_CANNED_MESSAGES",
+    }
+)
 
-def generate_jsonc(config_data: dict[str, Any]) -> str:
-    """Generate a userPrefs.jsonc string from form data."""
+# Each form field that the generator writes unchanged, with its userPrefs key.
+_TELEMETRY_SECURITY_EVENT_KEYS = {
+    "telemetry_device_interval": "USERPREFS_CONFIG_DEVICE_TELEM_UPDATE_INTERVAL",
+    "telemetry_environment_enabled": "USERPREFS_CONFIG_ENVIRONMENT_MEASUREMENT_ENABLED",
+    "telemetry_environment_interval": "USERPREFS_CONFIG_ENV_TELEM_UPDATE_INTERVAL",
+    "telemetry_environment_screen_enabled": "USERPREFS_CONFIG_ENV_SCREEN_SCREEN_ENABLED",
+    "telemetry_air_quality_enabled": "USERPREFS_CONFIG_AQ_MEASUREMENT_ENABLED",
+    "telemetry_air_quality_screen_enabled": "USERPREFS_CONFIG_AQ_SCREEN_ENABLED",
+    "telemetry_air_quality_interval": "USERPREFS_CONFIG_AQ_TELEM_UPDATE_INTERVAL",
+    "security_is_managed": "USERPREFS_CONFIG_SECURITY_IS_MANAGED",
+    "security_packet_signature_policy": "USERPREFS_CONFIG_SECURITY_PACKET_SIGNATURE_POLICY",
+    "event_mode_hop_limit": "USERPREFS_EVENT_MODE_HOP_LIMIT",
+    "event_block_position": "USERPREFS_BLOCK_POSITION_ON_EVENT_CHANNEL",
+    "ringtone_rtttl": "USERPREFS_RINGTONE_RTTTL",
+    "ringtone_nag_secs": "USERPREFS_RINGTONE_NAG_SECS",
+}
+
+
+def generate_jsonc(config_data: dict[str, Any], unread_keys: frozenset[str] = KEYS_NOT_IN_V2_7_26) -> str:
+    """Generate a userPrefs.jsonc string from form data.
+
+    Args:
+        config_data: The flat form data that `ConfigRequest.generator_input` returns.
+        unread_keys: The keys that the firmware version does not read. The output leaves them out.
+    """
     output: dict[str, str] = {}
 
     channels_to_write = config_data.get("channels_to_write", "1")
@@ -39,8 +79,9 @@ def generate_jsonc(config_data: dict[str, Any]) -> str:
     _process_network_config(config_data, output)
     _process_oem_config(config_data, output)
     _process_other_settings(config_data, output)
+    _process_telemetry_security_event(config_data, output)
 
-    return json.dumps(output, indent=2)
+    return json.dumps({key: value for key, value in output.items() if key not in unread_keys}, indent=2)
 
 
 def _set_if_present(data: dict, output: dict, key: str, output_key: str) -> None:
@@ -185,3 +226,12 @@ def _process_other_settings(config_data: dict, output: dict) -> None:
     if config_data.get("button_pin_enabled") == "true":
         _set_if_present(config_data, output, "button_pin", "USERPREFS_BUTTON_PIN")
     _set_if_present(config_data, output, "event_mode", "USERPREFS_EVENT_MODE")
+
+
+def _process_telemetry_security_event(config_data: dict, output: dict) -> None:
+    """Write the telemetry, security, event, canned message and ringtone keys."""
+    for field, key in _TELEMETRY_SECURITY_EVENT_KEYS.items():
+        _set_if_present(config_data, output, field, key)
+    messages = [line.strip() for line in config_data.get("canned_messages", "").splitlines() if line.strip()]
+    if messages:
+        output["USERPREFS_CANNED_MESSAGES"] = "|".join(messages)

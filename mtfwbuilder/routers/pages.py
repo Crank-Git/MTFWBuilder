@@ -29,6 +29,7 @@ async def index(request: Request, build: str | None = None):
         "modem_preset_options": meshtastic_enums.MODEM_PRESETS.options(),
         "role_options": meshtastic_enums.ROLES.options(),
         "gps_mode_options": meshtastic_enums.GPS_MODES.options(),
+        "packet_signature_policy_options": meshtastic_enums.PACKET_SIGNATURE_POLICIES.options(),
         "router_role_message": meshtastic_enums.ROUTER_ROLE_MESSAGE,
     }
     ctx = request.app.state.build_queue.get(build) if build else None
