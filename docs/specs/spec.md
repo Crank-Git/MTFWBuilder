@@ -196,23 +196,23 @@ changes what firmware versions the instance holds. The project has no other role
 
 | Feature set | Spec file | Status | Epic | Mockups |
 |---|---|---|---|---|
-| Foundation | [features/00-foundation.md](features/00-foundation.md) | planned | Epic 0: Foundation | — |
+| Foundation | [features/00-foundation.md](features/00-foundation.md) | built | Epic 0: Foundation | — |
 | Config generator | [features/01-config-generator.md](features/01-config-generator.md) | built | — | — |
 | Firmware builder | [features/02-firmware-builder.md](features/02-firmware-builder.md) | built | — | — |
-| Device registry | [features/03-device-registry.md](features/03-device-registry.md) | built | — | — |
+| Device registry | [features/03-device-registry.md](features/03-device-registry.md) | retired | — | — |
 | Admin | [features/04-admin.md](features/04-admin.md) | built | — | — |
-| userPrefs correctness | [features/05-userprefs-correctness.md](features/05-userprefs-correctness.md) | planned | Epic 1: Correct userPrefs | — |
-| Build pipeline repair | [features/06-build-pipeline-repair.md](features/06-build-pipeline-repair.md) | planned | Epic 2: Build pipeline repair | — |
-| Frontend on htmx | [features/07-frontend-htmx.md](features/07-frontend-htmx.md) | planned | Epic 3: Frontend on htmx | [01-build-page](mockups/01-build-page.html) |
-| Platform modernization | [features/08-platform-modernization.md](features/08-platform-modernization.md) | planned | Epic 4: Platform modernization | — |
-| Firmware versions | [features/09-firmware-versions.md](features/09-firmware-versions.md) | planned | Epic 5: Firmware versions | [02-firmware-sources](mockups/02-firmware-sources.html) |
-| Generated registry | [features/10-generated-registry.md](features/10-generated-registry.md) | planned | Epic 6: Generated registry | [03-device-picker](mockups/03-device-picker.html) |
-| Config coverage | [features/11-config-coverage.md](features/11-config-coverage.md) | planned | Epic 7: Config coverage | [04-config-form](mockups/04-config-form.html) |
-| Channel share | [features/12-channel-share.md](features/12-channel-share.md) | planned | Epic 8: Channel share | [05-channel-share](mockups/05-channel-share.html) |
-| Browser flashing | [features/13-browser-flashing.md](features/13-browser-flashing.md) | planned | Epic 9: Browser flashing | [06-flash](mockups/06-flash.html) |
-| Fleet builds | [features/14-fleet-builds.md](features/14-fleet-builds.md) | planned | Epic 10: Profiles and build cache, Epic 11: Fleet runs | [07-fleet](mockups/07-fleet.html) |
-| Push config | [features/15-push-config.md](features/15-push-config.md) | planned | Epic 12: Push config | [08-push-config](mockups/08-push-config.html) |
-| Module settings | [features/16-module-settings.md](features/16-module-settings.md) | planned | Epic 13: Module settings | [09-module-settings](mockups/09-module-settings.html) |
+| userPrefs correctness | [features/05-userprefs-correctness.md](features/05-userprefs-correctness.md) | built | Epic 1: Correct userPrefs | — |
+| Build pipeline repair | [features/06-build-pipeline-repair.md](features/06-build-pipeline-repair.md) | built | Epic 2: Build pipeline repair | — |
+| Frontend on htmx | [features/07-frontend-htmx.md](features/07-frontend-htmx.md) | built | Epic 3: Frontend on htmx | [01-build-page](mockups/01-build-page.html) |
+| Platform modernization | [features/08-platform-modernization.md](features/08-platform-modernization.md) | built | Epic 4: Platform modernization | — |
+| Firmware versions | [features/09-firmware-versions.md](features/09-firmware-versions.md) | built | Epic 5: Firmware versions | [02-firmware-sources](mockups/02-firmware-sources.html) |
+| Generated registry | [features/10-generated-registry.md](features/10-generated-registry.md) | built | Epic 6: Generated registry | [03-device-picker](mockups/03-device-picker.html) |
+| Config coverage | [features/11-config-coverage.md](features/11-config-coverage.md) | built | Epic 7: Config coverage | [04-config-form](mockups/04-config-form.html) |
+| Channel share | [features/12-channel-share.md](features/12-channel-share.md) | built | Epic 8: Channel share | [05-channel-share](mockups/05-channel-share.html) |
+| Browser flashing | [features/13-browser-flashing.md](features/13-browser-flashing.md) | built | Epic 9: Browser flashing | [06-flash](mockups/06-flash.html) |
+| Fleet builds | [features/14-fleet-builds.md](features/14-fleet-builds.md) | built | Epic 10: Profiles and build cache, Epic 11: Fleet runs | [07-fleet](mockups/07-fleet.html) |
+| Push config | [features/15-push-config.md](features/15-push-config.md) | built | Epic 12: Push config | [08-push-config](mockups/08-push-config.html) |
+| Module settings | [features/16-module-settings.md](features/16-module-settings.md) | issued | Epic 13: Module settings | [09-module-settings](mockups/09-module-settings.html) |
 
 ## Architecture & stack
 
@@ -731,6 +731,18 @@ Written by `/spec-to-issues` on 2026-11-21.
 | FR-push-config-9 | #74 |
 | FR-push-config-10 | #74 |
 | FR-push-config-12 | #74 |
+
+### Epic 13: Module settings (second planning wave, 2026-11-21)
+
+| Epic | Issue | Sub-issues |
+|---|---|---|
+| Epic 13: Module settings | #188 | #189, #190, #191 |
+
+| FR | Issues |
+|---|---|
+| FR-module-settings-1, -2, -3, -4, -7 | #190 |
+| FR-module-settings-5, -6, -11, -12 | #189 |
+| FR-module-settings-8, -9, -10 | #191 |
 
 ## Changelog
 
