@@ -9,7 +9,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 VERSION = "2.7.26.54e0d8d"
-CONFIG = json.dumps({"device_name": "TestNode"})
+CONFIG = json.dumps({"owner_long_name": "TestNode"})
 
 
 @pytest.fixture

@@ -22,7 +22,7 @@ ENDED = {"complete", "failed", "cancelled"}
 
 def _config(**extra):
     config = {
-        "device_name": "TestNode",
+        "owner_long_name": "TestNode",
         "channels_to_write": "1",
         "channel_0[name]": "Primary",
         "channel_0[psk]": PSK_HEX,

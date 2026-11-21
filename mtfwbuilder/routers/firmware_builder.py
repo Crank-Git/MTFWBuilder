@@ -1,13 +1,14 @@
 """Firmware builder API routes — build, download, SSE progress."""
 
-import json
 import logging
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, RedirectResponse
+from pydantic import ValidationError
 from sse_starlette.sse import EventSourceResponse
 
-from mtfwbuilder.models import Artifact
+from mtfwbuilder.models import Artifact, ConfigRequest
 from mtfwbuilder.rate_limit import limiter
 from mtfwbuilder.services import build_service
 from mtfwbuilder.services.firmware_updater import get_firmware_version
@@ -26,7 +27,8 @@ MAX_UPLOAD_SIZE = 65536
 async def start_build(request: Request):
     """Put a build in the build queue, and return its build id and progress stream URL.
 
-    Returns 400 for a bad form, and 503 when the build queue is full.
+    Returns 400 for a bad form, 422 with field errors for an invalid config, and 503 when the
+    build queue is full. The route validates the config before the build goes in the build queue.
     """
     registry = request.app.state.device_registry
     form = await request.form()
@@ -52,29 +54,52 @@ async def start_build(request: Request):
 
 
 def _config_from_json(config_json: str | None) -> str:
-    """Return the userPrefs file for the config JSON of the form, or raise HTTP 400."""
+    """Return the userPrefs file that the generator makes from the config JSON of the form.
+
+    Raises HTTP 400 when the form holds no config, and a 422 field error when `ConfigRequest` rejects it.
+    """
     if not config_json:
         raise HTTPException(status_code=400, detail="No configuration data provided")
     try:
-        config_data = json.loads(config_json)
-        if not isinstance(config_data, dict):
-            raise TypeError("the configuration is not a JSON object")
-        return generate_jsonc(config_data)
-    # The generator raises ValueError or TypeError for a value that is not a number or a string.
-    except (ValueError, TypeError, AttributeError) as e:
-        raise HTTPException(status_code=400, detail=f"Invalid configuration: {e}") from e
+        config = ConfigRequest.model_validate_json(config_json)
+    except ValidationError as e:
+        # The same field locations as the download route, so the form puts each error next to its field.
+        errors = [{**error, "loc": ("body", *error["loc"])} for error in e.errors(include_url=False)]
+        raise RequestValidationError(errors) from e
+    return generate_jsonc(config.generator_input())
 
 
 async def _config_from_upload(upload) -> str:
-    """Return the text of the uploaded userPrefs file, or raise HTTP 400."""
+    """Return the text of the uploaded userPrefs file.
+
+    An uploaded file holds `USERPREFS_*` keys, not `ConfigRequest` fields, so the route checks only
+    the size, the UTF-8 encoding and the `//` rule. Raises HTTP 400 for a missing or large file, and
+    a 422 field error for `userPrefs` when a check fails.
+    """
     if upload is None:
         raise HTTPException(status_code=400, detail="No userPrefs file uploaded")
-    if not hasattr(upload, "read"):
-        return str(upload)
-    raw = await upload.read()
-    if len(raw) > MAX_UPLOAD_SIZE:
-        raise HTTPException(status_code=400, detail="File too large (max 64KB)")
-    return raw.decode("utf-8")
+    if isinstance(upload, str):
+        content = upload
+    else:
+        raw = await upload.read()
+        if len(raw) > MAX_UPLOAD_SIZE:
+            raise HTTPException(status_code=400, detail="File too large (max 64KB)")
+        try:
+            content = raw.decode("utf-8")
+        except UnicodeDecodeError as e:
+            raise _upload_error("the file is not UTF-8 text") from e
+    for number, line in enumerate(content.splitlines(), start=1):
+        before, double_slash, _ = line.partition("//")
+        # The upstream parser cuts each line at the first //, so a // after an odd count of quotes cuts a value.
+        if double_slash and before.replace('\\"', "").count('"') % 2:
+            raise _upload_error(f"line {number}: a value contains //, which the firmware build reads as a comment")
+    return content
+
+
+def _upload_error(message: str) -> RequestValidationError:
+    return RequestValidationError(
+        [{"type": "value_error", "loc": ("body", "userPrefs"), "msg": message, "input": None}]
+    )
 
 
 @router.get("/build-progress/{build_id}")
