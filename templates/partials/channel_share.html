@@ -1,0 +1,60 @@
+{# The panels are outside the config form, so their fields go into no preview, download or build request. #}
+<div class="config-section" id="channelShare" data-region-prefix="{{ region_prefix }}" data-modem-preset-prefix="{{ modem_preset_prefix }}">
+    <h3 class="section-title"><i class="bi bi-qr-code text-success"></i>Channel Share</h3>
+    <noscript>
+        <div class="alert alert-warning">The import and the export need JavaScript.</div>
+    </noscript>
+    <div class="row g-4">
+        <section class="col-lg-6" id="channelShareImport" aria-labelledby="channelShareImportHeading">
+            <h4 id="channelShareImportHeading" class="fs-6">Import</h4>
+            <label for="channelShareUrl" class="form-label">Channel URL</label>
+            <div class="input-group">
+                <input type="url" class="form-control" id="channelShareUrl" autocomplete="off" spellcheck="false" placeholder="https://meshtastic.org/e/#…" aria-describedby="channelShareUrlHelp">
+                <button type="button" class="btn btn-outline-secondary" id="channelShareDecode"><i class="bi bi-box-arrow-in-down me-1"></i>Decode</button>
+            </div>
+            <div id="channelShareUrlHelp" class="form-text text-muted">The URL has the form <code class="small">https://meshtastic.org/e/#…</code> or <code class="small">https://meshtastic.org/e/?add=true#…</code>. An <code class="small">add=true</code> URL adds its channels after the channels of the config.</div>
+            <label for="channelShareFile" class="form-label mt-3">CLI YAML file</label>
+            <input type="file" class="form-control" id="channelShareFile" accept=".yaml,.yml,application/yaml,text/yaml" aria-describedby="channelShareFileHelp">
+            <div id="channelShareFileHelp" class="form-text text-muted">A file from <code class="small">meshtastic --export-config</code>, at most 64 KB.</div>
+            <div id="channelShareError" class="text-danger mt-2" role="alert"></div>
+            <div id="channelSharePreview" class="mt-3" hidden>
+                <h5 class="fs-6">Preview</h5>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead><tr><th scope="col">Index</th><th scope="col">Name</th><th scope="col">PSK</th><th scope="col">Role</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <p id="channelShareLora" class="mb-2"></p>
+                <div id="channelShareNotApplied" class="alert alert-warning" hidden>
+                    <p class="mb-1">Not applied: the config has no userPrefs key for these fields.</p>
+                    <ul class="mb-0"></ul>
+                </div>
+                <div id="channelShareWarnings" class="alert alert-warning" hidden>
+                    <ul class="mb-0"></ul>
+                </div>
+                <p class="form-text text-muted">Apply changes the channels and the LoRa settings of the config.</p>
+                <button type="button" class="btn btn-success" id="channelShareApply"><i class="bi bi-check2 me-1"></i>Apply</button>
+                <button type="button" class="btn btn-outline-secondary" id="channelShareCancel">Cancel</button>
+            </div>
+        </section>
+        <section class="col-lg-6" id="channelShareExportPanel" aria-labelledby="channelShareExportHeading">
+            <h4 id="channelShareExportHeading" class="fs-6">Export</h4>
+            <p class="form-text text-muted mt-0">The export gives the channel URL and a QR code of the channels and the LoRa settings in the config.</p>
+            <button type="button" class="btn btn-outline-secondary" id="channelShareExport"><i class="bi bi-qr-code me-1"></i>Export</button>
+            <div id="channelShareExportError" class="text-danger mt-2" role="alert"></div>
+            <div id="channelShareExportResult" class="mt-3" hidden>
+                <label for="channelShareExportUrl" class="form-label">Channel URL</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="channelShareExportUrl" readonly>
+                    <button type="button" class="btn btn-outline-secondary" id="channelShareCopy"><i class="bi bi-clipboard me-1"></i>Copy</button>
+                </div>
+                <div id="channelShareCopyStatus" class="form-text" aria-live="polite"></div>
+                <div id="channelShareQr" class="channel-share-qr mt-3" role="img" aria-label="QR code of the channel URL"></div>
+                <p id="channelShareExportNote" class="form-text text-muted">The config has no hop limit field, so the channel URL holds the firmware default hop limit 3.</p>
+                <div class="alert alert-warning mb-0">The channel URL holds the PSK of each channel. Share it only with the operators of the mesh.</div>
+            </div>
+        </section>
+    </div>
+</div><!-- end channel share -->
+<script src="{{ url_for('static', path='js/channel-share.js') }}" defer></script>
