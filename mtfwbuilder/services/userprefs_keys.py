@@ -9,8 +9,8 @@ from pathlib import Path
 
 _KEY = re.compile(r"USERPREFS_[A-Z0-9_]+")
 
-# A string literal matches first, so a `//` inside a URL string does not start a comment.
-_COMMENT_OR_STRING = re.compile(r'"(?:\\.|[^"\\\n])*"|//[^\n]*|/\*.*?\*/', re.DOTALL)
+# A literal matches first, so a `//` in a URL string or a `'"'` character does not change the scan.
+_COMMENT_OR_LITERAL = re.compile(r"\"(?:\\.|[^\"\\\n])*\"|'(?:\\.|[^'\\\n])*'|//[^\n]*|/\*.*?\*/", re.DOTALL)
 
 # Upstream writes each example as a commented JSON entry, for example `// "USERPREFS_EVENT_MODE": "1",`.
 _JSONC_ENTRY = re.compile(r'"(USERPREFS_[A-Z0-9_]+)"\s*:')
@@ -37,4 +37,4 @@ def read_keys(firmware_dir: Path) -> frozenset[str]:
 
 def _without_comments(source: str) -> str:
     """Return C++ source with each `//` and `/* */` comment replaced by a space."""
-    return _COMMENT_OR_STRING.sub(lambda m: m[0] if m[0].startswith('"') else " ", source)
+    return _COMMENT_OR_LITERAL.sub(lambda m: m[0] if m[0][0] in "\"'" else " ", source)

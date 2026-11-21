@@ -129,6 +129,7 @@ def test_read_keys_ignores_line_and_block_comments(tmp_path):
         "// USERPREFS_LINE\n"
         "/* USERPREFS_BLOCK\n USERPREFS_BLOCK_2 */\n"
         'auto u = "http://x"; USERPREFS_AFTER_URL\n'
+        "char q = '\"'; // USERPREFS_QUOTE_COMMENT \"\n"
     )
     (tmp_path / "userPrefs.jsonc").write_text("{\n}\n")
     assert read_keys(tmp_path) == {"USERPREFS_READ", "USERPREFS_AFTER_URL"}
