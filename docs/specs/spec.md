@@ -311,15 +311,21 @@ This is the planned build lifecycle. The `scrub` step runs on every transition i
 
 **Authentication and authorization (built).** The admin password is a bcrypt hash in
 `config.yaml`. `POST /admin/login` sets the cookie `mtfw_session`: an itsdangerous
-signature of the string `admin`, HttpOnly, SameSite=Lax, Secure unless `debug`, max age
-3600 s. Only `/api/v1/update-firmware` and `/api/v1/cleanup` require it. The project has
-no CSRF token. A cookie with `Secure` set does not work on plain HTTP, so admin sign-in
-fails on a default Docker install (`mtfwbuilder/routers/admin.py:44-51`).
+signature of the string `admin`, HttpOnly, SameSite=Lax, max age 3600 s. The cookie sets
+`Secure` only when the request scheme is `https`. Only `/api/v1/update-firmware` and
+`/api/v1/cleanup` require the session. The `/admin` page shows a sign-in form when no
+session exists.
 
-**Planned auth changes** (feature `frontend-htmx` and `build-pipeline-repair`):
-- The `/admin` page shows a sign-in form when no session exists.
-- The `Secure` flag follows the request scheme.
-- Every state-changing admin form carries a CSRF token.
+**CSRF (built, Epic 3).** Each admin form carries the hidden field `csrf_token`. The token
+is the value of the cookie `mtfw_csrf`, signed with the same itsdangerous secret key. Sign-in
+sets a new `mtfw_csrf` value, so the token belongs to one session. Each admin POST without a
+valid token returns 403:
+- `/admin/login`
+- `/admin/logout`
+- `/api/v1/update-firmware`
+- `/api/v1/cleanup`
+
+**Planned auth changes** (feature `build-pipeline-repair`):
 - Build ids are random, so one operator cannot guess another operator's build.
 
 **Validation.** Today the routes read raw JSON. The pydantic models in `models.py` are

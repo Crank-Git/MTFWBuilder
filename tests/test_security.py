@@ -11,6 +11,7 @@ from mtfwbuilder.auth import (
     verify_password,
 )
 from mtfwbuilder.config import Settings, _hash_password
+from tests.conftest import sign_in_admin
 
 
 class TestPasswordHashing:
@@ -81,30 +82,37 @@ class TestAdminRoutes:
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as c:
             # Login with the fixture password
-            resp = await c.post("/admin/login", data={"admin_key": admin_password})
+            token = sign_in_admin(c, app.state.settings)
+            c.cookies.delete(SESSION_COOKIE)
+            resp = await c.post("/admin/login", data={"admin_key": admin_password, "csrf_token": token})
             assert resp.status_code == 303
             # Extract session cookie
             cookie = resp.cookies.get(SESSION_COOKIE)
             assert cookie is not None
             c.cookies.set(SESSION_COOKIE, cookie)
+            c.token = sign_in_admin(c, app.state.settings)
             yield c
 
     @pytest.mark.asyncio
     async def test_login_valid_password(self, app, admin_password):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as c:
-            resp = await c.post("/admin/login", data={"admin_key": admin_password})
+            token = sign_in_admin(c, app.state.settings)
+            c.cookies.delete(SESSION_COOKIE)
+            resp = await c.post("/admin/login", data={"admin_key": admin_password, "csrf_token": token})
             assert resp.status_code == 303
             assert SESSION_COOKIE in resp.cookies
 
     @pytest.mark.asyncio
-    async def test_login_invalid_password(self, client):
-        resp = await client.post("/admin/login", data={"admin_key": "wrongpassword"})
+    async def test_login_invalid_password(self, app, client):
+        token = sign_in_admin(client, app.state.settings)
+        resp = await client.post("/admin/login", data={"admin_key": "wrongpassword", "csrf_token": token})
         assert resp.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_login_empty_password(self, client):
-        resp = await client.post("/admin/login", data={"admin_key": ""})
+    async def test_login_empty_password(self, app, client):
+        token = sign_in_admin(client, app.state.settings)
+        resp = await client.post("/admin/login", data={"admin_key": "", "csrf_token": token})
         assert resp.status_code == 401
 
     @pytest.mark.asyncio
@@ -114,7 +122,7 @@ class TestAdminRoutes:
 
     @pytest.mark.asyncio
     async def test_protected_route_with_auth(self, authed_client):
-        resp = await authed_client.post("/api/v1/cleanup")
+        resp = await authed_client.post("/api/v1/cleanup", data={"csrf_token": authed_client.token})
         assert resp.status_code == 200
         data = resp.json()
         assert data["success"] is True
@@ -124,11 +132,14 @@ class TestAdminRoutes:
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as c:
             # Login
-            resp = await c.post("/admin/login", data={"admin_key": admin_password})
+            token = sign_in_admin(c, app.state.settings)
+            c.cookies.delete(SESSION_COOKIE)
+            resp = await c.post("/admin/login", data={"admin_key": admin_password, "csrf_token": token})
             assert SESSION_COOKIE in resp.cookies
 
             # Logout
             c.cookies.set(SESSION_COOKIE, resp.cookies[SESSION_COOKIE])
-            resp = await c.post("/admin/logout")
+            token = sign_in_admin(c, app.state.settings)
+            resp = await c.post("/admin/logout", data={"csrf_token": token})
             assert resp.status_code == 303
             # Cookie should be deleted (set to empty/expired)
