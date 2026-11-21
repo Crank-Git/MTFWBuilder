@@ -391,11 +391,15 @@ class ConfigRequest(_UserPrefsFields):
 
     def generator_input(self) -> dict[str, Any]:
         """Return the flat dict that `generate_jsonc` reads, with `channel_N[field]` keys."""
-        data = self.model_dump(exclude_none=True)
-        for slot in range(CHANNEL_SLOTS):
-            for field, value in data.pop(f"channel_{slot}", {}).items():
-                data[f"channel_{slot}[{field}]"] = value
-        return data
+        return flat_channel_keys(self.model_dump(exclude_none=True))
+
+
+def flat_channel_keys(data: dict[str, Any]) -> dict[str, Any]:
+    """Return a `ConfigRequest` dump with each `channel_N` object as flat `channel_N[field]` keys, the form names."""
+    for slot in range(CHANNEL_SLOTS):
+        for field, value in data.pop(f"channel_{slot}", {}).items():
+            data[f"channel_{slot}[{field}]"] = value
+    return data
 
 
 class UserPrefsKeys(BaseModel):
@@ -573,4 +577,17 @@ class ChannelUrlImport(BaseModel):
     channels: list[ImportedChannel]
     lora: ImportedLora
     add: bool
+    warnings: list[str]
+
+
+class CliYamlImport(BaseModel):
+    """Response of `POST /api/v1/import/cli-yaml`.
+
+    `config` holds the form fields, with the `ConfigRequest` names and the flat `channel_N[field]` names.
+    `not_applied` holds the dotted path in the file of each field that has no userPrefs key or that the form rejects.
+    `warnings` holds the reason for each rejected field.
+    """
+
+    config: dict[str, str]
+    not_applied: list[str]
     warnings: list[str]

@@ -8,7 +8,7 @@ version = "2.0.0"
 description = "Meshtastic firmware configuration generator and builder"
 readme = "README.md"
 license = "GPL-3.0-or-later"
-requires-python = ">=3.13"
+requires-python = ">=3.13,<3.15"
 authors = [{ name = "Crank-Git" }]
 keywords = ["meshtastic", "firmware", "configuration", "platformio"]
 classifiers = [
