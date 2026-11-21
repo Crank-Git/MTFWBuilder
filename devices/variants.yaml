@@ -74,7 +74,7 @@
 
 # --- Community ---
 
-- id: Dongle_nRF52840-pca10059-v1
+- id: pca10059_diy_eink
   name: "Nordic nRF52840 Dongle (PCA10059)"
   manufacturer: Community
   architecture: nrf52
@@ -92,20 +92,56 @@
   architecture: nrf52
   pio_platform: nrf52840
 
-- id: MS24SF1
+- id: ms24sf1
   name: "MS24SF1"
   manufacturer: Community
   architecture: nrf52
   pio_platform: nrf52840
 
-- id: esp32-s3-pico
+- id: ESP32-S3-Pico
   name: "ESP32-S3 Pico"
   manufacturer: Community
   architecture: esp32
   pio_platform: esp32s3
 
-- id: mesh-tab
-  name: "Mesh Tab"
+- id: mesh-tab-3-2-TN-resistive
+  name: "Mesh Tab 3.2 TN Resistive"
+  manufacturer: Community
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: mesh-tab-3-2-IPS-resistive
+  name: "Mesh Tab 3.2 IPS Resistive"
+  manufacturer: Community
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: mesh-tab-3-5-IPS-resistive
+  name: "Mesh Tab 3.5 IPS Resistive"
+  manufacturer: Community
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: mesh-tab-3-5-TN-resistive
+  name: "Mesh Tab 3.5 TN Resistive"
+  manufacturer: Community
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: mesh-tab-3-2-IPS-capacitive
+  name: "Mesh Tab 3.2 IPS Capacitive"
+  manufacturer: Community
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: mesh-tab-3-5-IPS-capacitive
+  name: "Mesh Tab 3.5 IPS Capacitive"
+  manufacturer: Community
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: mesh-tab-4-0-IPS-capacitive
+  name: "Mesh Tab 4.0 IPS Capacitive"
   manufacturer: Community
   architecture: esp32
   pio_platform: esp32s3
@@ -142,7 +178,7 @@
 
 # --- DLS ---
 
-- id: dls_Minimesh_Lite
+- id: minimesh_lite
   name: "DLS Minimesh Lite"
   manufacturer: DLS
   architecture: nrf52
@@ -168,13 +204,13 @@
   architecture: esp32
   pio_platform: esp32s3
 
-- id: nugget_s2_lora
+- id: nugget-s2-lora
   name: "Nugget S2 LoRa"
   manufacturer: ESP32
   architecture: esp32
   pio_platform: esp32s2
 
-- id: nugget_s3_lora
+- id: nugget-s3-lora
   name: "Nugget S3 LoRa"
   manufacturer: ESP32
   architecture: esp32
@@ -182,37 +218,43 @@
 
 # --- Elecrow ---
 
-- id: ELECROW-ThinkNode-M1
+- id: thinknode_m1
   name: "Elecrow ThinkNode M1"
   manufacturer: Elecrow
   architecture: nrf52
   pio_platform: nrf52840
 
-- id: ELECROW-ThinkNode-M2
+- id: thinknode_m1-inkhud
+  name: "Elecrow ThinkNode M1 InkHUD"
+  manufacturer: Elecrow
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: thinknode_m2
   name: "Elecrow ThinkNode M2"
   manufacturer: Elecrow
   architecture: esp32
   pio_platform: esp32s3
 
-- id: ELECROW-ThinkNode-M3
+- id: thinknode_m3
   name: "Elecrow ThinkNode M3"
   manufacturer: Elecrow
   architecture: nrf52
   pio_platform: nrf52840
 
-- id: ELECROW-ThinkNode-M4
+- id: thinknode_m4
   name: "Elecrow ThinkNode M4"
   manufacturer: Elecrow
   architecture: nrf52
   pio_platform: nrf52840
 
-- id: ELECROW-ThinkNode-M5
+- id: thinknode_m5
   name: "Elecrow ThinkNode M5"
   manufacturer: Elecrow
   architecture: esp32
   pio_platform: esp32s3
 
-- id: ELECROW-ThinkNode-M6
+- id: thinknode_m6
   name: "Elecrow ThinkNode M6"
   manufacturer: Elecrow
   architecture: nrf52
@@ -224,15 +266,27 @@
   architecture: esp32
   pio_platform: esp32s3
 
-- id: elecrow_panel
-  name: "Elecrow Panel"
+- id: elecrow-adv-24-28-tft
+  name: "Elecrow CrowPanel Advance 2.4/2.8 TFT"
+  manufacturer: Elecrow
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: elecrow-adv-35-tft
+  name: "Elecrow CrowPanel Advance 3.5 TFT"
+  manufacturer: Elecrow
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: elecrow-adv1-43-50-70-tft
+  name: "Elecrow CrowPanel Advance 4.3/5.0/7.0 TFT"
   manufacturer: Elecrow
   architecture: esp32
   pio_platform: esp32s3
 
 # --- ElectronicCats ---
 
-- id: ec_catsniffer
+- id: catsniffer
   name: "ElectronicCats CatSniffer"
   manufacturer: ElectronicCats
   architecture: rp2040
@@ -288,13 +342,13 @@
 
 # --- HackerBoxes ---
 
-- id: hackerboxes_esp32_io
+- id: hackerboxes-esp32-io
   name: "HackerBoxes ESP32 I/O"
   manufacturer: HackerBoxes
   architecture: esp32
   pio_platform: esp32
 
-- id: hackerboxes_esp32c3_oled
+- id: hackerboxes-esp32c3-oled
   name: "HackerBoxes ESP32-C3 OLED"
   manufacturer: HackerBoxes
   architecture: esp32
@@ -308,44 +362,86 @@
   architecture: esp32
   pio_platform: esp32s3
 
-- id: heltec_esp32c3
+- id: heltec-ht62-esp32c3-sx1262
   name: "Heltec ESP32-C3"
   manufacturer: Heltec
   architecture: esp32
   pio_platform: esp32c3
 
-- id: heltec_hru_3601
+- id: heltec-hru-3601
   name: "Heltec HRU-3601"
   manufacturer: Heltec
   architecture: esp32
   pio_platform: esp32c3
 
-- id: heltec_mesh_node_t096
+- id: heltec-mesh-node-t096
   name: "Heltec Mesh Node T096"
   manufacturer: Heltec
   architecture: nrf52
   pio_platform: nrf52840
 
-- id: heltec_mesh_node_t114
+- id: heltec-mesh-node-t114
   name: "Heltec Mesh Node T114"
   manufacturer: Heltec
   architecture: nrf52
   pio_platform: nrf52840
 
-- id: heltec_mesh_node_t114-inkhud
+- id: heltec-mesh-node-t114-inkhud
   name: "Heltec Mesh Node T114 InkHUD"
   manufacturer: Heltec
   architecture: nrf52
   pio_platform: nrf52840
 
-- id: heltec_mesh_pocket
-  name: "Heltec Mesh Pocket"
+- id: heltec-mesh-pocket-5000
+  name: "Heltec Mesh Pocket 5000"
   manufacturer: Heltec
   architecture: nrf52
   pio_platform: nrf52840
 
-- id: heltec_mesh_solar
+- id: heltec-mesh-pocket-5000-inkhud
+  name: "Heltec Mesh Pocket 5000 InkHUD"
+  manufacturer: Heltec
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: heltec-mesh-pocket-10000
+  name: "Heltec Mesh Pocket 10000"
+  manufacturer: Heltec
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: heltec-mesh-pocket-10000-inkhud
+  name: "Heltec Mesh Pocket 10000 InkHUD"
+  manufacturer: Heltec
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: heltec-mesh-solar
   name: "Heltec Mesh Solar"
+  manufacturer: Heltec
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: heltec-mesh-solar-eink
+  name: "Heltec Mesh Solar E-Ink"
+  manufacturer: Heltec
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: heltec-mesh-solar-inkhud
+  name: "Heltec Mesh Solar InkHUD"
+  manufacturer: Heltec
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: heltec-mesh-solar-oled
+  name: "Heltec Mesh Solar OLED"
+  manufacturer: Heltec
+  architecture: nrf52
+  pio_platform: nrf52840
+
+- id: heltec-mesh-solar-tft
+  name: "Heltec Mesh Solar TFT"
   manufacturer: Heltec
   architecture: nrf52
   pio_platform: nrf52840
@@ -356,97 +452,121 @@
   architecture: esp32
   pio_platform: esp32s3
 
-- id: heltec_v1
+- id: heltec-v1
   name: "Heltec V1"
   manufacturer: Heltec
   architecture: esp32
   pio_platform: esp32
 
-- id: heltec_v2
+- id: heltec-v2_0
   name: "Heltec V2"
   manufacturer: Heltec
   architecture: esp32
   pio_platform: esp32
 
-- id: heltec_v2.1
+- id: heltec-v2_1
   name: "Heltec V2.1"
   manufacturer: Heltec
   architecture: esp32
   pio_platform: esp32
 
-- id: heltec_v3
+- id: heltec-v3
   name: "Heltec V3"
   manufacturer: Heltec
   architecture: esp32
   pio_platform: esp32s3
 
-- id: heltec_v4
+- id: heltec-v4
   name: "Heltec V4"
   manufacturer: Heltec
   architecture: esp32
   pio_platform: esp32s3
 
-- id: heltec_vision_master_e213
+- id: heltec-v4-tft
+  name: "Heltec V4 TFT"
+  manufacturer: Heltec
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: heltec-vision-master-e213
   name: "Heltec Vision Master E213"
   manufacturer: Heltec
   architecture: esp32
   pio_platform: esp32s3
 
-- id: heltec_vision_master_e290
+- id: heltec-vision-master-e213-inkhud
+  name: "Heltec Vision Master E213 InkHUD"
+  manufacturer: Heltec
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: heltec-vision-master-e290
   name: "Heltec Vision Master E290"
   manufacturer: Heltec
   architecture: esp32
   pio_platform: esp32s3
 
-- id: heltec_vision_master_t190
+- id: heltec-vision-master-e290-inkhud
+  name: "Heltec Vision Master E290 InkHUD"
+  manufacturer: Heltec
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: heltec-vision-master-t190
   name: "Heltec Vision Master T190"
   manufacturer: Heltec
   architecture: esp32
   pio_platform: esp32s3
 
-- id: heltec_wireless_bridge
+- id: heltec-wireless-bridge
   name: "Heltec Wireless Bridge"
   manufacturer: Heltec
   architecture: esp32
   pio_platform: esp32
 
-- id: heltec_wireless_paper
+- id: heltec-wireless-paper
   name: "Heltec Wireless Paper"
   manufacturer: Heltec
   architecture: esp32
   pio_platform: esp32s3
 
-- id: heltec_wireless_paper_v1
+- id: heltec-wireless-paper-inkhud
+  name: "Heltec Wireless Paper InkHUD"
+  manufacturer: Heltec
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: heltec-wireless-paper-v1_0
   name: "Heltec Wireless Paper v1"
   manufacturer: Heltec
   architecture: esp32
   pio_platform: esp32s3
 
-- id: heltec_wireless_tracker
+- id: heltec-wireless-tracker
   name: "Heltec Wireless Tracker"
   manufacturer: Heltec
   architecture: esp32
   pio_platform: esp32s3
 
-- id: heltec_wireless_tracker_V1_0
+- id: heltec-wireless-tracker-V1-0
   name: "Heltec Wireless Tracker V1.0"
   manufacturer: Heltec
   architecture: esp32
   pio_platform: esp32s3
 
-- id: heltec_wireless_tracker_v2
+- id: heltec-wireless-tracker-v2
   name: "Heltec Wireless Tracker v2"
   manufacturer: Heltec
   architecture: esp32
   pio_platform: esp32s3
 
-- id: heltec_wsl_v2.1
+- id: heltec-wsl-v2_1
   name: "Heltec Wireless Stick Lite V2.1"
   manufacturer: Heltec
   architecture: esp32
   pio_platform: esp32
 
-- id: heltec_wsl_v3
+- id: heltec-wsl-v3
   name: "Heltec Wireless Stick Lite V3"
   manufacturer: Heltec
   architecture: esp32
@@ -510,8 +630,20 @@
   architecture: esp32
   pio_platform: esp32s3
 
-- id: t5s3_epaper
-  name: "LILYGO T5-S3 ePaper"
+- id: t5s3_epaper_inkhud
+  name: "LILYGO T5-S3 ePaper InkHUD"
+  manufacturer: LILYGO
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: t5s3-epaper-v1
+  name: "LILYGO T5-S3 ePaper V1"
+  manufacturer: LILYGO
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: t5s3-epaper-v2
+  name: "LILYGO T5-S3 ePaper V2"
   manufacturer: LILYGO
   architecture: esp32
   pio_platform: esp32s3
@@ -528,7 +660,7 @@
   architecture: esp32
   pio_platform: esp32s3
 
-- id: tbeam_v07
+- id: tbeam0_7
   name: "LILYGO T-Beam v0.7"
   manufacturer: LILYGO
   architecture: esp32
@@ -540,25 +672,31 @@
   architecture: esp32
   pio_platform: esp32s3
 
-- id: tlora_c6
+- id: tlora-c6
   name: "LILYGO T-LoRa C6"
   manufacturer: LILYGO
   architecture: esp32
   pio_platform: esp32c6
 
-- id: tlora_t3s3_epaper
+- id: tlora-t3s3-epaper
   name: "LILYGO T-LoRa T3S3 ePaper"
   manufacturer: LILYGO
   architecture: esp32
   pio_platform: esp32s3
 
-- id: tlora_t3s3_v1
+- id: tlora-t3s3-epaper-inkhud
+  name: "LILYGO T-LoRa T3S3 ePaper InkHUD"
+  manufacturer: LILYGO
+  architecture: esp32
+  pio_platform: esp32s3
+
+- id: tlora-t3s3-v1
   name: "LILYGO T-LoRa T3S3 v1"
   manufacturer: LILYGO
   architecture: esp32
   pio_platform: esp32s3
 
-- id: tlora_v1
+- id: tlora-v1
   name: "LILYGO T-LoRa v1"
   manufacturer: LILYGO
   architecture: esp32
@@ -570,31 +708,37 @@
   architecture: esp32
   pio_platform: esp32
 
-- id: tlora_v2
+- id: tlora-v2
   name: "LILYGO T-LoRa v2"
   manufacturer: LILYGO
   architecture: esp32
   pio_platform: esp32
 
-- id: tlora_v2_1_16
+- id: tlora-v2-1-1_6
   name: "LILYGO T-LoRa v2.1-1.6"
   manufacturer: LILYGO
   architecture: esp32
   pio_platform: esp32
 
-- id: tlora_v2_1_16_tcxo
+- id: sugarcube
+  name: "LILYGO T-LoRa v2.1-1.6 Sugarcube"
+  manufacturer: LILYGO
+  architecture: esp32
+  pio_platform: esp32
+
+- id: tlora-v2-1-1_6-tcxo
   name: "LILYGO T-LoRa v2.1-1.6 TCXO"
   manufacturer: LILYGO
   architecture: esp32
   pio_platform: esp32
 
-- id: tlora_v2_1_18
+- id: tlora-v2-1-1_8
   name: "LILYGO T-LoRa v2.1-1.8"
   manufacturer: LILYGO
   architecture: esp32
   pio_platform: esp32
 
-- id: tlora_v3_3_0_tcxo
+- id: tlora-v3-3-0-tcxo
   name: "LILYGO T-LoRa v3.3.0 TCXO"
   manufacturer: LILYGO
   architecture: esp32
@@ -614,7 +758,7 @@
 
 # --- Link32 ---
 
-- id: link32_s3_v1
+- id: link32-s3-v1
   name: "Link32 S3 v1"
   manufacturer: Link32
   architecture: esp32
@@ -628,31 +772,31 @@
   architecture: esp32
   pio_platform: esp32c3
 
-- id: m5stack_cardputer_adv
+- id: m5stack-cardputer-adv
   name: "M5Stack Cardputer Advanced"
   manufacturer: M5Stack
   architecture: esp32
   pio_platform: esp32s3
 
-- id: m5stack_core
+- id: m5stack-core
   name: "M5Stack Core"
   manufacturer: M5Stack
   architecture: esp32
   pio_platform: esp32
 
-- id: m5stack_coreink
+- id: m5stack-coreink
   name: "M5Stack CoreInk"
   manufacturer: M5Stack
   architecture: esp32
   pio_platform: esp32
 
-- id: m5stack_cores3
+- id: m5stack-cores3
   name: "M5Stack CoreS3"
   manufacturer: M5Stack
   architecture: esp32
   pio_platform: esp32s3
 
-- id: m5stack_unitc6l
+- id: m5stack-unitc6l
   name: "M5Stack Unit C6L"
   manufacturer: M5Stack
   architecture: esp32
@@ -660,13 +804,13 @@
 
 # --- MakePython ---
 
-- id: MakePython_nRF52840_eink
+- id: makerpython_nrf52840_sx1280_eink
   name: "MakePython nRF52840 E-Ink"
   manufacturer: MakePython
   architecture: nrf52
   pio_platform: nrf52840
 
-- id: MakePython_nRF52840_oled
+- id: makerpython_nrf52840_sx1280_oled
   name: "MakePython nRF52840 OLED"
   manufacturer: MakePython
   architecture: nrf52
@@ -734,7 +878,7 @@
 
 # --- Muzi ---
 
-- id: muzi_base
+- id: muzi-base
   name: "Muzi Base"
   manufacturer: Muzi
   architecture: nrf52
@@ -742,13 +886,13 @@
 
 # --- Nibble ---
 
-- id: nibble_esp32
+- id: nibble-esp32
   name: "Nibble ESP32-S3"
   manufacturer: Nibble
   architecture: esp32
   pio_platform: esp32s3
 
-- id: nibble_rp2040
+- id: nibble-rp2040
   name: "Nibble RP2040"
   manufacturer: Nibble
   architecture: rp2040
@@ -786,7 +930,7 @@
   architecture: esp32
   pio_platform: esp32s3
 
-- id: rak3401_1watt
+- id: rak3401-1watt
   name: "RAK WisBlock RAK3401 1-Watt"
   manufacturer: RAK
   architecture: nrf52
@@ -798,13 +942,13 @@
   architecture: nrf52
   pio_platform: nrf52840
 
-- id: rak4631_epaper
+- id: rak4631_eink
   name: "RAK WisBlock RAK4631 ePaper"
   manufacturer: RAK
   architecture: nrf52
   pio_platform: nrf52840
 
-- id: rak4631_epaper_onrxtx
+- id: rak4631_eink_onrxtx
   name: "RAK WisBlock RAK4631 ePaper OnRxTx"
   manufacturer: RAK
   architecture: nrf52
@@ -842,31 +986,31 @@
 
 # --- Raspberry Pi ---
 
-- id: rpipico
+- id: pico
   name: "Raspberry Pi Pico"
   manufacturer: Raspberry Pi
   architecture: rp2040
   pio_platform: rp2040
 
-- id: rpipico-slowclock
+- id: pico_slowclock
   name: "Raspberry Pi Pico (Slow Clock)"
   manufacturer: Raspberry Pi
   architecture: rp2040
   pio_platform: rp2040
 
-- id: rpipico2
+- id: pico2
   name: "Raspberry Pi Pico 2"
   manufacturer: Raspberry Pi
   architecture: rp2040
   pio_platform: rp2350
 
-- id: rpipico2w
+- id: pico2w
   name: "Raspberry Pi Pico 2 W"
   manufacturer: Raspberry Pi
   architecture: rp2040
   pio_platform: rp2350
 
-- id: rpipicow
+- id: picow
   name: "Raspberry Pi Pico W"
   manufacturer: Raspberry Pi
   architecture: rp2040
@@ -912,7 +1056,7 @@
   architecture: nrf52
   pio_platform: nrf52840
 
-- id: seeed_xiao_s3
+- id: seeed-xiao-s3
   name: "Seeed XIAO ESP32-S3"
   manufacturer: Seeed
   architecture: esp32

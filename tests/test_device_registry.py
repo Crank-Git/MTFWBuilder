@@ -119,7 +119,7 @@ class TestFirmwareFormat:
 
     def test_rp2040_produces_uf2(self, variants_path):
         registry = DeviceRegistry(variants_path)
-        v = registry.get("rpipico")
+        v = registry.get("pico")
         assert v.firmware_format == "uf2"
 
     def test_esp32_has_factory_binary(self, variants_path):
