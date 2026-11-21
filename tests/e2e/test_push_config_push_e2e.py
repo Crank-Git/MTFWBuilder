@@ -114,7 +114,11 @@ def test_push_sends_begin_then_one_set_message_per_selected_section_then_commit(
     [lora] = sent(page, "setConfig")
     assert lora["payloadVariant"]["case"] == "lora"
     # The set message holds the whole section: the device values, with the profile values on top.
-    assert lora["payloadVariant"]["value"] == {**DEVICE["config"]["lora"], "modemPreset": LONG_FAST}
+    assert lora["payloadVariant"]["value"] == {
+        **DEVICE["config"]["lora"],
+        "$typeName": "meshtastic.Config.LoRaConfig",
+        "modemPreset": LONG_FAST,
+    }
     channel_0, channel_1 = sent(page, "setChannel")
     assert channel_0 == {
         "index": 0,
@@ -176,7 +180,12 @@ def test_fixed_pin_push_also_sets_the_fixed_pin_pairing_mode(page: Page, live_se
     [bluetooth] = sent(page, "setConfig")
     assert bluetooth["payloadVariant"] == {
         "case": "bluetooth",
-        "value": {"enabled": True, "mode": FIXED_PIN, "fixedPin": 123456},
+        "value": {
+            "$typeName": "meshtastic.Config.BluetoothConfig",
+            "enabled": True,
+            "mode": FIXED_PIN,
+            "fixedPin": 123456,
+        },
     }
 
 
@@ -248,6 +257,8 @@ ENCODE_JS = """async ([read, config, section]) => {
     disconnect: async () => {},
   };
   const device = page.createMeshDevice(core, transport);
+  // Core sends begin_edit_settings before `setConfig` when no edit is open, and the script keeps the first chunk only.
+  device.pendingSettingsChanges = true;
   const revive = value => JSON.parse(JSON.stringify(value),
     (key, item) => (item && item.$bytes ? new Uint8Array(item.$bytes) : item));
   const context = { protobuf: core.Protobuf, tzTable: page.tzTable };
@@ -358,7 +369,11 @@ def test_admin_keys_of_the_profile_replace_the_device_keys_with_no_gap(page: Pag
     wait_for_commit(page)
     [sent_security] = sent(page, "setConfig")
     assert sent_security["payloadVariant"]["case"] == "security"
-    assert sent_security["payloadVariant"]["value"] == {"isManaged": False, "adminKey": [{"$bytes": list(profile_key)}]}
+    assert sent_security["payloadVariant"]["value"] == {
+        "$typeName": "meshtastic.Config.SecurityConfig",
+        "isManaged": False,
+        "adminKey": [{"$bytes": list(profile_key)}],
+    }
 
 
 def test_device_that_is_managed_after_the_restart_shows_the_managed_message(page: Page, live_server: str):

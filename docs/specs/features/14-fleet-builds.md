@@ -72,6 +72,9 @@ fleet runs).
 - FR-fleet-builds-20 — The zip holds a `manifest.csv` with label, variant, firmware
   version, artifact names and config hash. It holds no secret.
 
+A fleet run passes the module settings of the profile through to each fleet device
+unchanged, and its builds write no key for them (FR-module-settings-12).
+
 ## User flows
 
 ```mermaid

@@ -49,7 +49,9 @@ so the epic starts with a spike.
   They have no `statusmessage` or `traffic_management` field, so push config does not
   cover those two sections (owner ruling on #70). A newer library can add them again.
   **Deferred** (PM decision at the #73 gate): a profile has no field for these
-  sections, so Epic 12 pushes only profile fields.
+  sections, so Epic 12 pushes only profile fields. **Restored** by feature 16
+  (module-settings): a profile holds the fields of the 7 sections, and push config
+  sends them.
   [#182](https://github.com/Crank-Git/MTFWBuilder/issues/182) carries the work. The planned feature [module-settings](16-module-settings.md) restores it.
 - FR-push-config-11 — When the device has managed mode on, the page shows "This device
   is managed. Only an admin key holder can change it remotely." and pushes nothing.

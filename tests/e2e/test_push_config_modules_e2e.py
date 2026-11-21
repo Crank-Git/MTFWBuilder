@@ -63,15 +63,31 @@ MODULE_PROFILE = {
     "paxcounter_wifi_threshold": "-80",
 }
 
+# The message name in `meshtastic/module_config.proto` of each module section case.
+TYPE_NAMES = {
+    "serial": "SerialConfig",
+    "storeForward": "StoreForwardConfig",
+    "externalNotification": "ExternalNotificationConfig",
+    "neighborInfo": "NeighborInfoConfig",
+    "detectionSensor": "DetectionSensorConfig",
+    "paxcounter": "PaxcounterConfig",
+}
+
 WARNINGS_JS = """() => [...document.querySelectorAll('#push-diff-sections tr[data-warning]')]
   .map(row => [row.closest('[data-section]').dataset.section, row.dataset.warning, row.textContent])"""
 
 
 def module_values(page: Page) -> dict:
-    """Return the value of each `setModuleConfig` call that the page sent, by its section case."""
-    return {
-        value["payloadVariant"]["case"]: value["payloadVariant"]["value"] for value in sent(page, "setModuleConfig")
-    }
+    """Return the value of each `setModuleConfig` call that the page sent, by its section case, with no `$typeName`.
+
+    Fails when a value is not a message of the `ModuleConfig` schema of its case.
+    """
+    values = {}
+    for call in sent(page, "setModuleConfig"):
+        case, value = call["payloadVariant"]["case"], dict(call["payloadVariant"]["value"])
+        assert value.pop("$typeName") == f"meshtastic.ModuleConfig.{TYPE_NAMES[case]}"
+        values[case] = value
+    return values
 
 
 def test_module_profile_shows_a_row_for_each_changed_field_and_sends_each_selected_section(
@@ -228,6 +244,65 @@ def test_core_encodes_a_valid_set_module_config_for_a_module_section(
     open_push_config(page, live_server)
 
     result = page.evaluate(ENCODE_JS, [{"moduleConfig": {}}, config, section])
+
+    assert result["failure"] is None
+    assert expected in bytes(result["written"])
+
+
+# Protobufs v2.7.8 has no field 4 in `RangeTestConfig`, so core 2.6.7 keeps a field 4 of the read in `$unknown`.
+# A newer firmware sends `clear_on_reboot` as field 4. Core keeps the value bytes after the tag, so true is 0x01.
+CLEAR_ON_REBOOT = [{"no": 4, "wireType": 0, "data": {"$bytes": [1]}}]
+# `LoRaConfig` of protobufs v2.7.8 has no field 106, so the read also keeps that field in `$unknown`.
+LORA_UNKNOWN = [{"no": 106, "wireType": 0, "data": {"$bytes": [1]}}]
+UNKNOWN_DEVICE = {
+    **MODULE_DEVICE,
+    "config": {**MODULE_DEVICE["config"], "lora": {**DEVICE["config"]["lora"], "$unknown": LORA_UNKNOWN}},
+    "moduleConfig": {
+        **MODULE_DEVICE["moduleConfig"],
+        "rangeTest": {**MODULE_DEVICE["moduleConfig"]["rangeTest"], "$unknown": CLEAR_ON_REBOOT},
+    },
+}
+
+
+def test_push_keeps_the_device_fields_that_core_does_not_know(page: Page, live_server: str):
+    profile = {"range_test_enabled": "true", "lora_enabled": "true", "lora_modem_preset": "LONG_FAST"}
+    create_profile(page, live_server, "Unknown field check", profile)
+    connect(page, live_server, "Unknown field check", read=UNKNOWN_DEVICE)
+
+    push(page)
+
+    wait_for_commit(page)
+    [range_test] = sent(page, "setModuleConfig")
+    assert range_test["payloadVariant"]["value"] == {
+        **UNKNOWN_DEVICE["moduleConfig"]["rangeTest"],
+        "$typeName": "meshtastic.ModuleConfig.RangeTestConfig",
+        "enabled": True,
+    }
+    [lora] = sent(page, "setConfig")
+    assert lora["payloadVariant"]["value"]["$typeName"] == "meshtastic.Config.LoRaConfig"
+    assert lora["payloadVariant"]["value"]["$unknown"] == LORA_UNKNOWN
+
+
+# Core writes the tag of each unknown field, then its value bytes. Both unknown fields are varints.
+@pytest.mark.parametrize(
+    ("section", "config", "expected"),
+    [
+        # AdminMessage set_module_config = 35, then range_test = 5: enabled = 1, then the unknown field 4.
+        (
+            "moduleConfig.rangeTest",
+            {"range_test_enabled": "true"},
+            bytes([0x9A, 0x02, 0x06, 0x2A, 0x04, 0x08, 0x01, 0x20, 0x01]),
+        ),
+        # The tag of field 106 is the varint of 106 << 3, 0xD0 0x06.
+        ("config.lora", {"lora_enabled": "true", "lora_modem_preset": "LONG_FAST"}, bytes([0xD0, 0x06, 0x01])),
+    ],
+)
+def test_core_encodes_the_unknown_device_fields_in_the_set_message(
+    page: Page, live_server: str, section, config, expected
+):
+    open_push_config(page, live_server)
+
+    result = page.evaluate(ENCODE_JS, [UNKNOWN_DEVICE, config, section])
 
     assert result["failure"] is None
     assert expected in bytes(result["written"])

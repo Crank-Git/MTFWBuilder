@@ -951,6 +951,8 @@ body.rv-open .layout { padding-right:21rem; }
 </li>
 <li>2026-11-21 — <code>/spec-update</code> change: new planned feature <code>module-settings</code> (16) and Epic 13. It restores FR-push-config-10 (owner ruling on #182). Owner rulings: the 7 module sections go in profiles and in a new Modules tab, the pin fields are optional, and <code>nag_timeout</code> comes from <code>ringtone_nag_secs</code>. The owner approved this round on 2026-11-21.
 </li>
+<li>2026-11-21 — Epic 13 batch review (#188): <code>ringtone_nag_secs</code> now has a cap of 65535, because the firmware field <code>nag_timeout</code> holds no more. An older profile with a larger value fails validation, and the operator edits that profile.
+</li>
 </ul><nav class="pager">
 <span></span>
 <a href="html/page-inherit-reconciliation.html">Inherit reconciliation and research &rarr;</a>

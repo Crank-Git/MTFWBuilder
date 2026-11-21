@@ -25,6 +25,7 @@ WIFI_PSK = "hunter2-wifi"
 MQTT_PASSWORD = "mqtt-pass-77"
 
 # A device that runs LoRa on US / MEDIUM_FAST with two channels, and the owner "Team A Lead".
+# A read of core 2.6.7 holds each list field, and core cannot encode a message with a list field that is missing.
 DEVICE = {
     "config": {
         "device": {"role": 0, "rebroadcastMode": 0, "nodeInfoBroadcastSecs": 10800, "tzdef": "", "buttonGpio": 0},
@@ -36,6 +37,7 @@ DEVICE = {
             "txPower": 0,
             "txEnabled": True,
             "configOkToMqtt": False,
+            "ignoreIncoming": [],
         },
         "network": {"wifiEnabled": True, "wifiSsid": "fieldnet", "wifiPsk": "device-wifi", "ipv6Enabled": False},
     },
