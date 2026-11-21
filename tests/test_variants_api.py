@@ -14,6 +14,8 @@ REGISTRY = registry_entries(PROJECT_CONFIG)
 ALPHA = "v2.8.2.d5f1619"
 CONFIG_JSON = json.dumps({"owner_long_name": "TestNode"})
 SVG = b'<svg xmlns="http://www.w3.org/2000/svg"/>'
+# The detail of the image route, which differs from the detail of a path that has no route.
+IMAGE_NOT_FOUND = {"detail": "Image not found"}
 
 
 def _install(settings, version, entries, channel="stable", installed_at="2026-11-01T00:00:00+00:00"):
@@ -144,6 +146,7 @@ async def test_variants_of_a_firmware_version_that_is_not_installed_give_404(cli
     resp = await client.get("/api/v1/variants", params={"version": "v9.9.9.0000000"})
 
     assert resp.status_code == 404
+    assert resp.json() == {"detail": "Firmware version v9.9.9.0000000 is not installed"}
 
 
 # GET /api/v1/variants/{env}/image (FR-generated-registry-13)
@@ -173,18 +176,21 @@ async def test_image_route_gives_404_when_the_firmware_source_does_not_hold_the_
     resp = await client.get("/api/v1/variants/heltec-v4/image")
 
     assert resp.status_code == 404
+    assert resp.json() == IMAGE_NOT_FOUND
 
 
 async def test_image_route_gives_404_for_an_env_with_no_image(client, stable_source):
     resp = await client.get("/api/v1/variants/t-echo-inkhud/image")
 
     assert resp.status_code == 404
+    assert resp.json() == IMAGE_NOT_FOUND
 
 
 async def test_image_route_gives_404_for_an_env_not_in_the_firmware_version(client, two_versions):
     resp = await client.get("/api/v1/variants/heltec-v4/image", params={"version": ALPHA})
 
     assert resp.status_code == 404
+    assert resp.json() == IMAGE_NOT_FOUND
 
 
 @pytest.mark.parametrize("image", ["../outside.svg", "/etc/outside.svg", "sub/../../outside.svg"])
@@ -195,6 +201,7 @@ async def test_image_route_never_sends_a_file_outside_the_firmware_source(app, c
     resp = await client.get(f"/api/v1/variants/{REGISTRY[0]['env']}/image")
 
     assert resp.status_code == 404
+    assert resp.json() == IMAGE_NOT_FOUND
 
 
 async def test_image_route_never_sends_a_file_that_is_not_svg_or_png(app, client, settings):
@@ -204,6 +211,7 @@ async def test_image_route_never_sends_a_file_that_is_not_svg_or_png(app, client
     resp = await client.get(f"/api/v1/variants/{REGISTRY[0]['env']}/image")
 
     assert resp.status_code == 404
+    assert resp.json() == IMAGE_NOT_FOUND
 
 
 # FR-generated-registry-15: the build route checks the variant against the registry of the chosen firmware version
