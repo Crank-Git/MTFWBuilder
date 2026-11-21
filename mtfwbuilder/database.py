@@ -45,7 +45,7 @@ async def get_db(settings: Settings) -> aiosqlite.Connection:
     return db
 
 
-async def record_build(
+async def record_build(  # noqa: PLR0913, PLR0917  # TODO(#21): Set the build record shape.
     db: aiosqlite.Connection,
     build_id: str,
     variant: str,
@@ -61,7 +61,7 @@ async def record_build(
     await db.commit()
 
 
-async def update_build_status(
+async def update_build_status(  # noqa: PLR0913, PLR0917  # TODO(#21): Set the build record shape.
     db: aiosqlite.Connection,
     build_id: str,
     status: str,
@@ -101,8 +101,6 @@ async def get_build(db: aiosqlite.Connection, build_id: str) -> dict | None:
 
 async def get_recent_builds(db: aiosqlite.Connection, limit: int = 20) -> list[dict]:
     """Get recent builds ordered by creation time."""
-    cursor = await db.execute(
-        "SELECT * FROM builds ORDER BY created_at DESC LIMIT ?", (limit,)
-    )
+    cursor = await db.execute("SELECT * FROM builds ORDER BY created_at DESC LIMIT ?", (limit,))
     rows = await cursor.fetchall()
     return [dict(row) for row in rows]

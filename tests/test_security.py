@@ -2,6 +2,7 @@
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from itsdangerous import TimestampSigner
 
 from mtfwbuilder.auth import (
     SESSION_COOKIE,
@@ -53,8 +54,6 @@ class TestSessionTokens:
 
     def test_expired_token_rejected(self):
         """A token validated with max_age shorter than its age is rejected."""
-        from itsdangerous import TimestampSigner
-
         secret = "test-secret"
         signer = TimestampSigner(secret)
         token = signer.sign("admin").decode("utf-8")

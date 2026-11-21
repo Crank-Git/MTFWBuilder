@@ -42,7 +42,7 @@ edit `docs/specs/spec.html` or `docs/specs/html/` by hand.
 pip install -e ".[dev]"        # install (uv sync after Epic 4)
 pytest                         # tests (uv run pytest after Epic 4)
 ruff check mtfwbuilder/ tests/ # lint
-ruff format mtfwbuilder/ tests/  # format (black until Epic 0 drops it)
+ruff format mtfwbuilder/ tests/ # format
 uvicorn mtfwbuilder.main:app --reload --port 5000   # dev server
 docker compose up -d           # Docker
 ```

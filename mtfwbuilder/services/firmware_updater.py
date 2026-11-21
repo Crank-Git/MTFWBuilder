@@ -10,7 +10,6 @@ import subprocess
 import tempfile
 import zipfile
 from datetime import datetime
-from pathlib import Path
 
 import requests
 
@@ -61,9 +60,7 @@ def update_firmware(settings: Settings) -> bool:
 
         # Save version info
         version_file = base_dir / "firmware_version.txt"
-        version_file.write_text(
-            f"Version: {release_info['version']}\nUpdated: {datetime.now().isoformat()}\n"
-        )
+        version_file.write_text(f"Version: {release_info['version']}\nUpdated: {datetime.now().isoformat()}\n")
 
         # Download source zip
         source_url = release_info["release_data"]["zipball_url"]
@@ -105,6 +102,7 @@ def update_firmware(settings: Settings) -> bool:
             cwd=str(firmware_dir),
             capture_output=True,
             text=True,
+            check=False,
         )
         if result.returncode != 0:
             logger.error(f"PlatformIO setup failed: {result.stderr}")

@@ -1,9 +1,9 @@
 """Application configuration via pydantic-settings."""
 
 import json
+import logging
 import os
 from pathlib import Path
-from typing import Optional
 
 import bcrypt
 import yaml
@@ -20,10 +20,10 @@ class Settings(BaseSettings):
 
     # Paths
     base_dir: Path = Path(__file__).resolve().parent.parent
-    firmware_dir: Optional[Path] = None
+    firmware_dir: Path | None = None
     temp_dir: Path = Path("/tmp/meshtastic_config")
-    database_path: Optional[Path] = None
-    devices_file: Optional[Path] = None
+    database_path: Path | None = None
+    devices_file: Path | None = None
 
     # Build settings
     max_queue_size: int = 5
@@ -33,7 +33,9 @@ class Settings(BaseSettings):
 
     # Auth
     admin_password_hash: str = ""
-    secret_key: str = "change-me-in-production"  # Auto-generated on config.json migration; override in config.yaml for fresh installs
+    secret_key: str = (
+        "change-me-in-production"  # Auto-generated on config.json migration; override in config.yaml for fresh installs
+    )
     session_max_age: int = 3600  # 1 hour
 
     # Rate limiting
@@ -99,16 +101,13 @@ def load_settings() -> Settings:
     # Default password if nothing configured
     if not overrides.get("admin_password_hash"):
         overrides["admin_password_hash"] = _hash_password("meshtastic")
-        import logging
         logging.getLogger("mtfwbuilder").warning(
-            "SECURITY: Using default admin password 'meshtastic'. "
-            "Set admin_password in config.yaml for production use."
+            "SECURITY: Using default admin password 'meshtastic'. Set admin_password in config.yaml for production use."
         )
 
     # Auto-generate secret key if still default
     if overrides.get("secret_key", "change-me-in-production") == "change-me-in-production":
-        import os as _os
-        generated_key = _os.urandom(32).hex()
+        generated_key = os.urandom(32).hex()
         overrides["secret_key"] = generated_key
         # Persist if we have a config path
         if config_path.exists() or not old_config_path.exists():

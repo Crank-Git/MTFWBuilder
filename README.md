@@ -192,7 +192,7 @@ pytest
 pytest --cov=mtfwbuilder
 
 # Format
-black mtfwbuilder/ tests/
+ruff format mtfwbuilder/ tests/
 
 # Lint
 ruff check mtfwbuilder/ tests/

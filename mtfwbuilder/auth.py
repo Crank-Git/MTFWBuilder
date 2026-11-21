@@ -1,10 +1,8 @@
 """Authentication via bcrypt + signed cookie sessions."""
 
-from typing import Optional
-
 import bcrypt
-from fastapi import Depends, HTTPException, Request, status
-from itsdangerous import TimestampSigner, BadSignature, SignatureExpired
+from fastapi import HTTPException, Request, status
+from itsdangerous import BadSignature, SignatureExpired, TimestampSigner
 
 from mtfwbuilder.config import Settings
 
@@ -13,9 +11,7 @@ SESSION_COOKIE = "mtfw_session"
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plaintext password against a bcrypt hash."""
-    return bcrypt.checkpw(
-        plain_password.encode("utf-8"), hashed_password.encode("utf-8")
-    )
+    return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
 
 
 def create_session_token(settings: Settings) -> str:
@@ -34,7 +30,7 @@ def validate_session_token(token: str, settings: Settings) -> bool:
         return False
 
 
-def get_session_token(request: Request) -> Optional[str]:
+def get_session_token(request: Request) -> str | None:
     """Extract session token from cookie."""
     return request.cookies.get(SESSION_COOKIE)
 
