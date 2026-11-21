@@ -114,6 +114,7 @@ the header of `userPrefs.jsonc` in `meshtastic/firmware` `develop@fe89ac1`.
 | PSK | noun | The pre-shared key that encrypts a channel. | password, key (alone) |
 | secret | noun | Any config value that gives access: a PSK, a WiFi password, an MQTT password, an admin key. | credential, sensitive data |
 | channel URL | noun | A `https://meshtastic.org/e/#…` URL that encodes a ChannelSet protobuf. | share link, QR link |
+| proto default | noun | The value of a protobuf field that a message does not set: false, 0, empty, or the enum value 0. `MessageToDict` leaves it out. | zero value, unset value |
 | build | noun | One compile of one variant with one userPrefs file. A build has a build id and a status. | job, compile run |
 | build id | noun | The identifier of one build. | job id, token |
 | build status | noun | One of: `queued`, `compiling`, `linking`, `packaging`, `complete`, `failed`, `cancelled`. | state, phase |
@@ -255,6 +256,8 @@ the database is not used (see `features/02-firmware-builder.md`).
 | Runtime | Python 3.13 (Docker and CI; CI also tests 3.14) | `meshtastic` python requires `<3.15`. |
 | Deploy | Docker Compose, self-hosted. No hosted instance. | Interview answer: not deployed. |
 | Protobuf decode | `meshtastic` python package (GPL-3.0) | Decodes channel URLs and CLI YAML. Allowed by the GPL-3.0 relicense (ADR 0004). |
+| QR code | segno (BSD-3-Clause) | Writes the SVG QR code of an exported channel URL. Pure Python, no image library. |
+| QR decode in tests | zxing-cpp (Apache-2.0), dev dependency only | The tests decode the exported QR code. The app does not load it. |
 
 ## Data model
 

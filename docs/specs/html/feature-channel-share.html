@@ -199,26 +199,79 @@ body.rv-open .layout { padding-right:21rem; }
 </ul>
 <p>64 KB from <code>meshtastic --export-config</code>.</p>
 <ul>
-<li>FR-channel-share-5 — The YAML import maps <code>owner</code>, <code>owner_short</code>, <code>channel_url</code> and
+<li>FR-channel-share-5 — The YAML import maps each field in the list below that has a
 </li>
 </ul>
-<p>every <code>config</code> and <code>module_config</code> field that has a userPrefs key.</p>
+<p>userPrefs key. A mapped field that an imported section leaves out gets its proto default.</p>
 <ul>
-<li>FR-channel-share-6 — The YAML import lists every field that has no userPrefs key, as
+<li>Top level: <code>owner</code>, <code>owner_short</code> (<code>ownerShort</code>), <code>channel_url</code> (<code>channelUrl</code>),
 </li>
 </ul>
-<p>"Not applied".</p>
+<p><code>canned_messages</code>, <code>ringtone</code>, <code>location</code>.</p>
+<ul>
+<li><code>config.device</code>: <code>role</code>, <code>rebroadcastMode</code>, <code>nodeInfoBroadcastSecs</code>, <code>tzdef</code>,
+</li>
+</ul>
+<p><code>buttonGpio</code>.</p>
+<ul>
+<li><code>config.position</code>: <code>gpsMode</code>, <code>gpsUpdateInterval</code>, <code>positionBroadcastSecs</code>,
+</li>
+</ul>
+<p><code>positionBroadcastSmartEnabled</code>, <code>fixedPosition</code>.</p>
+<ul>
+<li><code>config.lora</code>: <code>region</code>, <code>modemPreset</code>, <code>channelNum</code>, <code>ignoreMqtt</code>, <code>txPower</code>,
+</li>
+</ul>
+<p><code>txEnabled</code>, <code>configOkToMqtt</code>.</p>
+<ul>
+<li><code>config.network</code>: <code>wifiEnabled</code>, <code>wifiSsid</code>, <code>wifiPsk</code>, <code>enabledProtocols</code>,
+</li>
+</ul>
+<p><code>ipv6Enabled</code>.</p>
+<ul>
+<li><code>config.security</code>: <code>adminKey</code>, <code>isManaged</code>, <code>packetSignaturePolicy</code>.
+<ul>
+<li><code>config.bluetooth</code>: <code>fixedPin</code>, in the <code>FIXED_PIN</code> mode only.
+</li>
+<li><code>module_config.mqtt</code>: <code>enabled</code>, <code>address</code>, <code>username</code>, <code>password</code>, <code>root</code>,
+</li>
+</ul>
+</li>
+</ul>
+<p><code>encryptionEnabled</code>, <code>tlsEnabled</code>.</p>
+<ul>
+<li><code>module_config.telemetry</code>: <code>deviceUpdateInterval</code>, <code>environmentMeasurementEnabled</code>,
+</li>
+</ul>
+<p><code>environmentUpdateInterval</code>, <code>environmentScreenEnabled</code>, <code>airQualityEnabled</code>, <code>airQualityInterval</code>, <code>airQualityScreenEnabled</code>.</p>
+<ul>
+<li><code>module_config.externalNotification</code>: <code>nagTimeout</code>.
+</li>
+<li>FR-channel-share-6 — The YAML import lists as "Not applied" each field that has no
+</li>
+</ul>
+<p>userPrefs key, and each value that the config rejects.</p>
 <ul>
 <li>FR-channel-share-7 — The import shows a preview of the decoded channels before it
 </li>
 </ul>
 <p>changes the form.</p>
 <ul>
-<li>FR-channel-share-8 — An "Apply" control fills the form from the preview. With an
+<li>FR-channel-share-8 — An "Apply" control fills the form from the preview. An <code>add=true</code>
 </li>
 </ul>
-<p><code>add=true</code> URL, the channels go into the first free indices.</p>
+<p>URL follows upstream <code>Node.setURL</code>:</p>
 <ul>
+<li>The import skips a channel with an empty name or with a name that the config uses.
+<ul>
+<li>Each added channel goes into the next free index, from index 1. Index 0 stays.
+</li>
+<li>Each added channel has the role SECONDARY.
+</li>
+<li>A free index is an index that the firmware version reads.
+</li>
+</ul>
+</li>
 <li>FR-channel-share-9 — <code>POST /api/v1/export/channel-url</code> returns the channel URL for the
 </li>
 </ul>
@@ -267,9 +320,9 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><th>State</th><th>What the operator sees</th></tr>
 <tr><td>Empty</td><td>URL field, file field, help text with an example URL shape.</td></tr>
 <tr><td>Preview</td><td>Table of channels: index, name, PSK (masked, Show control), role (primary/secondary). LoRa: region, modem preset.</td></tr>
-<tr><td>Not applied</td><td>Amber list of fields with no userPrefs key.</td></tr>
+<tr><td>Not applied</td><td>Amber list of the values that Apply leaves out: a field with no userPrefs key, a rejected value, or a value that the firmware version does not read.</td></tr>
 <tr><td>Error</td><td>Red text: "This is not a valid Meshtastic channel URL."</td></tr>
-<tr><td>Export</td><td>Channel URL in a read-only field with Copy, QR code SVG.</td></tr>
+<tr><td>Export</td><td>Channel URL in a read-only field with Copy, QR code SVG. An amber list shows the export warnings.</td></tr>
 </table></div>
 <h3 id="channel-share-behaviour-rules">Behaviour rules</h3>
 <ul>
@@ -285,16 +338,47 @@ body.rv-open .layout { padding-right:21rem; }
 <ul>
 <li>A PSK of 1 byte is a default-key index. The preview shows it as "Default key &lt;n&gt;".
 </li>
+<li>Apply puts no value into a control or an option that the firmware version does not
+</li>
 </ul>
+<p>read. The preview lists each such value as "Not applied", with the reason "this firmware version does not read it".</p>
+<ul>
+<li>The PSK <code>{ }</code> is a PSK of 0 bytes. Upstream <code>Channels::getKey</code> gives the primary channel
+</li>
+</ul>
+<p>no encryption, and a secondary channel the primary key. The import fills <code>{ }</code> for an empty PSK, and the export writes an empty PSK. The preview shows "No encryption".</p>
+<ul>
+<li>A channel name is at most 11 bytes in UTF-8. Upstream <code>channel.options</code> gives
+</li>
+</ul>
+<p><code>ChannelSettings.name</code> a <code>max_size</code> of 12, and the C string ends with a 0 byte.</p>
 <h3 id="channel-share-data-touched">Data touched</h3>
 <p>None stored.</p>
 <h3 id="channel-share-interfaces">Interfaces</h3>
 <div class="table-wrap"><table>
 <tr><th>Method</th><th>Path</th><th>Request</th><th>Response</th></tr>
-<tr><td>POST</td><td><code>/api/v1/import/channel-url</code></td><td><code>{url}</code></td><td><code>{channels: [...], lora: {...}}</code>; 422</td></tr>
-<tr><td>POST</td><td><code>/api/v1/import/cli-yaml</code></td><td>multipart <code>file</code></td><td><code>{config: {...}, not_applied: [...]}</code>; 413; 422</td></tr>
-<tr><td>POST</td><td><code>/api/v1/export/channel-url</code></td><td>config</td><td><code>{url, qr_svg}</code></td></tr>
+<tr><td>POST</td><td><code>/api/v1/import/channel-url</code></td><td><code>{url}</code>, at most 4096 characters</td><td><code>{channels: [...], lora: {...}, add, warnings: [...]}</code>; 422</td></tr>
+<tr><td>POST</td><td><code>/api/v1/import/cli-yaml</code></td><td>multipart <code>file</code></td><td><code>{config: {...}, not_applied: [...], warnings: [...]}</code>; 413; 422</td></tr>
+<tr><td>POST</td><td><code>/api/v1/export/channel-url</code></td><td>config</td><td><code>{url, qr_svg, warnings: [...]}</code>; 422</td></tr>
 </table></div>
+<ul>
+<li><code>add</code> is true for an <code>add=true</code> URL.
+</li>
+<li><code>qr_svg</code> is an SVG document of a QR code that holds <code>url</code>.
+</li>
+<li>The import <code>warnings</code> give the reason for each rejected value, and the 8-channel limit.
+</li>
+<li>The export <code>warnings</code> hold a line when the config sets no LoRa region.
+</li>
+<li>The cli-yaml route returns 413 when the <code>Content-Length</code> is over 64 KB plus 2 KB,
+</li>
+</ul>
+<p>before it reads the form.</p>
+<ul>
+<li>The export returns 422 for a config that is not valid, for <code>channels_to_write</code> 0, for
+</li>
+</ul>
+<p>a precision or a LoRa channel number that is not a <code>uint32</code> number, and for a URL that does not fit a QR code.</p>
 <p>CLI export format: https://meshtastic.org/docs/software/python/cli/ (checked 2026-11-21).</p>
 <h3 id="channel-share-edge-cases-failures">Edge cases &amp; failures</h3>
 <ul>
@@ -304,7 +388,17 @@ body.rv-open .layout { padding-right:21rem; }
 </li>
 <li>A YAML file with Python object tags: <code>safe_load</code> rejects it, and the import returns 422.
 </li>
+<li>A YAML value that Python cannot build, such as an int over 4300 digits or an impossible
+</li>
 </ul>
+<p>date: the import returns 422.</p>
+<ul>
+<li>A URL that is not ASCII, or that <code>urlsplit</code> rejects: the import returns 422.
+</li>
+<li>A config without a LoRa region: the export gives the URL with the region UNSET and a
+</li>
+</ul>
+<p>warning.</p>
 <h3 id="channel-share-acceptance-criteria">Acceptance criteria</h3>
 <ul>
 <li>The URL of the default <code>LongFast</code> channel imports as channel 0, name empty, PSK default key 1, modem preset <code>LONG_FAST</code>.
