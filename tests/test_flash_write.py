@@ -68,6 +68,7 @@ def test_full_install_writes_only_after_the_operator_confirms_the_erase_warning(
 def test_full_install_cancel_at_the_erase_warning_writes_nothing():
     result = run(mode="full", confirm=False)
 
+    assert "operator:cancel" in result["log"]
     assert device_calls(result["log"]) == []
     assert "flash-ready" in result["shown"]
     assert "flash-confirm" not in result["shown"]
@@ -99,6 +100,7 @@ def test_flash_opens_the_web_serial_port_picker():
 def test_cancelled_port_picker_returns_to_the_ready_state_and_touches_no_device():
     result = run(mode="full", portCancel=True)
 
+    assert "serial:requestPort" in result["log"]
     assert device_calls(result["log"]) == []
     assert "show:flash-confirm" not in result["log"]
     assert "flash-ready" in result["shown"]
