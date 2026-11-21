@@ -247,6 +247,28 @@ class FirmwareSource(BaseModel):
     status: str
 
 
+class RegistryEntry(BaseModel):
+    """One variant in the registry of a firmware version, as `GET /api/v1/variants` lists it.
+
+    `image_url` is the URL of the device image, or None when the firmware source does not hold the image file.
+    """
+
+    env: str
+    display_name: str
+    manufacturer: str
+    architecture: str
+    support_level: str
+    hw_model: int | None
+    hw_model_slug: str | None
+    image: str | None
+    image_url: str | None
+    requires_dfu: bool
+    partition_scheme: str | None
+    has_mui: bool
+    has_ink_hud: bool
+    actively_supported: bool
+
+
 class AvailableFirmwareVersion(BaseModel):
     """One upstream firmware version. `date` is None when the list comes from api.meshtastic.org."""
 

@@ -5,6 +5,8 @@ from pathlib import Path
 
 import yaml
 
+from mtfwbuilder.services.registry_generator import flash_method
+
 # Architecture → firmware format mapping
 FIRMWARE_FORMATS = {
     "esp32": "bin",
@@ -12,6 +14,8 @@ FIRMWARE_FORMATS = {
     "rp2040": "uf2",
     "stm32": "bin",
 }
+# A generated registry names the chip family (feature 10), so its architecture gives the format by flash method.
+FLASH_METHOD_FORMATS = {"web-serial": "bin", "uf2": "uf2", "dfu-zip": "zip", "download": "bin"}
 
 
 @dataclass(frozen=True)
@@ -27,7 +31,7 @@ class DeviceVariant:
     @property
     def firmware_format(self) -> str:
         """Derive firmware format from architecture."""
-        return FIRMWARE_FORMATS[self.architecture]
+        return FIRMWARE_FORMATS.get(self.architecture) or FLASH_METHOD_FORMATS[flash_method(self.architecture)]
 
     @property
     def has_factory_binary(self) -> bool:

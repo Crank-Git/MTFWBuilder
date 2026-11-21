@@ -1,6 +1,7 @@
 """Fixtures for the E2E tests, which drive a real browser against a real server process."""
 
 import http.server
+import json
 import os
 import socket
 import sqlite3
@@ -16,10 +17,12 @@ import pytest
 import yaml
 
 from mtfwbuilder.database import SCHEMA, record_firmware_source
+from mtfwbuilder.services.registry_generator import registry_entries
 from tests.conftest import _ADMIN_PASSWORD_HASH, FIRMWARE_VERSION, REPO_ROOT, SECRET_KEY
 
 STARTUP_TIMEOUT_SECONDS = 20
 FIRMWARE_LIST = REPO_ROOT / "tests" / "fixtures" / "firmware" / "firmware_list.json"
+PROJECT_CONFIG = REPO_ROOT / "tests" / "fixtures" / "firmware" / "project_config.json"
 ALPHA_VERSION = "v2.8.2.d5f1619"
 
 
@@ -80,6 +83,7 @@ def live_server(tmp_path_factory):
     The server reads every path from a directory under `tmp_path`. Two firmware sources have a ready record:
     the stable `FIRMWARE_VERSION` and the alpha `ALPHA_VERSION`. Each is a directory `firmware/<tag>/` that holds
     no firmware, because the fake `pio` reads only the userPrefs file and `.fake-pio-version`.
+    Only the alpha firmware version has a registry: the registry of `tests/fixtures/firmware/project_config.json`.
     The server stops when the module ends.
     """
     base = tmp_path_factory.mktemp("e2e")
@@ -106,7 +110,8 @@ def live_server(tmp_path_factory):
         "path": str(alpha_dir),
         "installed_at": "2026-11-10T00:00:00+00:00",
     }
-    record_firmware_source(database_path, {**record, **alpha})
+    # The alpha firmware version has the registry of the firmware fixture, and the stable one has no registry.
+    record_firmware_source(database_path, {**record, **alpha}, registry_entries(json.loads(PROJECT_CONFIG.read_text())))
     port = _free_port()
     command = [sys.executable, "-m", "uvicorn", "mtfwbuilder.main:app", "--host", "127.0.0.1", "--port", str(port)]
     with _serve(command, env, port) as url:

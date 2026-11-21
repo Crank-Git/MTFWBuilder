@@ -71,3 +71,15 @@ def test_build_of_the_chosen_alpha_firmware_version_gives_alpha_artifacts(page: 
 
     expect(page.locator('[data-step="complete"]')).to_have_attribute("data-state", "done", timeout=15_000)
     expect(page.locator("#build-state tr", has_text=".factory.bin")).to_contain_text(ALPHA_VERSION.removeprefix("v"))
+
+
+def test_build_of_a_variant_not_in_the_chosen_firmware_version_shows_the_variant_message(page: Page, live_server: str):
+    page.goto(f"{live_server}/")
+    fill_config_form(page)
+    # The YAML registry lists `tbeam`, and the registry of the alpha firmware version does not hold it.
+    page.select_option("#variant", "tbeam")
+    page.select_option("#firmware_version", ALPHA_VERSION)
+
+    page.click("#buildBtn")
+
+    expect(page.get_by_role("alert")).to_contain_text(f"variant: Variant not in {ALPHA_VERSION}")

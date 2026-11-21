@@ -103,8 +103,8 @@ class TestFirmwareRoutes:
             "/api/v1/build-firmware",
             data={"variant": "nonexistent-xyz", "config_source": "current", "config_json": "{}"},
         )
-        assert resp.status_code == 400
-        assert "Unknown device variant" in resp.json()["detail"]
+        assert resp.status_code == 422
+        assert resp.json()["detail"][0]["msg"] == "Unknown device variant: nonexistent-xyz"
 
     @pytest.mark.asyncio
     async def test_build_no_variant(self, client):

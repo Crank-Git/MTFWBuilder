@@ -3,7 +3,7 @@
 import pytest
 import yaml
 
-from mtfwbuilder.services.device_registry import DeviceRegistry
+from mtfwbuilder.services.device_registry import DeviceRegistry, DeviceVariant
 
 
 class TestDeviceRegistryLoad:
@@ -144,3 +144,13 @@ class TestFirmwareFormat:
         registry = DeviceRegistry(variants_path)
         for v in registry.all_variants:
             assert v.firmware_format in ("bin", "uf2"), f"{v.id}: {v.firmware_format}"
+
+
+@pytest.mark.parametrize(
+    ("architecture", "firmware_format"),
+    [("esp32s3", "bin"), ("nrf52840", "uf2"), ("rp2350", "uf2"), ("nrf54l15", "zip"), ("stm32", "bin")],
+)
+def test_firmware_format_of_a_generated_registry_architecture(architecture, firmware_format):
+    variant = DeviceVariant(id="env", name="Env", manufacturer="Other", architecture=architecture)
+
+    assert variant.firmware_format == firmware_format
