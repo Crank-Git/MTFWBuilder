@@ -2,8 +2,8 @@
 id: fleet-builds
 feature: Fleet builds
 epic: "Epic 10: Profiles and build cache, Epic 11: Fleet runs"
-status: planned
-issues: []
+status: issued
+issues: [60, 61, 62, 63, 64, 65, 66, 67, 68, 69]
 mockups: [mockups/07-fleet.html]
 ---
 

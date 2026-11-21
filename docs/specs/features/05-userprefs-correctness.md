@@ -2,8 +2,8 @@
 id: userprefs-correctness
 feature: userPrefs correctness
 epic: "Epic 1: Correct userPrefs"
-status: planned
-issues: []
+status: issued
+issues: [10, 11, 12, 13, 14, 15]
 mockups: []
 ---
 

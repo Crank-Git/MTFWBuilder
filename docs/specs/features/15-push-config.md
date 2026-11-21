@@ -2,8 +2,8 @@
 id: push-config
 feature: Push config
 epic: "Epic 12: Push config"
-status: planned
-issues: []
+status: issued
+issues: [70, 71, 72, 73, 74]
 mockups: [mockups/08-push-config.html]
 ---
 

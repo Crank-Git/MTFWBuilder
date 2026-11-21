@@ -2,8 +2,8 @@
 id: foundation
 feature: Foundation
 epic: "Epic 0: Foundation"
-status: planned
-issues: []
+status: issued
+issues: [4, 5, 6, 7, 8, 9]
 mockups: []
 ---
 

@@ -152,6 +152,7 @@ body.rv-open .layout { padding-right:21rem; }
 <li><a class="sub" href="#milestones">Milestones</a></li>
 <li><a class="sub" href="#assumptions">Assumptions</a></li>
 <li><a class="sub" href="#risks-open-questions">Risks &amp; open questions</a></li>
+<li><a class="sub" href="#issue-map">Issue map</a></li>
 <li><a class="sub" href="#changelog">Changelog</a></li>
 </ul>
 <h2>Pages</h2><ul>
@@ -640,6 +641,218 @@ body.rv-open .layout { padding-right:21rem; }
 </ul>
 <p>components at build time. Network errors fail builds. Mitigation: retry, as upstream <code>bin/build-esp32.sh</code> does.</p>
 <p><strong>Open questions:</strong> none block approval.</p>
+<h2 id="issue-map">Issue map</h2>
+<p>Written by <code>/spec-to-issues</code> on 2026-11-21.</p>
+<div class="table-wrap"><table>
+<tr><th>Epic</th><th>Epic issue</th><th>Sub-issues</th></tr>
+<tr><td>0 Foundation</td><td>#4</td><td>#5, #6, #7, #8, #9</td></tr>
+<tr><td>1 Correct userPrefs</td><td>#10</td><td>#11, #12, #13, #14, #15</td></tr>
+<tr><td>2 Build pipeline repair</td><td>#16</td><td>#17, #18, #19, #20, #21</td></tr>
+<tr><td>3 Frontend on htmx</td><td>#22</td><td>#23, #24, #25, #26, #27</td></tr>
+<tr><td>4 Platform modernization</td><td>#28</td><td>#29, #30, #31, #32</td></tr>
+<tr><td>5 Firmware versions</td><td>#33</td><td>#34, #35, #36, #37, #38</td></tr>
+<tr><td>6 Generated registry</td><td>#39</td><td>#40, #41, #42, #43</td></tr>
+<tr><td>7 Config coverage</td><td>#44</td><td>#45, #46, #47, #48, #49, #50</td></tr>
+<tr><td>8 Channel share</td><td>#51</td><td>#52, #53, #54, #55</td></tr>
+<tr><td>9 Browser flashing</td><td>#56</td><td>#57, #58, #59</td></tr>
+<tr><td>10 Profiles and build cache</td><td>#60</td><td>#61, #62, #63, #64</td></tr>
+<tr><td>11 Fleet runs</td><td>#65</td><td>#66, #67, #68, #69</td></tr>
+<tr><td>12 Push config</td><td>#70</td><td>#71, #72, #73, #74</td></tr>
+</table></div>
+<div class="table-wrap"><table>
+<tr><th>Requirement</th><th>Issues</th></tr>
+<tr><td>FR-foundation-1</td><td>#5</td></tr>
+<tr><td>FR-foundation-2</td><td>#5</td></tr>
+<tr><td>FR-foundation-3</td><td>#5</td></tr>
+<tr><td>FR-foundation-8</td><td>#5</td></tr>
+<tr><td>FR-foundation-4</td><td>#6</td></tr>
+<tr><td>FR-foundation-5</td><td>#6</td></tr>
+<tr><td>FR-foundation-6</td><td>#7</td></tr>
+<tr><td>FR-foundation-7</td><td>#7</td></tr>
+<tr><td>FR-foundation-9</td><td>#8</td></tr>
+<tr><td>FR-foundation-10</td><td>#8</td></tr>
+<tr><td>FR-foundation-11</td><td>#9</td></tr>
+<tr><td>FR-foundation-12</td><td>#9</td></tr>
+<tr><td>FR-foundation-13</td><td>#9</td></tr>
+<tr><td>FR-foundation-14</td><td>#9</td></tr>
+<tr><td>FR-userprefs-correctness-16</td><td>#11</td></tr>
+<tr><td>FR-userprefs-correctness-11</td><td>#11</td></tr>
+<tr><td>FR-userprefs-correctness-12</td><td>#11</td></tr>
+<tr><td>FR-userprefs-correctness-14</td><td>#11</td></tr>
+<tr><td>FR-userprefs-correctness-1</td><td>#12</td></tr>
+<tr><td>FR-userprefs-correctness-2</td><td>#12</td></tr>
+<tr><td>FR-userprefs-correctness-4</td><td>#12</td></tr>
+<tr><td>FR-userprefs-correctness-5</td><td>#12</td></tr>
+<tr><td>FR-userprefs-correctness-6</td><td>#12</td></tr>
+<tr><td>FR-userprefs-correctness-7</td><td>#12</td></tr>
+<tr><td>FR-userprefs-correctness-8</td><td>#12</td></tr>
+<tr><td>FR-userprefs-correctness-3</td><td>#13</td></tr>
+<tr><td>FR-userprefs-correctness-9</td><td>#13</td></tr>
+<tr><td>FR-userprefs-correctness-13</td><td>#13</td></tr>
+<tr><td>FR-userprefs-correctness-10</td><td>#14</td></tr>
+<tr><td>FR-userprefs-correctness-15</td><td>#15</td></tr>
+<tr><td>FR-build-pipeline-repair-19</td><td>#17</td></tr>
+<tr><td>FR-build-pipeline-repair-20</td><td>#17</td></tr>
+<tr><td>FR-build-pipeline-repair-21</td><td>#17</td></tr>
+<tr><td>FR-build-pipeline-repair-1</td><td>#18</td></tr>
+<tr><td>FR-build-pipeline-repair-2</td><td>#18</td></tr>
+<tr><td>FR-build-pipeline-repair-3</td><td>#18</td></tr>
+<tr><td>FR-build-pipeline-repair-4</td><td>#18</td></tr>
+<tr><td>FR-build-pipeline-repair-5</td><td>#18</td></tr>
+<tr><td>FR-build-pipeline-repair-6</td><td>#18</td></tr>
+<tr><td>FR-build-pipeline-repair-7</td><td>#18</td></tr>
+<tr><td>FR-build-pipeline-repair-9</td><td>#18</td></tr>
+<tr><td>FR-build-pipeline-repair-8</td><td>#19</td></tr>
+<tr><td>FR-build-pipeline-repair-17</td><td>#19</td></tr>
+<tr><td>FR-build-pipeline-repair-18</td><td>#19</td></tr>
+<tr><td>FR-build-pipeline-repair-10</td><td>#20</td></tr>
+<tr><td>FR-build-pipeline-repair-11</td><td>#20</td></tr>
+<tr><td>FR-build-pipeline-repair-12</td><td>#20</td></tr>
+<tr><td>FR-build-pipeline-repair-13</td><td>#20</td></tr>
+<tr><td>FR-build-pipeline-repair-14</td><td>#21</td></tr>
+<tr><td>FR-build-pipeline-repair-15</td><td>#21</td></tr>
+<tr><td>FR-build-pipeline-repair-16</td><td>#21</td></tr>
+<tr><td>FR-frontend-htmx-15</td><td>#23</td></tr>
+<tr><td>FR-frontend-htmx-16</td><td>#23</td></tr>
+<tr><td>FR-frontend-htmx-17</td><td>#23</td></tr>
+<tr><td>FR-frontend-htmx-19</td><td>#23</td></tr>
+<tr><td>FR-frontend-htmx-1</td><td>#24</td></tr>
+<tr><td>FR-frontend-htmx-2</td><td>#24</td></tr>
+<tr><td>FR-frontend-htmx-3</td><td>#24</td></tr>
+<tr><td>FR-frontend-htmx-4</td><td>#24</td></tr>
+<tr><td>FR-frontend-htmx-5</td><td>#24</td></tr>
+<tr><td>FR-frontend-htmx-6</td><td>#24</td></tr>
+<tr><td>FR-frontend-htmx-18</td><td>#24</td></tr>
+<tr><td>FR-frontend-htmx-7</td><td>#25</td></tr>
+<tr><td>FR-frontend-htmx-8</td><td>#25</td></tr>
+<tr><td>FR-frontend-htmx-9</td><td>#25</td></tr>
+<tr><td>FR-frontend-htmx-10</td><td>#25</td></tr>
+<tr><td>FR-frontend-htmx-20</td><td>#25</td></tr>
+<tr><td>FR-frontend-htmx-11</td><td>#26</td></tr>
+<tr><td>FR-frontend-htmx-12</td><td>#26</td></tr>
+<tr><td>FR-frontend-htmx-13</td><td>#26</td></tr>
+<tr><td>FR-frontend-htmx-14</td><td>#26</td></tr>
+<tr><td>FR-platform-modernization-1</td><td>#29</td></tr>
+<tr><td>FR-platform-modernization-2</td><td>#29</td></tr>
+<tr><td>FR-platform-modernization-3</td><td>#29</td></tr>
+<tr><td>FR-platform-modernization-4</td><td>#30</td></tr>
+<tr><td>FR-platform-modernization-5</td><td>#30</td></tr>
+<tr><td>FR-platform-modernization-6</td><td>#30</td></tr>
+<tr><td>FR-platform-modernization-7</td><td>#30</td></tr>
+<tr><td>FR-platform-modernization-8</td><td>#30</td></tr>
+<tr><td>FR-platform-modernization-9</td><td>#31</td></tr>
+<tr><td>FR-platform-modernization-10</td><td>#31</td></tr>
+<tr><td>FR-platform-modernization-11</td><td>#31</td></tr>
+<tr><td>FR-platform-modernization-12</td><td>#31</td></tr>
+<tr><td>FR-platform-modernization-13</td><td>#31</td></tr>
+<tr><td>FR-platform-modernization-14</td><td>#32</td></tr>
+<tr><td>FR-platform-modernization-15</td><td>#32</td></tr>
+<tr><td>FR-firmware-versions-4</td><td>#34</td></tr>
+<tr><td>FR-firmware-versions-9</td><td>#34</td></tr>
+<tr><td>FR-firmware-versions-1</td><td>#35</td></tr>
+<tr><td>FR-firmware-versions-2</td><td>#35</td></tr>
+<tr><td>FR-firmware-versions-3</td><td>#36</td></tr>
+<tr><td>FR-firmware-versions-5</td><td>#36</td></tr>
+<tr><td>FR-firmware-versions-6</td><td>#36</td></tr>
+<tr><td>FR-firmware-versions-7</td><td>#36</td></tr>
+<tr><td>FR-firmware-versions-8</td><td>#36</td></tr>
+<tr><td>FR-firmware-versions-10</td><td>#37</td></tr>
+<tr><td>FR-firmware-versions-11</td><td>#37</td></tr>
+<tr><td>FR-firmware-versions-12</td><td>#37</td></tr>
+<tr><td>FR-firmware-versions-13</td><td>#38</td></tr>
+<tr><td>FR-generated-registry-1</td><td>#40</td></tr>
+<tr><td>FR-generated-registry-2</td><td>#40</td></tr>
+<tr><td>FR-generated-registry-3</td><td>#40</td></tr>
+<tr><td>FR-generated-registry-4</td><td>#40</td></tr>
+<tr><td>FR-generated-registry-5</td><td>#40</td></tr>
+<tr><td>FR-generated-registry-6</td><td>#40</td></tr>
+<tr><td>FR-generated-registry-7</td><td>#40</td></tr>
+<tr><td>FR-generated-registry-14</td><td>#40</td></tr>
+<tr><td>FR-generated-registry-13</td><td>#41</td></tr>
+<tr><td>FR-generated-registry-15</td><td>#41</td></tr>
+<tr><td>FR-generated-registry-8</td><td>#42</td></tr>
+<tr><td>FR-generated-registry-9</td><td>#42</td></tr>
+<tr><td>FR-generated-registry-10</td><td>#42</td></tr>
+<tr><td>FR-generated-registry-11</td><td>#42</td></tr>
+<tr><td>FR-generated-registry-12</td><td>#42</td></tr>
+<tr><td>FR-generated-registry-16</td><td>#43</td></tr>
+<tr><td>FR-config-coverage-1</td><td>#45</td></tr>
+<tr><td>FR-config-coverage-2</td><td>#45</td></tr>
+<tr><td>FR-config-coverage-3</td><td>#45</td></tr>
+<tr><td>FR-config-coverage-4</td><td>#45</td></tr>
+<tr><td>FR-config-coverage-4a</td><td>#45</td></tr>
+<tr><td>FR-config-coverage-16</td><td>#46</td></tr>
+<tr><td>FR-config-coverage-5</td><td>#47</td></tr>
+<tr><td>FR-config-coverage-6</td><td>#47</td></tr>
+<tr><td>FR-config-coverage-7</td><td>#47</td></tr>
+<tr><td>FR-config-coverage-10</td><td>#47</td></tr>
+<tr><td>FR-config-coverage-8</td><td>#48</td></tr>
+<tr><td>FR-config-coverage-9</td><td>#48</td></tr>
+<tr><td>FR-config-coverage-11</td><td>#48</td></tr>
+<tr><td>FR-config-coverage-12</td><td>#48</td></tr>
+<tr><td>FR-config-coverage-14</td><td>#48</td></tr>
+<tr><td>FR-config-coverage-13</td><td>#49</td></tr>
+<tr><td>FR-config-coverage-15</td><td>#50</td></tr>
+<tr><td>FR-config-coverage-17</td><td>#50</td></tr>
+<tr><td>FR-config-coverage-18</td><td>#50</td></tr>
+<tr><td>FR-channel-share-1</td><td>#52</td></tr>
+<tr><td>FR-channel-share-2</td><td>#52</td></tr>
+<tr><td>FR-channel-share-3</td><td>#52</td></tr>
+<tr><td>FR-channel-share-12</td><td>#52</td></tr>
+<tr><td>FR-channel-share-4</td><td>#53</td></tr>
+<tr><td>FR-channel-share-5</td><td>#53</td></tr>
+<tr><td>FR-channel-share-6</td><td>#53</td></tr>
+<tr><td>FR-channel-share-11</td><td>#53</td></tr>
+<tr><td>FR-channel-share-9</td><td>#54</td></tr>
+<tr><td>FR-channel-share-10</td><td>#54</td></tr>
+<tr><td>FR-channel-share-7</td><td>#55</td></tr>
+<tr><td>FR-channel-share-8</td><td>#55</td></tr>
+<tr><td>FR-browser-flashing-1</td><td>#57</td></tr>
+<tr><td>FR-browser-flashing-2</td><td>#57</td></tr>
+<tr><td>FR-browser-flashing-11</td><td>#57</td></tr>
+<tr><td>FR-browser-flashing-12</td><td>#57</td></tr>
+<tr><td>FR-browser-flashing-13</td><td>#57</td></tr>
+<tr><td>FR-browser-flashing-3</td><td>#58</td></tr>
+<tr><td>FR-browser-flashing-4</td><td>#58</td></tr>
+<tr><td>FR-browser-flashing-5</td><td>#58</td></tr>
+<tr><td>FR-browser-flashing-6</td><td>#58</td></tr>
+<tr><td>FR-browser-flashing-7</td><td>#58</td></tr>
+<tr><td>FR-browser-flashing-8</td><td>#58</td></tr>
+<tr><td>FR-browser-flashing-9</td><td>#58</td></tr>
+<tr><td>FR-browser-flashing-10</td><td>#59</td></tr>
+<tr><td>FR-fleet-builds-1</td><td>#61, #63</td></tr>
+<tr><td>FR-fleet-builds-2</td><td>#61</td></tr>
+<tr><td>FR-fleet-builds-4</td><td>#61, #63</td></tr>
+<tr><td>FR-fleet-builds-3</td><td>#62</td></tr>
+<tr><td>FR-fleet-builds-5</td><td>#64</td></tr>
+<tr><td>FR-fleet-builds-6</td><td>#64</td></tr>
+<tr><td>FR-fleet-builds-7</td><td>#64</td></tr>
+<tr><td>FR-fleet-builds-8</td><td>#64</td></tr>
+<tr><td>FR-fleet-builds-9</td><td>#64</td></tr>
+<tr><td>FR-fleet-builds-10</td><td>#66</td></tr>
+<tr><td>FR-fleet-builds-11</td><td>#66</td></tr>
+<tr><td>FR-fleet-builds-14</td><td>#66</td></tr>
+<tr><td>FR-fleet-builds-12</td><td>#67</td></tr>
+<tr><td>FR-fleet-builds-13</td><td>#67</td></tr>
+<tr><td>FR-fleet-builds-15</td><td>#68</td></tr>
+<tr><td>FR-fleet-builds-17</td><td>#68</td></tr>
+<tr><td>FR-fleet-builds-18</td><td>#68</td></tr>
+<tr><td>FR-fleet-builds-16</td><td>#69</td></tr>
+<tr><td>FR-fleet-builds-19</td><td>#69</td></tr>
+<tr><td>FR-fleet-builds-20</td><td>#69</td></tr>
+<tr><td>FR-push-config-1</td><td>#71</td></tr>
+<tr><td>FR-push-config-2</td><td>#72</td></tr>
+<tr><td>FR-push-config-3</td><td>#72</td></tr>
+<tr><td>FR-push-config-11</td><td>#72</td></tr>
+<tr><td>FR-push-config-4</td><td>#73</td></tr>
+<tr><td>FR-push-config-5</td><td>#73</td></tr>
+<tr><td>FR-push-config-6</td><td>#73</td></tr>
+<tr><td>FR-push-config-7</td><td>#74</td></tr>
+<tr><td>FR-push-config-8</td><td>#74</td></tr>
+<tr><td>FR-push-config-9</td><td>#74</td></tr>
+<tr><td>FR-push-config-10</td><td>#74</td></tr>
+<tr><td>FR-push-config-12</td><td>#74</td></tr>
+</table></div>
 <h2 id="changelog">Changelog</h2>
 <ul>
 <li>2026-11-21 — Draft written by <code>/project-inherit</code> from a full repository survey, two
@@ -650,7 +863,11 @@ body.rv-open .layout { padding-right:21rem; }
 <li>2026-11-21 — Review round 1: approved. Corrections before approval: the admin key
 </li>
 </ul>
-<p>key name (<code>USERPREFS_USE_ADMIN_KEY_&lt;n&gt;</code> holds the key), router roles rejected as factory defaults, an interim registry id fix in Epic 2, and the <code>.gitignore</code> <code>firmware/</code> pattern.</p><nav class="pager">
+<p>key name (<code>USERPREFS_USE_ADMIN_KEY_&lt;n&gt;</code> holds the key), router roles rejected as factory defaults, an interim registry id fix in Epic 2, and the <code>.gitignore</code> <code>firmware/</code> pattern.</p>
+<ul>
+<li>2026-11-21 — <code>/spec-to-issues</code>: 13 epics (#4–#70) and 58 sub-issues created. See <code>## Issue map</code>.
+</li>
+</ul><nav class="pager">
 <span></span>
 <a href="html/page-inherit-reconciliation.html">Inherit reconciliation and research &rarr;</a>
 </nav>
