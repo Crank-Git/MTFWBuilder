@@ -1,5 +1,6 @@
 """FastAPI application factory and lifespan."""
 
+import json
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -7,9 +8,17 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from mtfwbuilder.config import load_settings
 from mtfwbuilder.database import init_db
+from mtfwbuilder.rate_limit import limiter
+from mtfwbuilder.routers.admin import router as admin_router
+from mtfwbuilder.routers.config_generator import router as config_router
+from mtfwbuilder.routers.firmware_builder import router as firmware_router
+from mtfwbuilder.routers.pages import router as pages_router
+from mtfwbuilder.services.build_service import init_build_system
 from mtfwbuilder.services.device_registry import DeviceRegistry
 
 
@@ -19,8 +28,6 @@ def setup_logging(log_level: str, log_json: bool) -> None:
     fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     if log_json:
         # Structured JSON logging for production
-        import json
-
         class JsonFormatter(logging.Formatter):
             def format(self, record):
                 return json.dumps(
@@ -63,8 +70,6 @@ async def lifespan(app: FastAPI):
     logger.info(f"Loaded {registry.count} device variants")
 
     # Initialize build system
-    from mtfwbuilder.services.build_service import init_build_system
-
     init_build_system(settings)
     logger.info("Build system initialized (serialized, 1 concurrent build)")
 
@@ -90,19 +95,10 @@ def create_app() -> FastAPI:
     app.state.templates = Jinja2Templates(directory=template_dir)
 
     # Rate limiting
-    from slowapi import _rate_limit_exceeded_handler
-    from slowapi.errors import RateLimitExceeded
-    from mtfwbuilder.rate_limit import limiter
-
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     # Routers
-    from mtfwbuilder.routers.config_generator import router as config_router
-    from mtfwbuilder.routers.firmware_builder import router as firmware_router
-    from mtfwbuilder.routers.admin import router as admin_router
-    from mtfwbuilder.routers.pages import router as pages_router
-
     app.include_router(config_router)
     app.include_router(firmware_router)
     app.include_router(admin_router)

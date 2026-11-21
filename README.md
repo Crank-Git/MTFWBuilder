@@ -192,7 +192,7 @@ pytest
 pytest --cov=mtfwbuilder
 
 # Format
-black mtfwbuilder/ tests/
+ruff format mtfwbuilder/ tests/
 
 # Lint
 ruff check mtfwbuilder/ tests/
@@ -223,7 +223,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed contribution guidelines.
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) in the repository.
+GPL-3.0-or-later. See [LICENSE](LICENSE) in the repository.
 
 ## Acknowledgments
 

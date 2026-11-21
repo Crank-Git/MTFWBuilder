@@ -6,8 +6,8 @@ Line-by-line stdout streaming for SSE progress. Configurable build timeout.
 
 import asyncio
 import logging
+import multiprocessing
 import os
-import re
 import shutil
 import time
 from dataclasses import dataclass, field
@@ -25,7 +25,7 @@ _build_queue: asyncio.Queue | None = None
 
 def init_build_system(settings: Settings) -> None:
     """Initialize the build semaphore and queue."""
-    global _build_semaphore, _build_queue
+    global _build_semaphore, _build_queue  # noqa: PLW0603  # TODO(#18): The build queue replaces this module state.
     _build_semaphore = asyncio.Semaphore(1)
     _build_queue = asyncio.Queue(maxsize=settings.max_queue_size)
 
@@ -80,7 +80,7 @@ async def build_firmware(ctx: BuildContext):
             async with asyncio.timeout(ctx.settings.build_timeout_seconds):
                 async for progress in _run_pio_build(ctx):
                     yield progress
-        except asyncio.TimeoutError:
+        except TimeoutError:
             error_msg = f"Build timed out after {ctx.settings.build_timeout_seconds // 60} minutes"
             logger.error(f"Build {ctx.build_id}: {error_msg}")
             yield BuildProgress(status="failed", error=error_msg)
@@ -120,13 +120,14 @@ async def _run_pio_build(ctx: BuildContext):
     logger.info(f"Build {ctx.build_id}: config written, starting PIO for {ctx.variant.id}")
 
     # Build command — no shell=True, no --silent, no custom build flags
-    import multiprocessing
-
     jobs = min(multiprocessing.cpu_count(), 8)
     cmd = [
-        "pio", "run",
-        "-e", ctx.variant.id,
-        "--jobs", str(jobs),
+        "pio",
+        "run",
+        "-e",
+        ctx.variant.id,
+        "--jobs",
+        str(jobs),
         "--disable-auto-clean",
     ]
 
@@ -165,7 +166,7 @@ async def _run_pio_build(ctx: BuildContext):
         raise
 
     if exit_code != 0:
-        error_lines = [l for l in ctx.build_log[-20:] if "error" in l.lower()]
+        error_lines = [line for line in ctx.build_log[-20:] if "error" in line.lower()]
         error_summary = error_lines[-1] if error_lines else f"PlatformIO exited with code {exit_code}"
         logger.error(f"Build {ctx.build_id} failed: {error_summary}")
         yield BuildProgress(
@@ -203,9 +204,7 @@ async def _extract_firmware(ctx: BuildContext) -> None:
     source_path = pio_build_dir / firmware_filename
 
     if not source_path.exists():
-        raise FileNotFoundError(
-            f"Build completed but {firmware_filename} not found at {source_path}"
-        )
+        raise FileNotFoundError(f"Build completed but {firmware_filename} not found at {source_path}")
 
     # Copy firmware to isolated build directory
     dest = ctx.build_dir / firmware_filename
@@ -252,6 +251,6 @@ _build_counter = 0
 
 def generate_build_id() -> str:
     """Generate a unique build ID."""
-    global _build_counter
+    global _build_counter  # noqa: PLW0603  # TODO(#18): The build queue owns the build ID.
     _build_counter += 1
     return f"build_{int(time.time())}_{os.getpid()}_{_build_counter}"

@@ -1,76 +1,74 @@
 """Pydantic models for request/response validation."""
 
-from typing import Optional
-
 from pydantic import BaseModel, Field
 
 
 class ChannelConfig(BaseModel):
     """Configuration for a single channel."""
 
-    name: Optional[str] = None
-    psk: Optional[str] = None
-    precision: Optional[str] = None
-    uplink_enabled: Optional[str] = None
-    downlink_enabled: Optional[str] = None
+    name: str | None = None
+    psk: str | None = None
+    precision: str | None = None
+    uplink_enabled: str | None = None
+    downlink_enabled: str | None = None
 
 
 class ConfigRequest(BaseModel):
     """Request body for generating a userPrefs.jsonc configuration."""
 
     # Basic device info
-    device_name: Optional[str] = None
-    owner_short_name: Optional[str] = None
-    owner_long_name: Optional[str] = None
-    tz_string: Optional[str] = None
-    bluetooth_fixed_pin: Optional[str] = None
+    device_name: str | None = None
+    owner_short_name: str | None = None
+    owner_long_name: str | None = None
+    tz_string: str | None = None
+    bluetooth_fixed_pin: str | None = None
 
     # Channels
     channels_to_write: str = "1"
 
     # LoRa
-    lora_enabled: Optional[str] = None
-    lora_region: Optional[str] = None
-    lora_modem_preset: Optional[str] = None
-    lora_channel_num: Optional[str] = None
-    lora_ignore_mqtt: Optional[str] = None
+    lora_enabled: str | None = None
+    lora_region: str | None = None
+    lora_modem_preset: str | None = None
+    lora_channel_num: str | None = None
+    lora_ignore_mqtt: str | None = None
 
     # GPS
-    gps_enabled: Optional[str] = None
-    gps_mode: Optional[str] = None
-    gps_update_interval: Optional[str] = None
-    position_broadcast_interval: Optional[str] = None
-    fixed_position: Optional[str] = None
-    fixed_lat: Optional[str] = None
-    fixed_lon: Optional[str] = None
-    fixed_alt: Optional[str] = None
-    smart_position_enabled: Optional[str] = None
+    gps_enabled: str | None = None
+    gps_mode: str | None = None
+    gps_update_interval: str | None = None
+    position_broadcast_interval: str | None = None
+    fixed_position: str | None = None
+    fixed_lat: str | None = None
+    fixed_lon: str | None = None
+    fixed_alt: str | None = None
+    smart_position_enabled: str | None = None
 
     # Network
-    network_enabled: Optional[str] = None
-    network_protocols: Optional[str] = None
-    wifi_enabled: Optional[str] = None
-    wifi_ssid: Optional[str] = None
-    wifi_psk: Optional[str] = None
-    mqtt_enabled: Optional[str] = None
-    mqtt_address: Optional[str] = None
-    mqtt_root_topic: Optional[str] = None
-    mqtt_username: Optional[str] = None
-    mqtt_password: Optional[str] = None
-    mqtt_encryption_enabled: Optional[str] = None
-    mqtt_tls_enabled: Optional[str] = None
+    network_enabled: str | None = None
+    network_protocols: str | None = None
+    wifi_enabled: str | None = None
+    wifi_ssid: str | None = None
+    wifi_psk: str | None = None
+    mqtt_enabled: str | None = None
+    mqtt_address: str | None = None
+    mqtt_root_topic: str | None = None
+    mqtt_username: str | None = None
+    mqtt_password: str | None = None
+    mqtt_encryption_enabled: str | None = None
+    mqtt_tls_enabled: str | None = None
 
     # Admin keys
-    admin_key_0: Optional[str] = None
-    admin_key_1: Optional[str] = None
-    admin_key_2: Optional[str] = None
+    admin_key_0: str | None = None
+    admin_key_1: str | None = None
+    admin_key_2: str | None = None
 
     # OEM
-    oem_text: Optional[str] = None
-    oem_font_size: Optional[str] = None
-    oem_image_width: Optional[str] = None
-    oem_image_height: Optional[str] = None
-    oem_image_data: Optional[str] = None
+    oem_text: str | None = None
+    oem_font_size: str | None = None
+    oem_image_width: str | None = None
+    oem_image_height: str | None = None
+    oem_image_data: str | None = None
 
     # Preview flag
     preview_only: bool = False
@@ -82,17 +80,17 @@ class BuildRequest(BaseModel):
     """Request to build firmware."""
 
     variant: str = Field(..., description="PlatformIO environment name")
-    custom_filename: Optional[str] = None
+    custom_filename: str | None = None
 
 
 class BuildStatus(BaseModel):
     """SSE event for build progress."""
 
     status: str
-    message: Optional[str] = None
-    progress: Optional[int] = None
-    download_url: Optional[str] = None
-    error: Optional[str] = None
+    message: str | None = None
+    progress: int | None = None
+    download_url: str | None = None
+    error: str | None = None
 
 
 class BuildResult(BaseModel):
@@ -100,8 +98,8 @@ class BuildResult(BaseModel):
 
     build_id: str
     success: bool
-    download_url: Optional[str] = None
-    error: Optional[str] = None
+    download_url: str | None = None
+    error: str | None = None
 
 
 class AdminLoginRequest(BaseModel):
@@ -114,16 +112,16 @@ class PreviewResponse(BaseModel):
     """Response for config preview."""
 
     success: bool
-    content: Optional[str] = None
-    error: Optional[str] = None
+    content: str | None = None
+    error: str | None = None
 
 
 class FilePreviewResponse(BaseModel):
     """Response for uploaded file preview."""
 
     success: bool
-    content: Optional[str] = None
-    line_count: Optional[int] = None
-    checks: Optional[dict] = None
-    filename: Optional[str] = None
-    error: Optional[str] = None
+    content: str | None = None
+    line_count: int | None = None
+    checks: dict | None = None
+    filename: str | None = None
+    error: str | None = None

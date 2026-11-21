@@ -9,7 +9,7 @@ router = APIRouter(tags=["pages"])
 async def index(request: Request):
     """Render the main configuration generator page."""
     templates = request.app.state.templates
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request, "index.html")
 
 
 @router.get("/firmware-builder")
@@ -18,19 +18,15 @@ async def firmware_builder(request: Request):
     templates = request.app.state.templates
     registry = request.app.state.device_registry
 
-    variants = [
-        {"id": v.id, "name": v.name, "manufacturer": v.manufacturer}
-        for v in registry.all_variants
-    ]
+    variants = [{"id": v.id, "name": v.name, "manufacturer": v.manufacturer} for v in registry.all_variants]
     manufacturers = {}
     for v in registry.all_variants:
         if v.manufacturer not in manufacturers:
             manufacturers[v.manufacturer] = []
-        manufacturers[v.manufacturer].append(
-            {"id": v.id, "name": v.name, "manufacturer": v.manufacturer}
-        )
+        manufacturers[v.manufacturer].append({"id": v.id, "name": v.name, "manufacturer": v.manufacturer})
 
     return templates.TemplateResponse(
+        request,
         "firmware_builder.html",
-        {"request": request, "variants": variants, "manufacturers": manufacturers},
+        {"variants": variants, "manufacturers": manufacturers},
     )

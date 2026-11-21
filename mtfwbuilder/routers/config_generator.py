@@ -2,11 +2,12 @@
 
 import json
 import logging
+from typing import Annotated
 
-from fastapi import APIRouter, Request, UploadFile, File, HTTPException
-from fastapi.responses import PlainTextResponse, Response
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
+from fastapi.responses import Response
 
-from mtfwbuilder.models import PreviewResponse, FilePreviewResponse
+from mtfwbuilder.models import FilePreviewResponse, PreviewResponse
 from mtfwbuilder.services.jsonc_generator import generate_jsonc
 
 logger = logging.getLogger("mtfwbuilder.config_generator")
@@ -65,11 +66,11 @@ async def download(request: Request) -> Response:
         )
     except Exception as e:
         logger.error(f"Download error: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/preview-userprefs")
-async def preview_userprefs(userPrefs: UploadFile = File(...)) -> FilePreviewResponse:
+async def preview_userprefs(userPrefs: Annotated[UploadFile, File()]) -> FilePreviewResponse:
     """Preview an uploaded userPrefs.jsonc file content."""
     try:
         if not userPrefs.filename:
@@ -85,9 +86,7 @@ async def preview_userprefs(userPrefs: UploadFile = File(...)) -> FilePreviewRes
 
         # Try to parse as JSON to validate
         config_lines = [
-            line.strip()
-            for line in file_content.split("\n")
-            if line.strip() and not line.strip().startswith("//")
+            line.strip() for line in file_content.split("\n") if line.strip() and not line.strip().startswith("//")
         ]
 
         checks = {

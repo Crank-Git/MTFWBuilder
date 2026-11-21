@@ -42,9 +42,18 @@ edit `docs/specs/spec.html` or `docs/specs/html/` by hand.
 pip install -e ".[dev]"        # install (uv sync after Epic 4)
 pytest                         # tests (uv run pytest after Epic 4)
 ruff check mtfwbuilder/ tests/ # lint
-ruff format mtfwbuilder/ tests/  # format (black until Epic 0 drops it)
+ruff format mtfwbuilder/ tests/ # format
 uvicorn mtfwbuilder.main:app --reload --port 5000   # dev server
 docker compose up -d           # Docker
+```
+
+Docker operations, for the `mtfwbuilder` service in `docker-compose.yml`:
+
+```bash
+docker compose logs -f                      # follow the container logs
+docker compose exec mtfwbuilder /bin/bash   # open a shell in the running container
+docker compose ps                           # show the container status
+git pull && docker compose build --no-cache && docker compose up -d   # update and rebuild
 ```
 
 The project has no real PlatformIO in tests. Tests use a fake `pio` (feature 06).
