@@ -94,7 +94,7 @@ flask_session/
 *.elf
 
 # Firmware source directory (downloaded)
-firmware/
+/firmware/
 
 # Build artifacts
 *.o
@@ -113,6 +113,8 @@ firmware_updater.log
 # Configuration files
 ReferenceConf.jsonc
 userPrefs.jsonc
+# The upstream copy in the firmware fixture holds no secret.
+!/tests/fixtures/firmware/userPrefs.jsonc
 
 # Version tracking
 firmware_version.txt
