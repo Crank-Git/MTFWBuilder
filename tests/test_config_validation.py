@@ -141,3 +141,25 @@ async def test_valid_channel_fields_reach_the_userprefs_file(client):
     assert parsed["USERPREFS_CHANNEL_0_NAME"] == "Primary"
     assert parsed["USERPREFS_CHANNEL_0_PSK"] == "{ 0x01 }"
     assert parsed["USERPREFS_CHANNEL_0_UPLINK_ENABLED"] == "true"
+
+
+@pytest.mark.asyncio
+async def test_iana_time_zone_reaches_the_userprefs_file_as_a_posix_tz_string(client):
+    resp = await client.post("/api/v1/preview", json={"tz_string": "America/New_York"})
+    assert resp.status_code == 200
+    assert json.loads(resp.json()["content"])["USERPREFS_TZ_STRING"] == "EST5EDT,M3.2.0,M11.1.0"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("route", CONFIG_ROUTES)
+async def test_unknown_time_zone_returns_422_for_tz_string(client, route):
+    resp = await client.post(route, json={"tz_string": "Mars/Olympus_Mons"})
+    assert resp.status_code == 422
+    assert "tz_string" in error_fields(resp)
+
+
+@pytest.mark.asyncio
+async def test_empty_time_zone_returns_200_and_writes_no_tz_key(client):
+    resp = await client.post("/api/v1/preview", json={"tz_string": ""})
+    assert resp.status_code == 200
+    assert "USERPREFS_TZ_STRING" not in json.loads(resp.json()["content"])
