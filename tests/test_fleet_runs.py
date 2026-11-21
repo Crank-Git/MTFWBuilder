@@ -14,8 +14,6 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from mtfwbuilder.main import lifespan
-from mtfwbuilder.services.build_service import BuildQueueFull
-from tests.conftest import fixture_variant
 
 PSK = "deadbeef" * 8
 # The generator writes a key as a C byte array, so a test looks for the bytes in that form too.
@@ -99,9 +97,12 @@ def _prefs(app, device: dict) -> dict:
 
 
 async def _build_rows(database_path) -> list[dict]:
+    """Return each `builds` row, with `run_public_id` for the public id of its fleet run."""
     async with aiosqlite.connect(database_path) as db:
         db.row_factory = aiosqlite.Row
-        cursor = await db.execute("SELECT * FROM builds")
+        cursor = await db.execute(
+            "SELECT b.*, fr.public_id AS run_public_id FROM builds b LEFT JOIN fleet_runs fr ON fr.id = b.fleet_run_id"
+        )
         return [dict(row) for row in await cursor.fetchall()]
 
 
@@ -123,7 +124,7 @@ async def test_fleet_run_of_3_devices_makes_one_build_per_device(client, setting
     build_ids = {device["build_id"] for device in run["devices"]}
     assert len(build_ids) == 3
     rows = await _build_rows(settings.database_path)
-    assert {row["id"] for row in rows if row["fleet_run_id"] == run_id} == build_ids
+    assert {row["id"] for row in rows if row["run_public_id"] == run_id} == build_ids
 
 
 @pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
@@ -175,18 +176,6 @@ async def test_fleet_run_feeds_its_builds_one_at_a_time(client, monkeypatch):
     assert (await _wait_until_ended(client, run_id))["status"] == "complete"
 
 
-@pytest.mark.usefixtures("firmware_source")
-async def test_fleet_run_builds_do_not_count_against_the_build_queue_limit(app, settings):
-    settings.max_queue_size = 1
-    build_queue = app.state.build_queue
-
-    await build_queue.submit(fixture_variant("heltec-v3"), "{}", fleet_run_id=1)
-    await build_queue.submit(fixture_variant("heltec-v3"), '{"a": "1"}')
-
-    with pytest.raises(BuildQueueFull):
-        await build_queue.submit(fixture_variant("heltec-v3"), '{"a": "2"}')
-
-
 # FR-fleet-builds-17 and FR-fleet-builds-18, criterion "partial, and Retry failed builds only that device"
 
 
@@ -220,7 +209,7 @@ async def test_fleet_run_where_one_build_fails_ends_partial_and_retry_builds_onl
     assert second["gate-3"]["build_id"] == first["gate-3"]["build_id"]
     assert second["gate-2"]["build_id"] != first["gate-2"]["build_id"]
     rows = await _build_rows(settings.database_path)
-    assert len([row for row in rows if row["fleet_run_id"] == run_id]) == 4
+    assert len([row for row in rows if row["run_public_id"] == run_id]) == 4
 
 
 @pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")

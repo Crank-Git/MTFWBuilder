@@ -8,6 +8,7 @@ from mtfwbuilder.meshtastic_enums import ROUTER_ROLE_MESSAGE
 pytestmark = pytest.mark.e2e
 
 HEADER = "label,variant,long_name,short_name,role,lat,lon,alt,admin_key"
+ADMIN_KEY = "cafebabe" * 8
 
 
 def _new_fleet(page: Page, base_url: str) -> int:
@@ -73,3 +74,48 @@ def test_the_table_form_shows_a_duplicate_label_next_to_its_row(page: Page, live
 
     expect(page.locator("#fleet-status")).to_contain_text("Saved 2 fleet devices.")
     expect(page.locator("#fleet-devices tbody tr.fleet-row .row-number")).to_have_text(["1", "2"])
+
+
+def _saved_devices(page: Page, base_url: str, fleet_id: int) -> list[dict]:
+    return page.request.get(f"{base_url}/api/v1/fleets/{fleet_id}").json()["devices"]
+
+
+def test_a_renamed_row_keeps_its_fleet_device_id(page: Page, live_server: str):
+    fleet_id = _new_fleet(page, live_server)
+    page.request.put(f"{live_server}/api/v1/fleets/{fleet_id}/devices", data={"devices": [{"label": "hill-1"}]})
+    before = _saved_devices(page, live_server, fleet_id)[0]["id"]
+    page.goto(f"{live_server}/fleets/{fleet_id}")
+    page.locator("#fleet-devices tbody tr.fleet-row [name=label]").first.fill("hill-1-north")
+
+    page.click("#saveDevicesBtn")
+
+    expect(page.locator("#fleet-status")).to_contain_text("Saved 1 fleet devices.")
+    saved = _saved_devices(page, live_server, fleet_id)
+    assert [(device["id"], device["label"]) for device in saved] == [(before, "hill-1-north")]
+
+
+def test_the_clear_admin_key_control_removes_the_saved_admin_key(page: Page, live_server: str):
+    fleet_id = _new_fleet(page, live_server)
+    rows = [{"label": "hill-1", "admin_key": ADMIN_KEY}, {"label": "hill-2", "admin_key": ADMIN_KEY}]
+    page.request.put(f"{live_server}/api/v1/fleets/{fleet_id}/devices", data={"devices": rows})
+    page.goto(f"{live_server}/fleets/{fleet_id}")
+    page.locator("#fleet-devices tbody tr.fleet-row [name=clear_admin_key]").first.check()
+
+    page.click("#saveDevicesBtn")
+
+    expect(page.locator("#fleet-status")).to_contain_text("Saved 2 fleet devices.")
+    assert [device["has_admin_key"] for device in _saved_devices(page, live_server, fleet_id)] == [False, True]
+    # The table shows the saved fleet, so only the row with a saved admin key has the control.
+    expect(page.locator("#fleet-devices tbody tr.fleet-row [name=clear_admin_key]")).to_have_count(1)
+
+
+def test_a_csv_file_that_is_not_utf_8_shows_an_error(page: Page, live_server: str):
+    fleet_id = _new_fleet(page, live_server)
+    page.goto(f"{live_server}/fleets/{fleet_id}")
+
+    page.set_input_files(
+        "#csvFile", files=[{"name": "fleet.csv", "mimeType": "text/csv", "buffer": b"label\nb\xe4r\n"}]
+    )
+
+    expect(page.locator("#csv-errors li")).to_have_text("The file is not UTF-8 text. Save the CSV as UTF-8.")
+    expect(page.locator("#csvText")).to_have_value(f"{HEADER}\n")

@@ -31,8 +31,9 @@ INSERT INTO fleet_devices (
 """
 UPDATE_DEVICE = """
 UPDATE fleet_devices SET
-    variant = :variant, long_name = :long_name, short_name = :short_name, role = :role, fixed_lat = :lat,
-    fixed_lon = :lon, fixed_alt = :alt, admin_key_ciphertext = :admin_key_ciphertext, position = :position
+    label = :label, variant = :variant, long_name = :long_name, short_name = :short_name, role = :role,
+    fixed_lat = :lat, fixed_lon = :lon, fixed_alt = :alt, admin_key_ciphertext = :admin_key_ciphertext,
+    position = :position
 WHERE id = :id
 """
 # A fleet device without a position comes from a database before the column, and its id gives the order then.
@@ -99,33 +100,55 @@ async def get_fleet(database_path: Path, fleet_id: int, secret_key: str | None) 
         return await _fleet(db, row, secret_key) if row else None
 
 
+def _match_saved(devices: list[FleetDevice], saved: dict[int, tuple[str, str | None]]) -> list[int | None]:
+    """Return the id of the saved fleet device that each device changes, or None for a new fleet device.
+
+    The id of the device decides first, so a rename keeps the fleet device. A device without the id of a saved
+    fleet device of this fleet then gets the saved fleet device with its label, if no other device has it.
+    """
+    matches: list[int | None] = []
+    for device in devices:
+        # A request can name one id two times, and only the first device gets the saved fleet device then.
+        matches.append(device.id if device.id in saved and device.id not in matches else None)
+    claimed = set(matches)
+    by_label = {label: device_id for device_id, (label, _) in saved.items() if device_id not in claimed}
+    for index, device in enumerate(devices):
+        if matches[index] is None:
+            matches[index] = by_label.pop(device.label, None)
+    return matches
+
+
 async def _replace_devices(
     db: aiosqlite.Connection, secret_key: str, fleet_id: int, devices: list[FleetDevice]
 ) -> None:
     """Save `devices` as the fleet devices of the fleet, in list order.
 
-    A device with the label of a saved fleet device keeps its id, so a fleet run still finds it for Retry failed.
+    A device keeps the id of the saved fleet device that it changes, so a fleet run still finds it for Retry failed.
     """
     cursor = await db.execute(
-        "SELECT label, id, admin_key_ciphertext FROM fleet_devices WHERE fleet_id = ?", (fleet_id,)
+        "SELECT id, label, admin_key_ciphertext FROM fleet_devices WHERE fleet_id = ?", (fleet_id,)
     )
-    saved = {label: (device_id, ciphertext) for label, device_id, ciphertext in await cursor.fetchall()}
+    saved = {device_id: (label, ciphertext) for device_id, label, ciphertext in await cursor.fetchall()}
+    matches = _match_saved(devices, saved)
     cipher = fernet(secret_key)
     inserts, updates = [], []
-    for position, device in enumerate(devices):
-        # A label that is in the list two times gets the saved row once, so the second device is a new row.
-        device_id, saved_ciphertext = saved.pop(device.label, (None, None))
+    for position, (device, device_id) in enumerate(zip(devices, matches, strict=True)):
+        saved_ciphertext = saved.pop(device_id)[1] if device_id is not None else None
         if device.admin_key is None:
             # An operator without an admin session gets no admin key, so a device without one keeps the saved token.
             ciphertext = saved_ciphertext
         else:
             ciphertext = cipher.encrypt(device.admin_key.encode()).decode("ascii") if device.admin_key else None
-        row = {**device.model_dump(exclude={"admin_key"}), "admin_key_ciphertext": ciphertext, "position": position}
+        row = {
+            **device.model_dump(exclude={"id", "admin_key"}),
+            "admin_key_ciphertext": ciphertext,
+            "position": position,
+        }
         if device_id is None:
             inserts.append({**row, "fleet_id": fleet_id})
         else:
             updates.append({**row, "id": device_id})
-    await db.executemany("DELETE FROM fleet_devices WHERE id = ?", [(device_id,) for device_id, _ in saved.values()])
+    await db.executemany("DELETE FROM fleet_devices WHERE id = ?", [(device_id,) for device_id in saved])
     await db.executemany(UPDATE_DEVICE, updates)
     await db.executemany(INSERT_DEVICE, inserts)
 
@@ -277,8 +300,10 @@ async def check_devices(
             device = FleetDevice.model_validate({key: value for key, value in row.items() if key is not None})
         except ValidationError as e:
             # Pydantic puts "Value error, " before the text of a ValueError, and the operator needs only the text.
+            # An error of two fields, such as a position without lon, has no location.
             errors += [
-                row_error(number, str(err["loc"][0]), err["msg"].removeprefix("Value error, ")) for err in e.errors()
+                row_error(number, str(err["loc"][0]) if err["loc"] else None, err["msg"].removeprefix("Value error, "))
+                for err in e.errors()
             ]
             continue
         if registry and device.variant and device.variant not in registry[1]:

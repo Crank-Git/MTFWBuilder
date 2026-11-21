@@ -113,7 +113,9 @@ CREATE TABLE IF NOT EXISTS fleet_devices (
     """
 CREATE TABLE IF NOT EXISTS fleet_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    public_id TEXT,
     fleet_id INTEGER NOT NULL,
+    profile_id INTEGER,
     firmware_version TEXT,
     status TEXT NOT NULL DEFAULT 'queued',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -138,7 +140,11 @@ ADDED_COLUMNS = {
     "profiles": {"secrets_ciphertext": "TEXT"},
     "cache_entries": {"artifact_names": "TEXT"},
     "fleet_devices": {"position": "INTEGER"},
+    "fleet_runs": {"public_id": "TEXT", "profile_id": "INTEGER"},
 }
+
+# A fleet run route takes the public id only, so a fleet run from before the column gets a random one.
+FILL_FLEET_RUN_PUBLIC_IDS = "UPDATE fleet_runs SET public_id = lower(hex(randomblob(16))) WHERE public_id IS NULL"
 
 # A build in one of these build statuses has not ended.
 UNENDED_STATUSES = ("queued", "compiling", "linking", "packaging")
@@ -200,6 +206,7 @@ async def init_db(settings: Settings) -> None:
             for name, sql_type in added.items():
                 if name not in columns:
                     await db.execute(f"ALTER TABLE {table} ADD COLUMN {name} {sql_type}")
+        await db.execute(FILL_FLEET_RUN_PUBLIC_IDS)
         await db.commit()
 
 

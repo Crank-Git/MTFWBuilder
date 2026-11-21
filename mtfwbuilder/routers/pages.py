@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 from markupsafe import Markup
 
@@ -127,7 +127,9 @@ async def fleet_page(request: Request, fleet_id: int):
         raise HTTPException(status_code=404, detail=f"Fleet {fleet_id} does not exist")
     profile = await _run_profile(request, fleet["profile_id"])
     source = await find_firmware_source(database_path, fleet["firmware_version"])
+    nonce = _admin_csrf_nonce(request)
     context = {
+        "run_csrf_token": csrf_token(nonce, request.app.state.settings) if nonce else None,
         "title": f"Fleet {fleet['name']}",
         "fleet": fleet,
         "profile_name": profile["name"] if profile else None,
@@ -138,7 +140,23 @@ async def fleet_page(request: Request, fleet_id: int):
         "csv_header": ",".join(fleets.CSV_HEADER),
         "must_reenter": profile["must_reenter"] if profile else [],
     }
-    return request.app.state.templates.TemplateResponse(request, "fleet.html", context)
+    return _with_csrf_cookie(
+        request, request.app.state.templates.TemplateResponse(request, "fleet.html", context), nonce
+    )
+
+
+def _admin_csrf_nonce(request: Request) -> str | None:
+    """Return the CSRF cookie value for an admin session, or None, because a fleet run of an admin needs CSRF."""
+    if not is_admin(request):
+        return None
+    return request.cookies.get(CSRF_COOKIE) or new_csrf_nonce()
+
+
+def _with_csrf_cookie(request: Request, response: Response, nonce: str | None) -> Response:
+    """Return `response`, with the CSRF cookie `nonce` when it is set."""
+    if nonce:
+        set_cookie(response, request, CSRF_COOKIE, nonce)
+    return response
 
 
 async def _run_profile(request: Request, profile_id: int) -> dict | None:
@@ -154,12 +172,12 @@ async def _run_profile(request: Request, profile_id: int) -> dict | None:
 
 
 @router.get("/fleet-runs/{run_id}")
-async def fleet_run_page(request: Request, run_id: int):
+async def fleet_run_page(request: Request, run_id: str):
     """Render the fleet run page: one row for each fleet device with its build status (FR-fleet-builds-16).
 
-    While the fleet run runs, the state polls this route each second, and an htmx request gets the state only.
-    The state of an ended fleet run has no poll, Download all, and Retry failed when a build did not complete.
-    Returns 404 when no fleet run has the id.
+    `run_id` is the public id of the fleet run. While the fleet run runs, the state polls this route each second,
+    and an htmx request gets the state only. The state of an ended fleet run has no poll, Download all, and Retry
+    failed when a build did not complete. Returns 404 when no fleet run has the id.
     """
     run = await request.app.state.fleet_runs.get(run_id)
     if run is None:
@@ -167,15 +185,18 @@ async def fleet_run_page(request: Request, run_id: int):
     database_path = request.app.state.settings.database_path
     fleet = await fleets.get_fleet(database_path, run["fleet_id"], None)
     profile = await _run_profile(request, fleet["profile_id"]) if fleet else None
+    nonce = _admin_csrf_nonce(request)
     context = {
-        "title": f"Fleet run {run_id}",
+        "title": f"Fleet run {run_id[:8]}",
         "run": run,
         "fleet": fleet,
         "complete_count": sum(device["status"] == "complete" for device in run["devices"]),
         "must_reenter": profile["must_reenter"] if profile else [],
+        "run_csrf_token": csrf_token(nonce, request.app.state.settings) if nonce else None,
     }
     template = "partials/fleet_run_state.html" if is_htmx(request) else "fleet_run.html"
-    return request.app.state.templates.TemplateResponse(request, template, context)
+    response = request.app.state.templates.TemplateResponse(request, template, context)
+    return _with_csrf_cookie(request, response, nonce)
 
 
 @router.get("/firmware-builder")

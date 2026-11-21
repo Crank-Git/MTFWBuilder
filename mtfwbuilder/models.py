@@ -4,7 +4,15 @@ import re
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field, StringConstraints, ValidationInfo, field_validator, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    Field,
+    StringConstraints,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 from mtfwbuilder import meshtastic_enums
 from mtfwbuilder.key_bytes import ADMIN_KEY_LENGTH, decode_key
@@ -470,16 +478,22 @@ MAX_LONG_NAME_BYTES = 25
 MAX_SHORT_NAME_LENGTH = 4
 
 FleetName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+# A label names a zip folder and a manifest row, so it stays short.
+MAX_LABEL_LENGTH = 64
+# The same 64 KB limit as the userPrefs upload of the build route.
+MAX_FLEET_CSV_LENGTH = 65536
 
 
 class FleetDevice(_UserPrefsFields):
     """One fleet device in a fleet request (FR-fleet-builds-11).
 
     Each field except `label` is optional and overrides the profile. `role` comes back with its C prefix.
-    `admin_key` is None to keep the saved admin key of the fleet device with the same label, and "" for no admin key.
+    `id` names the saved fleet device that the row changes. Without it, the saved fleet device with the same label
+    is the one. `admin_key` is None to keep the saved admin key, and "" for no admin key.
     """
 
-    label: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    id: int | None = None
+    label: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=MAX_LABEL_LENGTH)]
     variant: str | None = None
     long_name: str | None = None
     short_name: Annotated[str, StringConstraints(max_length=MAX_SHORT_NAME_LENGTH)] | None = None
@@ -509,6 +523,26 @@ class FleetDevice(_UserPrefsFields):
             raise ValueError(f"the admin key is not {ADMIN_KEY_LENGTH} bytes")
         return value
 
+    @model_validator(mode="after")
+    def _check_position(self) -> "FleetDevice":
+        # The generator writes the fixed position keys together, so one coordinate alone gives a wrong position.
+        if (self.lat is None) != (self.lon is None):
+            raise ValueError("a fleet device position needs both lat and lon")
+        return self
+
+
+def _check_unique_labels(devices: list[FleetDevice]) -> list[FleetDevice]:
+    """Return `devices`, or raise a ValueError that names the first label that two fleet devices have."""
+    seen: set[str] = set()
+    for device in devices:
+        if device.label in seen:
+            raise ValueError(f"the label {device.label} is in the fleet two times")
+        seen.add(device.label)
+    return devices
+
+
+FleetDevices = Annotated[list[FleetDevice], AfterValidator(_check_unique_labels)]
+
 
 class FleetRequest(BaseModel):
     """The body of `POST /api/v1/fleets`: a fleet name, the profile of the fleet, and the fleet devices.
@@ -519,7 +553,7 @@ class FleetRequest(BaseModel):
     name: FleetName
     profile_id: int
     firmware_version: str | None = None
-    devices: list[FleetDevice] = []
+    devices: FleetDevices = []
 
 
 class FleetUpdate(BaseModel):
@@ -528,7 +562,7 @@ class FleetUpdate(BaseModel):
     name: FleetName | None = None
     profile_id: int | None = None
     firmware_version: str | None = None
-    devices: list[FleetDevice] | None = None
+    devices: FleetDevices | None = None
 
     @model_validator(mode="after")
     def _check_not_empty(self) -> "FleetUpdate":
@@ -550,7 +584,7 @@ class FleetDeviceRows(BaseModel):
 class FleetCsv(BaseModel):
     """The body of `POST /api/v1/fleets/{id}/devices/csv`: CSV text whose first line is the header."""
 
-    csv: str
+    csv: Annotated[str, StringConstraints(max_length=MAX_FLEET_CSV_LENGTH)]
 
 
 class FleetDeviceRecord(BaseModel):
@@ -607,9 +641,12 @@ class FleetRunDevice(BaseModel):
 
 
 class FleetRun(BaseModel):
-    """A fleet run: `running`, `complete`, `partial` (a fleet device has no complete build) or `failed` (none has)."""
+    """A fleet run: `running`, `complete`, `partial` (a fleet device has no complete build) or `failed` (none has).
 
-    id: int
+    `id` is the random public id of the fleet run, so a person who knows one fleet run cannot find the others.
+    """
+
+    id: str
     fleet_id: int
     firmware_version: str | None
     status: Literal["running", "complete", "partial", "failed"]

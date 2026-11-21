@@ -26,6 +26,8 @@ router = APIRouter(prefix="/api/v1", tags=["firmware"])
 # The same 64 KB limit as the preview-userprefs route.
 MAX_UPLOAD_SIZE = 65536
 QUEUE_FULL_NOTICE = "The build queue is full. Try again in a few minutes."
+# The JSON detail of a 503 from a build route that the build queue refuses.
+QUEUE_FULL_DETAIL = "Build queue is full. Try again later."
 # The steps of a build before its ended build status, in build order.
 RUN_STEPS = ("queued", "compiling", "linking", "packaging")
 
@@ -75,7 +77,7 @@ async def start_build(request: Request) -> Response:
             return request.app.state.templates.TemplateResponse(
                 request, "partials/build_notice.html", {"notice": QUEUE_FULL_NOTICE}, status_code=503
             )
-        raise HTTPException(status_code=503, detail="Build queue is full. Try again later.") from e
+        raise HTTPException(status_code=503, detail=QUEUE_FULL_DETAIL) from e
 
     data = {"build_id": ctx.build_id, "progress_url": progress_url(ctx.build_id)}
     response = fragment_or_json(request, "partials/build_panel.html", panel_context(ctx), data, status_code=202)

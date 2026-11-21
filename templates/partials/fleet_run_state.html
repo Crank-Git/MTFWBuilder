@@ -2,7 +2,7 @@
 {% set ended = run.status != "running" %}
 {% set status_class = {"complete": "text-success", "failed": "text-danger", "queued": "text-muted", "cancelled": "text-muted"} %}
 <div id="fleet-run-state" aria-live="polite"{% if not ended %} hx-get="/fleet-runs/{{ run.id }}" hx-trigger="every 1s" hx-swap="outerHTML"{% endif %}>
-    <h3 class="section-title"><i class="bi bi-cpu-fill text-success"></i>Fleet run {{ run.id }}: {{ complete_count }} of {{ run.devices | length }} complete</h3>
+    <h3 class="section-title"><i class="bi bi-cpu-fill text-success"></i>Fleet run {{ run.id[:8] }}: {{ complete_count }} of {{ run.devices | length }} complete</h3>
     <p class="text-muted">
         Fleet: {% if fleet %}<a href="/fleets/{{ fleet.id }}">{{ fleet.name }}</a>{% else %}deleted{% endif %}.
         Firmware version: {{ run.firmware_version or "the default firmware version" }}.
@@ -50,7 +50,7 @@
         {% endfor %}
         {% endif %}
         <ul id="run-errors" class="text-danger small mb-2" role="alert"></ul>
-        <button type="button" class="btn btn-outline-danger" id="retryBtn" data-run-id="{{ run.id }}">Retry failed</button>
+        <button type="button" class="btn btn-outline-danger" id="retryBtn" data-run-id="{{ run.id }}"{% if run_csrf_token %} data-csrf-token="{{ run_csrf_token }}"{% endif %}>Retry failed</button>
     </div>
     {% endif %}
     {% endif %}

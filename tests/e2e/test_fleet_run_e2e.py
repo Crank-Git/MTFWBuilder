@@ -2,16 +2,20 @@
 
 import csv
 import io
+import re
 import zipfile
 
 import pytest
 from playwright.sync_api import Page, expect
+
+from tests.conftest import ADMIN_PASSWORD
 
 pytestmark = pytest.mark.e2e
 
 PSK = "deadbeef" * 8
 PROFILE_CONFIG = {"channels_to_write": "1", "channel_0[name]": "Primary", "channel_0[psk]": PSK}
 LABELS = ("hill-1", "hill-2", "team-a")
+DEVICE = {"label": "admin-1", "variant": "heltec-v3"}
 
 
 def test_a_fleet_run_of_3_devices_shows_3_complete_builds_and_downloads_one_zip(page: Page, live_server: str):
@@ -56,3 +60,19 @@ def test_a_fleet_run_of_3_devices_shows_3_complete_builds_and_downloads_one_zip(
     manifest = archive.read("manifest.csv").decode()
     assert [row["status"] for row in csv.DictReader(io.StringIO(manifest))] == ["complete"] * 3
     assert PSK not in manifest
+
+
+def test_an_admin_starts_a_fleet_run_with_the_csrf_token_and_gets_a_random_run_url(page: Page, live_server: str):
+    page.goto(f"{live_server}/admin")
+    page.fill("#adminKey", ADMIN_PASSWORD)
+    page.click("button[type=submit]:has-text('Sign in')")
+    profile = page.request.post(f"{live_server}/api/v1/profiles", data={"name": "Admin run base", "config": {}})
+    body = {"name": "Admin fleet", "profile_id": profile.json()["id"], "devices": [DEVICE]}
+    fleet = page.request.post(f"{live_server}/api/v1/fleets", data=body)
+    assert fleet.status == 201
+    page.goto(f"{live_server}/fleets/{fleet.json()['id']}")
+
+    page.click("#startRunBtn")
+
+    page.wait_for_url(re.compile(r".*/fleet-runs/[0-9a-f]{32}$"))
+    expect(page.locator("#fleet-run-status")).to_have_text("complete", timeout=30_000)
