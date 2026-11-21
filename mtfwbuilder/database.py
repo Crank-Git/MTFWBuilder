@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS profiles (
     config_json TEXT NOT NULL,
     must_reenter_json TEXT NOT NULL,
     stores_secrets INTEGER NOT NULL DEFAULT 0,
+    secrets_ciphertext TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -70,7 +71,10 @@ CREATE INDEX IF NOT EXISTS idx_builds_created ON builds(created_at);
 DROP_CONFIG_PROFILES = "DROP TABLE IF EXISTS config_profiles"
 
 # `CREATE TABLE IF NOT EXISTS` does not change a table that exists, so an older database gets these columns here.
-ADDED_BUILD_COLUMNS = {"config_hash": "TEXT", "firmware_version": "TEXT"}
+ADDED_COLUMNS = {
+    "builds": {"config_hash": "TEXT", "firmware_version": "TEXT"},
+    "profiles": {"secrets_ciphertext": "TEXT"},
+}
 
 # A build in one of these build statuses has not ended.
 UNENDED_STATUSES = ("queued", "compiling", "linking", "packaging")
@@ -123,11 +127,12 @@ async def init_db(settings: Settings) -> None:
     async with aiosqlite.connect(settings.database_path) as db:
         await db.executescript(SCHEMA)
         await db.execute(DROP_CONFIG_PROFILES)
-        cursor = await db.execute("PRAGMA table_info(builds)")
-        columns = {row[1] for row in await cursor.fetchall()}
-        for name, sql_type in ADDED_BUILD_COLUMNS.items():
-            if name not in columns:
-                await db.execute(f"ALTER TABLE builds ADD COLUMN {name} {sql_type}")
+        for table, added in ADDED_COLUMNS.items():
+            cursor = await db.execute(f"PRAGMA table_info({table})")
+            columns = {row[1] for row in await cursor.fetchall()}
+            for name, sql_type in added.items():
+                if name not in columns:
+                    await db.execute(f"ALTER TABLE {table} ADD COLUMN {name} {sql_type}")
         await db.commit()
 
 

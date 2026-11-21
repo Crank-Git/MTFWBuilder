@@ -415,33 +415,46 @@ ProfileName = Annotated[str, StringConstraints(strip_whitespace=True, min_length
 
 
 class ProfileRequest(BaseModel):
-    """The body of `POST /api/v1/profiles`: a unique profile name and the config to save."""
+    """The body of `POST /api/v1/profiles`: a unique profile name, the config to save, and the store secrets option.
+
+    When `stores_secrets` is true, the project keeps the secrets of the config encrypted (FR-fleet-builds-3).
+    """
 
     name: ProfileName
     config: ConfigRequest
+    stores_secrets: bool = False
 
 
 class ProfileUpdate(BaseModel):
-    """The body of `PUT /api/v1/profiles/{id}`: a new name, a config that replaces the saved config, or both."""
+    """The body of `PUT /api/v1/profiles/{id}`: a new name, a new config, a new store secrets option, or more of them.
+
+    A new config replaces the saved config. When `stores_secrets` is false, the project deletes the stored secrets.
+    """
 
     name: ProfileName | None = None
     config: ConfigRequest | None = None
+    stores_secrets: bool | None = None
 
     @model_validator(mode="after")
     def _check_not_empty(self) -> "ProfileUpdate":
-        if self.name is None and self.config is None:
-            raise ValueError("the body holds neither a name nor a config")
+        if self.name is None and self.config is None and self.stores_secrets is None:
+            raise ValueError("the body holds neither a name, a config nor a stores_secrets value")
         return self
 
 
 class Profile(BaseModel):
-    """A saved profile. `config` holds no secret, and `must_reenter` names each secret field that the save removed."""
+    """A saved profile.
+
+    `config` holds a secret only when `stores_secrets` is true and the secret decrypts. `must_reenter` names each
+    secret field that `config` does not hold. `warning` is set when the stored secrets do not decrypt.
+    """
 
     id: int
     name: str
     config: dict[str, Any]
     must_reenter: list[str]
     stores_secrets: bool
+    warning: str | None = None
     created_at: str
     updated_at: str
 

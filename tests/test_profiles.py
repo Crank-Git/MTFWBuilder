@@ -1,4 +1,4 @@
-"""Tests for the profiles table and the profile routes (feature fleet-builds, FR 1, 2 and 4)."""
+"""Tests for the profiles table and the profile routes (feature fleet-builds, FR 1 to 4)."""
 
 import json
 
@@ -7,6 +7,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from mtfwbuilder.database import init_db
+from mtfwbuilder.services import profiles
 
 CHANNEL_PSK = "deadbeef" * 8
 OTHER_CHANNEL_PSK = "0123abcd" * 4
@@ -241,3 +242,118 @@ async def test_init_db_drops_the_unused_config_profiles_table(settings):
         tables = {row[0] for row in await cursor.fetchall()}
     assert "config_profiles" not in tables
     assert "profiles" in tables
+
+
+async def _save_with_secrets(client, config=CONFIG):
+    return await client.post("/api/v1/profiles", json={"name": "Event 2026", "config": config, "stores_secrets": True})
+
+
+async def test_profile_that_stores_secrets_holds_no_psk_as_plain_text(client, settings):
+    response = await _save_with_secrets(client)
+
+    assert response.status_code == 201
+    rows = await _rows(settings.database_path)
+    assert rows[0]["stores_secrets"] == 1
+    assert rows[0]["secrets_ciphertext"]
+    stored = json.dumps(rows[0])
+    for secret in SECRETS:
+        assert secret not in stored
+
+
+async def test_load_of_a_profile_that_stores_secrets_returns_the_secrets(client):
+    saved = (await _save_with_secrets(client)).json()
+
+    body = (await client.get(f"/api/v1/profiles/{saved['id']}")).json()
+
+    assert body["stores_secrets"] is True
+    assert body["must_reenter"] == []
+    assert body["warning"] is None
+    assert "secrets_ciphertext" not in body
+    for field in MUST_REENTER:
+        assert body["config"][field] == CONFIG[field]
+    assert body["config"]["channel_0[name]"] == "Primary"
+
+
+async def test_list_returns_the_secrets_of_a_profile_that_stores_secrets(client):
+    await _save_with_secrets(client)
+
+    body = (await client.get("/api/v1/profiles")).json()
+
+    assert body[0]["config"]["wifi_psk"] == WIFI_PSK
+    assert body[0]["must_reenter"] == []
+
+
+async def test_changed_secret_key_marks_the_stored_secrets_must_reenter(app, client, settings):
+    saved = (await _save_with_secrets(client)).json()
+    app.state.settings = settings.model_copy(update={"secret_key": "a-different-secret-key"})
+
+    response = await client.get(f"/api/v1/profiles/{saved['id']}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["must_reenter"] == MUST_REENTER
+    assert body["warning"] == profiles.UNREADABLE_SECRETS
+    for field in MUST_REENTER:
+        assert field not in body["config"]
+
+
+async def test_export_of_a_profile_that_stores_secrets_holds_no_secret(client, settings):
+    saved = (await _save_with_secrets(client)).json()
+    ciphertext = (await _rows(settings.database_path))[0]["secrets_ciphertext"]
+
+    response = await client.get(f"/api/v1/profiles/{saved['id']}/export")
+
+    assert response.json()["must_reenter"] == MUST_REENTER
+    assert ciphertext not in response.text
+    for secret in SECRETS:
+        assert secret not in response.text
+
+
+async def test_put_with_a_config_keeps_the_store_secrets_option(client):
+    saved = (await _save_with_secrets(client)).json()
+
+    response = await client.put(f"/api/v1/profiles/{saved['id']}", json={"config": {"wifi_psk": WIFI_PSK}})
+
+    body = response.json()
+    assert body["stores_secrets"] is True
+    assert body["config"]["wifi_psk"] == WIFI_PSK
+    assert body["must_reenter"] == []
+
+
+async def test_put_with_store_secrets_off_deletes_the_stored_secrets(client, settings):
+    saved = (await _save_with_secrets(client)).json()
+
+    response = await client.put(f"/api/v1/profiles/{saved['id']}", json={"stores_secrets": False})
+
+    assert response.status_code == 200
+    assert response.json()["stores_secrets"] is False
+    assert response.json()["must_reenter"] == MUST_REENTER
+    assert (await _rows(settings.database_path))[0]["secrets_ciphertext"] is None
+
+
+async def test_put_with_store_secrets_on_and_no_config_marks_the_secrets_must_reenter(client):
+    saved = (await _save(client)).json()
+
+    response = await client.put(f"/api/v1/profiles/{saved['id']}", json={"stores_secrets": True})
+
+    assert response.status_code == 200
+    assert response.json()["stores_secrets"] is True
+    assert response.json()["must_reenter"] == MUST_REENTER
+    assert response.json()["warning"] is None
+
+
+async def test_init_db_adds_the_secrets_column_to_an_old_profiles_table(settings):
+    async with aiosqlite.connect(settings.database_path) as db:
+        await db.execute(
+            "CREATE TABLE profiles (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, config_json TEXT NOT NULL, "
+            "must_reenter_json TEXT NOT NULL, stores_secrets INTEGER NOT NULL DEFAULT 0, "
+            "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
+        )
+        await db.commit()
+
+    await init_db(settings)
+
+    async with aiosqlite.connect(settings.database_path) as db:
+        cursor = await db.execute("PRAGMA table_info(profiles)")
+        columns = {row[1] for row in await cursor.fetchall()}
+    assert "secrets_ciphertext" in columns

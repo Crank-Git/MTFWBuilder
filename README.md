@@ -116,7 +116,7 @@ MTFWBuilder/
 │   │   ├── firmware_builder.py     # /api/v1/build-firmware, SSE progress
 │   │   ├── firmware.py             # /api/v1/firmware, installed and upstream firmware versions
 │   │   ├── variants.py             # /api/v1/variants, registry of a firmware version, device images
-│   │   ├── profiles.py             # /api/v1/profiles, saved configs without secrets
+│   │   ├── profiles.py             # /api/v1/profiles, saved configs, with encrypted secrets on opt-in
 │   │   ├── admin.py                # Login, firmware updates, cleanup
 │   │   └── pages.py                # HTML page routes
 │   └── services/
@@ -193,14 +193,20 @@ Key endpoints:
 - `GET /api/v1/variants/{env}/image?version=` — The SVG or PNG device image from the firmware source.
   Returns 404 when the firmware source does not hold the image file named in `custom_meshtastic_images`.
 - `GET /api/v1/profiles` — Every profile in name order. A profile has `id`, `name`, `config`,
-  `must_reenter`, `stores_secrets`, `created_at` and `updated_at`.
-- `POST /api/v1/profiles` — Save `{"name": "<name>", "config": {...}}` as a profile. Returns 201 with the
-  profile, and 409 when another profile has the name. The save removes each secret: the channel PSKs,
-  the WiFi PSK, the MQTT password, the admin keys and the mesh beacon offer PSK. `must_reenter` names
-  each removed field.
+  `must_reenter`, `stores_secrets`, `warning`, `created_at` and `updated_at`.
+- `POST /api/v1/profiles` — Save `{"name": "<name>", "config": {...}, "stores_secrets": false}` as a
+  profile. Returns 201 with the profile, and 409 when another profile has the name. Without
+  `stores_secrets`, the save removes each secret: the channel PSKs, the WiFi PSK, the MQTT password, the
+  admin keys and the mesh beacon offer PSK. `must_reenter` names each removed field.
+- With `"stores_secrets": true`, the profile keeps the secrets encrypted with Fernet. The key comes from
+  `secret_key` through HKDF-SHA256. A response holds the decrypted secrets in `config`, never the
+  encrypted secrets.
+- If `secret_key` changes, the stored secrets do not decrypt. The response then names them in
+  `must_reenter` and sets `warning`.
 - `GET /api/v1/profiles/{id}` — The profile. Returns 404 for an unknown profile.
 - `PUT /api/v1/profiles/{id}` — Rename with `{"name": ...}`, replace the config with `{"config": {...}}`,
-  or both. Returns 409 when another profile has the new name.
+  set the option with `{"stores_secrets": ...}`, or more of them. A false `stores_secrets` deletes the
+  stored secrets. Returns 409 when another profile has the new name.
 - `DELETE /api/v1/profiles/{id}` — Delete the profile. Returns 204.
 - `GET /api/v1/profiles/{id}/export` — The profile as a JSON file with `name`, `config` and
   `must_reenter`, without secrets.
