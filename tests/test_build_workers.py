@@ -227,4 +227,3 @@ class TestFirmwareLock:
 async def _hold(context):
     async with context:
         pass
-

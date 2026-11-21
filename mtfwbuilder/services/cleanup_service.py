@@ -57,9 +57,17 @@ async def cleanup_every_interval(settings: Settings, unended_build_ids: Callable
 def scrub_after_restart(firmware_dir: Path) -> None:
     """Delete `userPrefs.jsonc`, `.pio/build_cache` and each `.pio/build/<env>/` directory from the firmware source.
 
-    A build scrubs its own env directory when it ends, so an env directory at startup is from a build
-    that a restart stopped. Raises `OSError` when a delete fails.
+    The scrub also covers each build worker copy `<firmware_dir>/.worker-<n>/`. A build scrubs its own env
+    directory when it ends, so an env directory at startup is from a build that a restart stopped.
+    Raises `OSError` when a delete fails.
     """
+    for copy in firmware_dir.glob(".worker-*"):
+        if copy.is_dir():
+            _scrub_every_env(copy)
+    _scrub_every_env(firmware_dir)
+
+
+def _scrub_every_env(firmware_dir: Path) -> None:
     _delete_shared_secrets(firmware_dir)
     pio_build = firmware_dir / ".pio" / "build"
     if pio_build.is_dir():
