@@ -2,7 +2,7 @@
 
 Run it once when the tz database changes, then commit the table:
 
-    .venv/bin/python scripts/gen_tz_posix.py
+    uv run python scripts/gen_tz_posix.py
 
 The script reads the footer of each TZif file in `zoneinfo.TZPATH`. RFC 8536 section 3.3
 defines the footer: a new line, a POSIX TZ string, a new line, in version 2 and later files.

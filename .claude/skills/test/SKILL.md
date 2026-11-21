@@ -8,16 +8,16 @@ allowed-tools: Bash, Read
 
 Run these before every pull request:
 
-1. `pytest` (after Epic 4: `uv run pytest`). Unit, contract and integration tests.
-2. `ruff check mtfwbuilder/ tests/`.
-3. `ruff format --check mtfwbuilder/ tests/`.
+1. `uv run pytest`. Unit, contract and integration tests.
+2. `uv run ruff check mtfwbuilder/ tests/`.
+3. `uv run ruff format --check mtfwbuilder/ tests/`.
 
 Which suite covers what:
 - Unit tests: generator, registry, build service, security.
 - Contract tests: userPrefs keys and the registry against `tests/fixtures/firmware/`.
   Run them after any change to the generator or the registry.
 - E2E smoke (Playwright, after Epic 3): run it after any change under `templates/` or
-  `static/`. Install the browser once: `python -m playwright install chromium`.
+  `static/`. Install the browser once: `uv run python -m playwright install chromium`.
 - Real build: manual only. It needs an installed firmware source and toolchains.
 
 Rules:

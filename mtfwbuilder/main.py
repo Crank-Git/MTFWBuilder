@@ -15,7 +15,7 @@ from slowapi.errors import RateLimitExceeded
 
 from mtfwbuilder.config import load_settings
 from mtfwbuilder.database import fail_unended_builds, init_db
-from mtfwbuilder.rate_limit import limiter
+from mtfwbuilder.rate_limit import configure_rate_limits, limiter
 from mtfwbuilder.routers.admin import router as admin_router
 from mtfwbuilder.routers.config_generator import router as config_router
 from mtfwbuilder.routers.firmware_builder import router as firmware_router
@@ -84,6 +84,7 @@ async def lifespan(app: FastAPI):
     app.state.build_queue = build_queue
     logger.info("Build queue started")
     cleanup_task = asyncio.create_task(cleanup_every_interval(settings, build_queue.unended_build_ids))
+    configure_rate_limits(settings)
 
     yield
 
@@ -118,6 +119,11 @@ def create_app() -> FastAPI:
     app.include_router(firmware_router)
     app.include_router(admin_router)
     app.include_router(pages_router)
+
+    @app.get("/healthz")
+    async def healthz() -> dict:
+        """Return a fixed status, so the Docker healthcheck sees that the process serves requests."""
+        return {"status": "ok"}
 
     # Static files mount AFTER routers — Starlette matches routes in order,
     # and /static must not shadow API routes, but url_for('static') still works

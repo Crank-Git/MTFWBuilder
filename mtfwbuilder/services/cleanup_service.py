@@ -1,5 +1,7 @@
 """Build artifact cleanup, and the scrub of the firmware source after a build."""
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import re
@@ -7,8 +9,11 @@ import shutil
 import time
 from collections.abc import Callable, Collection
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from mtfwbuilder.config import Settings
+if TYPE_CHECKING:
+    # config.py imports this module to scrub an old firmware source at startup.
+    from mtfwbuilder.config import Settings
 
 logger = logging.getLogger("mtfwbuilder.cleanup")
 # `generate_build_id` gives 32 lower-case hex characters, and `temp_dir` can hold other directories.

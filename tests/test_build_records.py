@@ -223,7 +223,8 @@ def test_cleanup_keeps_an_old_directory_whose_name_is_not_a_build_id(settings):
 
 async def test_cleanup_task_runs_every_cleanup_interval(settings_env, monkeypatch, app):
     monkeypatch.setenv("MTFW_CLEANUP_INTERVAL_SECONDS", "1")
-    temp_dir = settings_env / "tmp"
+    # The settings_env directory is the data directory, and build directories default to `artifacts/` in it.
+    temp_dir = settings_env / "artifacts"
 
     async with lifespan(app):
         old = temp_dir / ("f" * 32)

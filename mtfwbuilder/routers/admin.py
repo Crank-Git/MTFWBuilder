@@ -12,7 +12,7 @@ from mtfwbuilder.auth import (
     require_admin,
     verify_password,
 )
-from mtfwbuilder.rate_limit import limiter
+from mtfwbuilder.rate_limit import limiter, login_rate_limit
 from mtfwbuilder.services.cleanup_service import cleanup_old_builds
 from mtfwbuilder.services.firmware_updater import update_firmware
 
@@ -29,7 +29,7 @@ async def admin_page(request: Request):
 
 
 @router.post("/admin/login")
-@limiter.limit("10/minute")
+@limiter.limit(login_rate_limit)
 async def admin_login(request: Request):
     """Authenticate admin and set session cookie."""
     settings = request.app.state.settings

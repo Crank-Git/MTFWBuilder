@@ -48,7 +48,6 @@ def update_firmware(settings: Settings) -> bool:
 
     try:
         firmware_dir = settings.firmware_dir
-        base_dir = settings.base_dir
 
         # Get latest release
         release_info = get_latest_release_info()
@@ -56,7 +55,7 @@ def update_firmware(settings: Settings) -> bool:
             return False
 
         # Save version info
-        version_file = base_dir / "firmware_version.txt"
+        version_file = settings.data_dir / "firmware_version.txt"
         version_file.write_text(f"Version: {release_info['version']}\nUpdated: {datetime.now().isoformat()}\n")
 
         # Download source zip
@@ -119,7 +118,7 @@ def update_firmware(settings: Settings) -> bool:
 
 def get_firmware_version(settings: Settings) -> dict:
     """Read current firmware version info."""
-    version_file = settings.base_dir / "firmware_version.txt"
+    version_file = settings.data_dir / "firmware_version.txt"
     if not version_file.exists():
         return {"version": "Not installed", "last_updated": "Never"}
 
