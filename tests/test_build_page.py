@@ -301,17 +301,18 @@ async def test_preview_region_takes_its_name_from_the_preview_heading(client):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("channel", [0, 1, 2])
+@pytest.mark.parametrize("channel", range(8))
 async def test_psk_placeholder_of_each_channel_is_a_32_byte_base64_key(client, channel):
     _, parser = await _page(client)
     placeholder = parser.by_id(f"channel{channel}PSK")["placeholder"]
     assert len(base64.b64decode(placeholder, validate=True)) == 32
 
 
-def test_psk_help_text_names_base64_or_hex_and_the_valid_lengths():
-    text = (REPO_ROOT / "templates" / "includes" / "channel_config.html").read_text()
+@pytest.mark.asyncio
+async def test_psk_help_text_of_each_channel_names_base64_or_hex_and_the_valid_lengths(client):
+    text, _ = await _page(client)
     assert "C-style hex" not in text
-    assert text.count("Base64 or hex. The key is 0, 1, 16 or 32 bytes.") == 3
+    assert text.count("Base64 or hex. The key is 0, 1, 16 or 32 bytes.") == 8
 
 
 # FR-frontend-htmx-5, -6 and -18: main.js runs in Node with a fake browser.

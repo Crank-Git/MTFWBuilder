@@ -32,12 +32,18 @@ def full_config() -> dict[str, str]:
         "tz_string": "Europe/Berlin",
         "bluetooth_fixed_pin": "123456",
         "device_role": "meshtastic_Config_DeviceConfig_Role_CLIENT_BASE",
+        "device_rebroadcast_mode": "meshtastic_Config_DeviceConfig_RebroadcastMode_LOCAL_ONLY",
+        "node_info_broadcast_secs": "10800",
+        "node_info_reply_suppress_secs": "43200",
         "channels_to_write": str(CHANNEL_SLOTS),
         "lora_enabled": "true",
         "lora_region": "US",
         "lora_modem_preset": "meshtastic_Config_LoRaConfig_ModemPreset_LONG_FAST",
         "lora_channel_num": "20",
         "lora_ignore_mqtt": "true",
+        "lora_tx_power": "20",
+        "lora_tx_disabled": "true",
+        "lora_config_ok_to_mqtt": "true",
         "gps_enabled": "true",
         "gps_mode": "meshtastic_Config_PositionConfig_GpsMode_ENABLED",
         "gps_update_interval": "600",
@@ -49,6 +55,7 @@ def full_config() -> dict[str, str]:
         "smart_position_enabled": "true",
         "network_enabled": "true",
         "network_protocols": "1",
+        "network_ipv6_enabled": "true",
         "wifi_enabled": "true",
         "wifi_ssid": "mesh-wifi",
         "wifi_psk": "wifi-secret",
@@ -77,6 +84,7 @@ def full_config() -> dict[str, str]:
         data[f"channel_{slot}[precision]"] = "14"
         data[f"channel_{slot}[uplink_enabled]"] = "true"
         data[f"channel_{slot}[downlink_enabled]"] = "true"
+        data[f"channel_{slot}[muted]"] = "true"
     return data
 
 

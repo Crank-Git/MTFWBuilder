@@ -11,6 +11,11 @@ from mtfwbuilder.time_zones import to_posix_tz
 
 CHANNEL_SLOTS = 8
 PSK_LENGTHS = (0, 1, 16, 32)
+MAX_TX_POWER_DBM = 30
+
+# Spec feature config-coverage: an interval field is 0 or 60 to 2,592,000 seconds (30 days).
+MIN_INTERVAL_SECS = 60
+MAX_INTERVAL_SECS = 2_592_000
 
 # The form posts each channel field as a flat key, for example `channel_0[psk]`.
 _FLAT_CHANNEL_KEY = re.compile(r"(channel_[0-7])\[(\w+)\]")
@@ -24,7 +29,14 @@ _ENUM_FIELDS = {
     "lora_region": meshtastic_enums.REGIONS,
     "lora_modem_preset": meshtastic_enums.MODEM_PRESETS,
     "gps_mode": meshtastic_enums.GPS_MODES,
+    "device_rebroadcast_mode": meshtastic_enums.REBROADCAST_MODES,
 }
+
+
+def _is_whole_number(value: str) -> bool:
+    """Return True if every character of `value` is an ASCII digit."""
+    # `isdigit()` alone accepts other scripts' digits, and upstream quotes a value that is not all ASCII digits.
+    return value.isascii() and value.isdigit()
 
 
 class _UserPrefsFields(BaseModel):
@@ -47,6 +59,7 @@ class ChannelConfig(_UserPrefsFields):
     precision: str | None = None
     uplink_enabled: str | None = None
     downlink_enabled: str | None = None
+    muted: str | None = None
 
     @field_validator("psk")
     @classmethod
@@ -67,6 +80,9 @@ class ConfigRequest(_UserPrefsFields):
     tz_string: str | None = None
     bluetooth_fixed_pin: str | None = None
     device_role: str | None = None
+    device_rebroadcast_mode: str | None = None
+    node_info_broadcast_secs: str | None = None
+    node_info_reply_suppress_secs: str | None = None
 
     # Channels
     channels_to_write: str = "1"
@@ -85,6 +101,9 @@ class ConfigRequest(_UserPrefsFields):
     lora_modem_preset: str | None = None
     lora_channel_num: str | None = None
     lora_ignore_mqtt: str | None = None
+    lora_tx_power: str | None = None
+    lora_tx_disabled: str | None = None
+    lora_config_ok_to_mqtt: str | None = None
 
     # GPS
     gps_enabled: str | None = None
@@ -100,6 +119,7 @@ class ConfigRequest(_UserPrefsFields):
     # Network
     network_enabled: str | None = None
     network_protocols: str | None = None
+    network_ipv6_enabled: str | None = None
     wifi_enabled: str | None = None
     wifi_ssid: str | None = None
     wifi_psk: str | None = None
@@ -178,19 +198,39 @@ class ConfigRequest(_UserPrefsFields):
             raise ValueError(meshtastic_enums.ROUTER_ROLE_MESSAGE)
         return meshtastic_enums.ROLES.c_value(value) if value else value
 
-    @field_validator("lora_region", "lora_modem_preset", "gps_mode")
+    @field_validator("lora_region", "lora_modem_preset", "gps_mode", "device_rebroadcast_mode")
     @classmethod
     def _check_enum_value(cls, value: str | None, info: ValidationInfo) -> str | None:
         """Return the value with its C prefix, if the protobufs enum of the field holds it."""
         return _ENUM_FIELDS[info.field_name].c_value(value) if value else value
 
-    @field_validator("button_pin", "event_mode")
+    @field_validator("button_pin", "event_mode", "node_info_reply_suppress_secs")
     @classmethod
     def _check_digits(cls, value: str | None) -> str | None:
         # The upstream parser quotes a value that is not all ASCII digits, and the firmware build then fails.
         # `isdecimal()` alone accepts other scripts' digits, for example "١٢".
         if value and not (value.isascii() and value.isdigit()):
             raise ValueError("the value is not a whole number")
+        return value
+
+    @field_validator("lora_tx_power")
+    @classmethod
+    def _check_tx_power(cls, value: str | None) -> str | None:
+        """Accept a TX power of 0 to 30 dBm, where 0 selects the region maximum."""
+        if value and not (_is_whole_number(value) and int(value) <= MAX_TX_POWER_DBM):
+            raise ValueError(f"the TX power is not a whole number from 0 to {MAX_TX_POWER_DBM}")
+        return value
+
+    @field_validator("node_info_broadcast_secs")
+    @classmethod
+    def _check_interval(cls, value: str | None) -> str | None:
+        """Accept an interval of 0, or of 60 to 2592000 seconds."""
+        if value and not (
+            _is_whole_number(value) and (int(value) == 0 or MIN_INTERVAL_SECS <= int(value) <= MAX_INTERVAL_SECS)
+        ):
+            raise ValueError(
+                f"the interval is not 0 or a whole number of seconds from {MIN_INTERVAL_SECS} to {MAX_INTERVAL_SECS}"
+            )
         return value
 
     @field_validator("channels_to_write")
