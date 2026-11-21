@@ -1,0 +1,126 @@
+<div class="config-section" id="meshBeaconSection">
+    <h3 class="section-title"><i class="bi bi-broadcast text-success"></i>Mesh Beacon</h3>
+    <p class="text-muted">A mesh beacon is a scheduled broadcast with a message and an offered channel, modem preset and region. Other devices can join the offered mesh.</p>
+    <div class="row mb-3">
+        <div class="col-md-4" data-userprefs-key="USERPREFS_MESH_BEACON_LISTEN_ENABLED">
+            <label for="meshBeaconListenEnabled" class="form-label">Listen for Beacons</label>
+            <select class="form-select" id="meshBeaconListenEnabled" name="mesh_beacon_listen_enabled">
+                <option value="" selected>Firmware default</option>
+                <option value="true">On</option>
+                <option value="false">Off</option>
+            </select>
+            <div id="error-mesh_beacon_listen_enabled" class="field-error invalid-feedback d-block"></div>
+            <div class="form-text text-muted">Accept the mesh beacons of other devices. The firmware default is on. <code class="small">USERPREFS_MESH_BEACON_LISTEN_ENABLED</code></div>
+        </div>
+        <div class="col-md-4" data-userprefs-key="USERPREFS_MESH_BEACON_BROADCAST_ENABLED">
+            <label for="meshBeaconBroadcastEnabled" class="form-label">Broadcast Beacons</label>
+            <select class="form-select" id="meshBeaconBroadcastEnabled" name="mesh_beacon_broadcast_enabled">
+                <option value="" selected>Firmware default</option>
+                <option value="true">On</option>
+                <option value="false">Off</option>
+            </select>
+            <div id="error-mesh_beacon_broadcast_enabled" class="field-error invalid-feedback d-block"></div>
+            <div class="form-text text-muted">Broadcast a mesh beacon from this device on a schedule. The firmware default is off. <code class="small">USERPREFS_MESH_BEACON_BROADCAST_ENABLED</code></div>
+        </div>
+        <div class="col-md-4" data-userprefs-key="USERPREFS_MESH_BEACON_INTERVAL_SECS">
+            <label for="meshBeaconIntervalSecs" class="form-label">Beacon Interval</label>
+            <input type="number" class="form-control" id="meshBeaconIntervalSecs" name="mesh_beacon_interval_secs" min="0" max="2592000" placeholder="Firmware default">
+            <div id="error-mesh_beacon_interval_secs" class="field-error invalid-feedback d-block"></div>
+            <div class="form-text text-muted">The time between two beacon broadcasts. Seconds: 0, or 3,600 to 2,592,000. <code class="small">USERPREFS_MESH_BEACON_INTERVAL_SECS</code></div>
+        </div>
+    </div>
+    <div class="row mb-3">
+        <div class="col-md-12" data-userprefs-key="USERPREFS_MESH_BEACON_MESSAGE">
+            <label for="meshBeaconMessage" class="form-label">Beacon Message</label>
+            <input type="text" class="form-control" id="meshBeaconMessage" name="mesh_beacon_message" placeholder="Join us on NarrowSlow!!!">
+            <div id="error-mesh_beacon_message" class="field-error invalid-feedback d-block"></div>
+            <div class="form-text text-muted">The text of each beacon broadcast. The firmware keeps the first 60 bytes. <code class="small">USERPREFS_MESH_BEACON_MESSAGE</code></div>
+        </div>
+    </div>
+    <h4 class="h6 mt-3">Offer</h4>
+    <p class="text-muted small">The channel, frequency slot, modem preset and region that the beacon offers to the devices that receive it.</p>
+    <div class="row mb-3">
+        <div class="col-md-4" data-userprefs-key="USERPREFS_MESH_BEACON_OFFER_CHANNEL_NAME">
+            <label for="meshBeaconOfferChannelName" class="form-label">Offer Channel Name</label>
+            <input type="text" class="form-control" id="meshBeaconOfferChannelName" name="mesh_beacon_offer_channel_name" placeholder="MyChannel">
+            <div id="error-mesh_beacon_offer_channel_name" class="field-error invalid-feedback d-block"></div>
+            <div class="form-text text-muted">The name of the offered channel. <code class="small">USERPREFS_MESH_BEACON_OFFER_CHANNEL_NAME</code></div>
+        </div>
+        <div class="col-md-4" data-userprefs-key="USERPREFS_MESH_BEACON_OFFER_CHANNEL_PSK">
+            <label for="meshBeaconOfferChannelPsk" class="form-label">Offer Channel PSK</label>
+            <input type="text" class="form-control" id="meshBeaconOfferChannelPsk" name="mesh_beacon_offer_channel_psk" placeholder="32-byte key in base64" autocomplete="off">
+            <div id="error-mesh_beacon_offer_channel_psk" class="field-error invalid-feedback d-block"></div>
+            <div class="form-text text-muted">The PSK of the offered channel: 0, 1, 16 or 32 bytes in base64, hex or { 0x.. } form. <code class="small">USERPREFS_MESH_BEACON_OFFER_CHANNEL_PSK</code></div>
+        </div>
+        <div class="col-md-4" data-userprefs-key="USERPREFS_MESH_BEACON_OFFER_FREQUENCY_SLOT">
+            <label for="meshBeaconOfferFrequencySlot" class="form-label">Offer Frequency Slot</label>
+            <input type="number" class="form-control" id="meshBeaconOfferFrequencySlot" name="mesh_beacon_offer_frequency_slot" min="1" placeholder="Firmware default">
+            <div id="error-mesh_beacon_offer_frequency_slot" class="field-error invalid-feedback d-block"></div>
+            <div class="form-text text-muted">The offered frequency slot, from 1. Set it only when the mesh uses a slot that is not the default. <code class="small">USERPREFS_MESH_BEACON_OFFER_FREQUENCY_SLOT</code></div>
+        </div>
+    </div>
+    <div class="row mb-3">
+        <div class="col-md-6" data-userprefs-key="USERPREFS_MESH_BEACON_OFFER_PRESET">
+            <label for="meshBeaconOfferPreset" class="form-label">Offer Modem Preset</label>
+            <select class="form-select" id="meshBeaconOfferPreset" name="mesh_beacon_offer_preset">
+                <option value="" selected>Firmware default</option>
+                {% for value, label in modem_preset_options %}
+                <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+            <div id="error-mesh_beacon_offer_preset" class="field-error invalid-feedback d-block"></div>
+            <div class="form-text text-muted">The modem preset that the beacon offers. <code class="small">USERPREFS_MESH_BEACON_OFFER_PRESET</code></div>
+        </div>
+        <div class="col-md-6" data-userprefs-key="USERPREFS_MESH_BEACON_OFFER_REGION">
+            <label for="meshBeaconOfferRegion" class="form-label">Offer Region</label>
+            <select class="form-select" id="meshBeaconOfferRegion" name="mesh_beacon_offer_region">
+                <option value="" selected>Firmware default</option>
+                {% for value, label in region_options %}
+                <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+            <div id="error-mesh_beacon_offer_region" class="field-error invalid-feedback d-block"></div>
+            <div class="form-text text-muted">The region that the beacon offers. <code class="small">USERPREFS_MESH_BEACON_OFFER_REGION</code></div>
+        </div>
+    </div>
+    <h4 class="h6 mt-3">Broadcast Targets</h4>
+    <p class="text-muted small">Each target is one set of radio settings that the device sends a beacon copy on. Without a target, the device sends one beacon on its own modem preset and region, on the primary channel.</p>
+    {% for n in range(4) %}
+    <div class="row mb-3">
+        <div class="col-md-3" data-userprefs-key="USERPREFS_MESH_BEACON_TARGET_{{ n }}_CHANNEL_INDEX">
+            <label for="meshBeaconTarget{{ n }}ChannelIndex" class="form-label">Target {{ n }} Channel Index</label>
+            <input type="number" class="form-control" id="meshBeaconTarget{{ n }}ChannelIndex" name="mesh_beacon_target_{{ n }}_channel_index" min="0" max="7" placeholder="Firmware default">
+            <div id="error-mesh_beacon_target_{{ n }}_channel_index" class="field-error invalid-feedback d-block"></div>
+            <div class="form-text text-muted">The slot of the device channel table, 0 to 7. The device must have that channel. <code class="small">USERPREFS_MESH_BEACON_TARGET_{{ n }}_CHANNEL_INDEX</code></div>
+        </div>
+        <div class="col-md-3" data-userprefs-key="USERPREFS_MESH_BEACON_TARGET_{{ n }}_FREQUENCY_SLOT">
+            <label for="meshBeaconTarget{{ n }}FrequencySlot" class="form-label">Target {{ n }} Frequency Slot</label>
+            <input type="number" class="form-control" id="meshBeaconTarget{{ n }}FrequencySlot" name="mesh_beacon_target_{{ n }}_frequency_slot" min="1" placeholder="Firmware default">
+            <div id="error-mesh_beacon_target_{{ n }}_frequency_slot" class="field-error invalid-feedback d-block"></div>
+            <div class="form-text text-muted">The frequency slot, from 1. Empty uses the slot of the channel. <code class="small">USERPREFS_MESH_BEACON_TARGET_{{ n }}_FREQUENCY_SLOT</code></div>
+        </div>
+        <div class="col-md-3" data-userprefs-key="USERPREFS_MESH_BEACON_TARGET_{{ n }}_PRESET">
+            <label for="meshBeaconTarget{{ n }}Preset" class="form-label">Target {{ n }} Modem Preset</label>
+            <select class="form-select" id="meshBeaconTarget{{ n }}Preset" name="mesh_beacon_target_{{ n }}_preset">
+                <option value="" selected>Firmware default</option>
+                {% for value, label in modem_preset_options %}
+                <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+            <div id="error-mesh_beacon_target_{{ n }}_preset" class="field-error invalid-feedback d-block"></div>
+            <div class="form-text text-muted">Empty uses the modem preset of the device. <code class="small">USERPREFS_MESH_BEACON_TARGET_{{ n }}_PRESET</code></div>
+        </div>
+        <div class="col-md-3" data-userprefs-key="USERPREFS_MESH_BEACON_TARGET_{{ n }}_REGION">
+            <label for="meshBeaconTarget{{ n }}Region" class="form-label">Target {{ n }} Region</label>
+            <select class="form-select" id="meshBeaconTarget{{ n }}Region" name="mesh_beacon_target_{{ n }}_region">
+                <option value="" selected>Firmware default</option>
+                {% for value, label in region_options %}
+                <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+            <div id="error-mesh_beacon_target_{{ n }}_region" class="field-error invalid-feedback d-block"></div>
+            <div class="form-text text-muted">Empty uses the region of the device. <code class="small">USERPREFS_MESH_BEACON_TARGET_{{ n }}_REGION</code></div>
+        </div>
+    </div>
+    {% endfor %}
+</div>

@@ -8,7 +8,7 @@ import json
 from typing import Any
 
 from mtfwbuilder.key_bytes import ADMIN_KEY_LENGTH, byte_array, decode_key
-from mtfwbuilder.models import CHANNEL_SLOTS
+from mtfwbuilder.models import CHANNEL_SLOTS, MESH_BEACON_TARGETS
 from mtfwbuilder.time_zones import to_posix_tz
 
 ADMIN_KEY_SLOTS = 3
@@ -22,6 +22,28 @@ _CHANNEL_KEY_SUFFIXES = {
     "downlink_enabled": "DOWNLINK_ENABLED",
     "muted": "IS_MUTED",
 }
+
+# Each mesh beacon form field that the generator writes unchanged, with its userPrefs key.
+# The form has no `USERPREFS_MESH_BEACON_LEGACY_SPLIT` field, because the spec lists the key in Non-goals.
+_MESH_BEACON_KEYS = {
+    f"mesh_beacon_{suffix.lower()}": f"USERPREFS_MESH_BEACON_{suffix}"
+    for suffix in (
+        "LISTEN_ENABLED",
+        "BROADCAST_ENABLED",
+        "MESSAGE",
+        "INTERVAL_SECS",
+        "OFFER_CHANNEL_NAME",
+        "OFFER_FREQUENCY_SLOT",
+        "OFFER_PRESET",
+        "OFFER_REGION",
+        *(
+            f"TARGET_{n}_{field}"
+            for n in range(MESH_BEACON_TARGETS)
+            for field in ("CHANNEL_INDEX", "FREQUENCY_SLOT", "PRESET", "REGION")
+        ),
+    )
+}
+_MESH_BEACON_PSK_KEY = "USERPREFS_MESH_BEACON_OFFER_CHANNEL_PSK"
 
 # Some firmware versions do not read these keys, so the generator writes one only if the firmware key set holds it.
 VERSION_GATED_KEYS = frozenset(
@@ -42,7 +64,9 @@ VERSION_GATED_KEYS = frozenset(
         "USERPREFS_EVENT_MODE_HOP_LIMIT",
         "USERPREFS_BLOCK_POSITION_ON_EVENT_CHANNEL",
         "USERPREFS_CANNED_MESSAGES",
+        _MESH_BEACON_PSK_KEY,
     }
+    | set(_MESH_BEACON_KEYS.values())
 )
 
 # The gated keys that firmware v2.7.26.54e0d8d reads: `src/mesh/Channels.cpp` reads channels 0 to 2, without muted.
@@ -106,6 +130,7 @@ def generate_jsonc(config_data: dict[str, Any], firmware_keys: frozenset[str] = 
     _process_oem_config(config_data, output)
     _process_other_settings(config_data, output)
     _process_telemetry_security_event(config_data, output)
+    _process_mesh_beacon(config_data, output)
 
     for key in VERSION_GATED_KEYS - firmware_keys:
         output.pop(key, None)
@@ -288,3 +313,12 @@ def _process_telemetry_security_event(config_data: dict, output: dict) -> None:
     messages = [line.strip() for line in config_data.get("canned_messages", "").splitlines() if line.strip()]
     if messages:
         output["USERPREFS_CANNED_MESSAGES"] = "|".join(messages)
+
+
+def _process_mesh_beacon(config_data: dict, output: dict) -> None:
+    """Write the mesh beacon keys, with the offer PSK as a `{ 0x.. }` byte array."""
+    for field, key in _MESH_BEACON_KEYS.items():
+        _set_if_present(config_data, output, field, key)
+    psk = decode_key(config_data.get("mesh_beacon_offer_channel_psk", ""))
+    if psk:
+        output[_MESH_BEACON_PSK_KEY] = byte_array(psk)

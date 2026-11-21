@@ -103,6 +103,8 @@ the header of `userPrefs.jsonc` in `meshtastic/firmware` `develop@fe89ac1`.
 | userPrefs key | noun | One `USERPREFS_*` name in the userPrefs file. | define, flag, macro |
 | admin key | noun | The public key of a device that may change this device's config remotely. The firmware holds three. | admin password |
 | managed mode | noun | A device state in which the device rejects local config changes. Only an admin key holder changes the config. | locked mode |
+| mesh beacon | noun | A broadcast that a device sends on a schedule, with a message and an offered channel, modem preset and region. | advert, announcement |
+| frequency slot | noun | The 1-based number of one LoRa frequency in a region, the same number as `channel_num` in the LoRa config. | frequency index, slot number |
 | factory default | noun | A value the firmware applies on first boot and on factory reset only. Every userPrefs key is a factory default. | baked setting, locked setting |
 | firmware source | noun | One extracted copy of the `meshtastic/firmware` source tree at one firmware version. | firmware tree, repo copy |
 | firmware version | noun | One upstream release tag, for example `v2.7.26.54e0d8d`. | release, tag (alone) |

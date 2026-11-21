@@ -20,22 +20,31 @@ MAX_INTERVAL_SECS = 2_592_000
 MANAGED_MODE_MESSAGE = "Managed mode needs an admin key, or the device cannot be changed again."
 # Upstream `src/mesh/Default.h` fails the firmware build with a `static_assert` above 7 hops.
 MAX_EVENT_HOP_LIMIT = 7
+# Upstream `src/mesh/NodeDB.cpp` changes a beacon interval under 3600 seconds to 3600.
+MIN_BEACON_INTERVAL_SECS = 3600
+MESH_BEACON_TARGETS = 4
 
 # The form posts each channel field as a flat key, for example `channel_0[psk]`.
 _FLAT_CHANNEL_KEY = re.compile(r"(channel_[0-7])\[(\w+)\]")
 
 # The generator writes these fields as `{ 0x.. }` byte arrays, so a `//` in base64 input never reaches the file.
-_BYTE_ARRAY_FIELDS = frozenset({"psk", "admin_key_0", "admin_key_1", "admin_key_2"})
+_BYTE_ARRAY_FIELDS = frozenset({"psk", "admin_key_0", "admin_key_1", "admin_key_2", "mesh_beacon_offer_channel_psk"})
 
 
 # Upstream writes each enum value into the build unchanged, so only a value with its C prefix compiles.
-_ENUM_FIELDS = {
-    "lora_region": meshtastic_enums.REGIONS,
-    "lora_modem_preset": meshtastic_enums.MODEM_PRESETS,
-    "gps_mode": meshtastic_enums.GPS_MODES,
-    "device_rebroadcast_mode": meshtastic_enums.REBROADCAST_MODES,
-    "security_packet_signature_policy": meshtastic_enums.PACKET_SIGNATURE_POLICIES,
-}
+_ENUM_FIELDS = (
+    {
+        "lora_region": meshtastic_enums.REGIONS,
+        "lora_modem_preset": meshtastic_enums.MODEM_PRESETS,
+        "gps_mode": meshtastic_enums.GPS_MODES,
+        "device_rebroadcast_mode": meshtastic_enums.REBROADCAST_MODES,
+        "security_packet_signature_policy": meshtastic_enums.PACKET_SIGNATURE_POLICIES,
+        "mesh_beacon_offer_preset": meshtastic_enums.MODEM_PRESETS,
+        "mesh_beacon_offer_region": meshtastic_enums.REGIONS,
+    }
+    | {f"mesh_beacon_target_{n}_preset": meshtastic_enums.MODEM_PRESETS for n in range(MESH_BEACON_TARGETS)}
+    | {f"mesh_beacon_target_{n}_region": meshtastic_enums.REGIONS for n in range(MESH_BEACON_TARGETS)}
+)
 
 
 def _is_whole_number(value: str) -> bool:
@@ -173,6 +182,33 @@ class ConfigRequest(_UserPrefsFields):
     ringtone_rtttl: str | None = None
     ringtone_nag_secs: str | None = None
 
+    # Mesh beacon
+    mesh_beacon_listen_enabled: str | None = None
+    mesh_beacon_broadcast_enabled: str | None = None
+    mesh_beacon_message: str | None = None
+    mesh_beacon_interval_secs: str | None = None
+    mesh_beacon_offer_channel_name: str | None = None
+    mesh_beacon_offer_channel_psk: str | None = None
+    mesh_beacon_offer_frequency_slot: str | None = None
+    mesh_beacon_offer_preset: str | None = None
+    mesh_beacon_offer_region: str | None = None
+    mesh_beacon_target_0_channel_index: str | None = None
+    mesh_beacon_target_0_frequency_slot: str | None = None
+    mesh_beacon_target_0_preset: str | None = None
+    mesh_beacon_target_0_region: str | None = None
+    mesh_beacon_target_1_channel_index: str | None = None
+    mesh_beacon_target_1_frequency_slot: str | None = None
+    mesh_beacon_target_1_preset: str | None = None
+    mesh_beacon_target_1_region: str | None = None
+    mesh_beacon_target_2_channel_index: str | None = None
+    mesh_beacon_target_2_frequency_slot: str | None = None
+    mesh_beacon_target_2_preset: str | None = None
+    mesh_beacon_target_2_region: str | None = None
+    mesh_beacon_target_3_channel_index: str | None = None
+    mesh_beacon_target_3_frequency_slot: str | None = None
+    mesh_beacon_target_3_preset: str | None = None
+    mesh_beacon_target_3_region: str | None = None
+
     # Preview flag
     preview_only: bool = False
 
@@ -242,6 +278,8 @@ class ConfigRequest(_UserPrefsFields):
         "telemetry_air_quality_enabled",
         "telemetry_air_quality_screen_enabled",
         "event_block_position",
+        "mesh_beacon_listen_enabled",
+        "mesh_beacon_broadcast_enabled",
     )
     @classmethod
     def _check_true_or_false(cls, value: str | None) -> str | None:
@@ -266,9 +304,7 @@ class ConfigRequest(_UserPrefsFields):
             raise ValueError("a message contains |, which separates the messages")
         return value
 
-    @field_validator(
-        "lora_region", "lora_modem_preset", "gps_mode", "device_rebroadcast_mode", "security_packet_signature_policy"
-    )
+    @field_validator(*_ENUM_FIELDS)
     @classmethod
     def _check_enum_value(cls, value: str | None, info: ValidationInfo) -> str | None:
         """Return the value with its C prefix, if the protobufs enum of the field holds it."""
@@ -304,6 +340,44 @@ class ConfigRequest(_UserPrefsFields):
             raise ValueError(
                 f"the interval is not 0 or a whole number of seconds from {MIN_INTERVAL_SECS} to {MAX_INTERVAL_SECS}"
             )
+        return value
+
+    @field_validator("mesh_beacon_interval_secs")
+    @classmethod
+    def _check_beacon_interval(cls, value: str | None) -> str | None:
+        """Accept a beacon interval of 0, or of 3600 to 2592000 seconds."""
+        if value and not (
+            _is_whole_number(value) and (int(value) == 0 or MIN_BEACON_INTERVAL_SECS <= int(value) <= MAX_INTERVAL_SECS)
+        ):
+            raise ValueError(
+                "the interval is not 0 or a whole number of seconds "
+                f"from {MIN_BEACON_INTERVAL_SECS} to {MAX_INTERVAL_SECS}"
+            )
+        return value
+
+    @field_validator("mesh_beacon_offer_channel_psk")
+    @classmethod
+    def _check_beacon_psk(cls, value: str | None) -> str | None:
+        """Accept an offer PSK of the same forms and lengths as a channel PSK."""
+        return ChannelConfig._check_psk_length(value)
+
+    @field_validator(*(f"mesh_beacon_target_{n}_channel_index" for n in range(MESH_BEACON_TARGETS)))
+    @classmethod
+    def _check_beacon_channel_index(cls, value: str | None) -> str | None:
+        """Accept a channel index from 0 to 7, the slots of the device channel table."""
+        if value and not (_is_whole_number(value) and int(value) < CHANNEL_SLOTS):
+            raise ValueError(f"the channel index is not a whole number from 0 to {CHANNEL_SLOTS - 1}")
+        return value
+
+    @field_validator(
+        "mesh_beacon_offer_frequency_slot",
+        *(f"mesh_beacon_target_{n}_frequency_slot" for n in range(MESH_BEACON_TARGETS)),
+    )
+    @classmethod
+    def _check_frequency_slot(cls, value: str | None) -> str | None:
+        # The protobufs number the frequency slot from 1, and slot 0 means unset.
+        if value and not (_is_whole_number(value) and int(value) >= 1):
+            raise ValueError("the frequency slot is not a whole number of 1 or more")
         return value
 
     @field_validator("channels_to_write")

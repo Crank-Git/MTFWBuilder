@@ -10,6 +10,7 @@ from mtfwbuilder.models import CHANNEL_SLOTS, ConfigRequest
 from mtfwbuilder.services.jsonc_generator import DEFAULT_FIRMWARE_KEYS, VERSION_GATED_KEYS, generate_jsonc
 from mtfwbuilder.services.userprefs_keys import read_keys
 from tests.test_config_enums import _SelectParser
+from tests.test_config_mesh_beacon import UPSTREAM_KEYS
 
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "firmware"
 PSK_HEX = "deadbeef" * 8
@@ -20,6 +21,7 @@ CHANNEL_FIELDS = ("NAME", "PSK", "PRECISION", "UPLINK_ENABLED", "DOWNLINK_ENABLE
 # `src/mesh/NodeDB.cpp` (`USERPREFS_CONFIG_DEVICE_REBROADCAST_MODE`, `..._NODE_INFO_BROADCAST_SECS`,
 # `USERPREFS_CONFIG_LORA_CONFIG_OK_TO_MQTT`). The telemetry, security, event and canned-message keys of #48 are in
 # `src/mesh/NodeDB.cpp`, `src/mesh/Default.h`, `src/mesh/Channels.cpp` and `src/modules/CannedMessageModule.cpp`.
+# The mesh beacon keys of #49 are in `src/mesh/NodeDB.cpp`.
 NEWER_FIRMWARE_KEYS = (
     read_keys(FIXTURE_DIR)
     | {f"USERPREFS_CHANNEL_{n}_{field}" for n in range(CHANNEL_SLOTS) for field in CHANNEL_FIELDS}
@@ -40,6 +42,7 @@ NEWER_FIRMWARE_KEYS = (
         "USERPREFS_BLOCK_POSITION_ON_EVENT_CHANNEL",
         "USERPREFS_CANNED_MESSAGES",
     }
+    | UPSTREAM_KEYS
 )
 
 
