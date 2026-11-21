@@ -31,7 +31,7 @@ A blog post, a forum answer, another project's code, or memory is not authoritat
 | api.meshtastic.org firmware list | unversioned | No published docs. Read `meshtastic/web-flasher` source. Handle failure (feature 09 falls back to GitHub). |
 | esptool-js | 0.7.x | https://github.com/espressif/esptool-js |
 | Web Serial API | — | https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API |
-| `@meshtastic/core`, `@meshtastic/transport-web-serial`, `meshtastic-sdk` | decided by the Epic 12 spike | https://jsr.io/@meshtastic, https://github.com/meshtastic/meshtastic-sdk |
+| `@meshtastic/core`, `@meshtastic/transport-web-serial`, `@meshtastic/transport-web-bluetooth` | 2.6.7, 0.2.5, 0.1.5 (ADR 0008) | https://registry.npmjs.org/@meshtastic%2Fcore, the npm package `dist/mod.d.ts` |
 | htmx, htmx SSE extension | 2.0.x, 2.2.x | https://htmx.org/docs/, https://htmx.org/extensions/sse/ |
 
 Upstream changes without notice. When code depends on an upstream file, add or update

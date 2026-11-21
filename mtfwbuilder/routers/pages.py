@@ -100,6 +100,21 @@ async def profiles_page(request: Request):
     return request.app.state.templates.TemplateResponse(request, template, context)
 
 
+@router.get("/push-config")
+async def push_config_page(request: Request):
+    """Render the push config page: the profile choice, Connect via USB and Connect via Bluetooth (FR-push-config-3).
+
+    The page talks to the device in the browser only, so the route sends no device data (FR-push-config-12).
+    The device stores a POSIX TZ string, so the page gets the time zone table to compare a profile time zone.
+    """
+    context = {
+        "title": "Push config",
+        "posix_tz_by_zone": POSIX_TZ_BY_ZONE,
+        "push_test_hooks": request.app.state.settings.push_test_hooks,
+    }
+    return request.app.state.templates.TemplateResponse(request, "push_config.html", context)
+
+
 @router.get("/fleets")
 async def fleets_page(request: Request):
     """Render the fleets page: each fleet with a link to its fleet editor, and the form that creates a fleet.

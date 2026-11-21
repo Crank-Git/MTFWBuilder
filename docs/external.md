@@ -31,6 +31,7 @@ Settings read `config.yaml` first, then `MTFW_<FIELD>` environment variables
 | `MTFW_CACHE_ENABLED` | Build cache on or off. Default `true`. `false` turns the build cache off. | built |
 | `MTFW_CACHE_TTL_SECONDS` | Time after its last use that the cleanup task removes a cache entry. Default 86400. | built; the build cache is `cache/` in the data directory |
 | `MTFW_MAX_FLEET_SIZE` | Fleet size limit: the most fleet devices that one fleet holds. Default 50. | built |
+| `MTFW_PUSH_TEST_HOOKS` | Test hook flag of the push config page. Default `false`. Only the E2E test config sets `true`. Never set it in production. | built |
 | `GITHUB_TOKEN` | Optional. Raises the GitHub API rate limit for firmware lists and source downloads | built |
 | `PLATFORMIO_FORCE_COLOR`, `PLATFORMIO_NO_ANSI` | Set by the build for `pio` | built |
 | `PLATFORMIO_CORE_DIR` | PlatformIO toolchain directory. The Docker image sets `/home/app/.platformio`, a volume. | built |
@@ -50,6 +51,8 @@ entry stays on disk after the last use. With `MTFW_CACHE_ENABLED=false`, a build
 | api.meshtastic.org | Stable/alpha firmware list (`GET /github/firmware/list`) | No published docs. Shape from `meshtastic/web-flasher` `types/api.ts`. |
 | meshtastic/firmware | Firmware source | https://github.com/meshtastic/firmware |
 | meshtastic/protobufs | Enum and config reference | https://github.com/meshtastic/protobufs |
+| npm registry (`@meshtastic/core`, `@meshtastic/transport-web-serial`, `@meshtastic/transport-web-bluetooth`) | Push config library versions and tarball SHA-1 values | https://registry.npmjs.org/@meshtastic%2Fcore. ADR 0008. |
+| esm.sh | Source of the vendored push config ES modules. A maintainer downloads them once; the pages never load from it. | https://github.com/esm-dev/esm.sh. ADR 0008 holds the URLs and SHA-256 values. |
 
 ## Support
 

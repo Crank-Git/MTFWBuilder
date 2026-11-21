@@ -18,6 +18,10 @@ Each file is a copy of the npm package file, without changes. The npm registry
 | `esptool-js-0.7.1/bundle.js` | `esptool-js` | 0.7.1 | `bundle.js` | Apache-2.0 |
 | `esptool-js-0.7.1/LICENSE` | `esptool-js` | 0.7.1 | `LICENSE` | Apache-2.0 |
 
+The push config page loads three Meshtastic ES modules from `meshtastic/`. They are
+esm.sh builds, not npm package files. `meshtastic/README.md` names their sources, hashes
+and license.
+
 The icon stylesheet finds its fonts at the relative path `fonts/`. Keep the two together
 in one directory.
 

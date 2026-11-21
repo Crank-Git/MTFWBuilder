@@ -182,10 +182,10 @@ body.rv-open .layout { padding-right:21rem; }
 </ul>
 <p><code>@meshtastic/transport-web-serial</code> and <code>@meshtastic/transport-web-bluetooth</code> (JSR) against <code>meshtastic-sdk</code> JS. It records the choice in an ADR.</p>
 <ul>
-<li>FR-push-config-2 — The project vendors the chosen library as one prebuilt ES module
+<li>FR-push-config-2 — The project vendors the chosen library under <code>static/vendor/</code> as
 </li>
 </ul>
-<p>under <code>static/vendor/</code>. The project has no JavaScript build step.</p>
+<p>one prebuilt ES module per package, joined by an import map. The project has no JavaScript build step.</p>
 <ul>
 <li>FR-push-config-3 — "Connect" opens the Web Serial port picker or the Web Bluetooth
 </li>
@@ -222,7 +222,7 @@ body.rv-open .layout { padding-right:21rem; }
 <li>FR-push-config-10 — Push config covers the <code>module_config</code> sections that have no
 </li>
 </ul>
-<p>userPrefs key: serial, store_forward, range_test, external_notification, neighbor_info, detection_sensor, paxcounter, status_message, traffic_management.</p>
+<p>userPrefs key: serial, store_forward, range_test, external_notification, neighbor_info, detection_sensor, paxcounter. The protobufs in <code>@meshtastic/core</code> 2.6.7 are 2.7.8. They have no <code>statusmessage</code> or <code>traffic_management</code> field, so push config does not cover those two sections (owner ruling on #70). A newer library can add them again. <strong>Deferred</strong> (PM decision at the #73 gate): a profile has no field for these sections, so Epic 12 pushes only profile fields. <a href="https://github.com/Crank-Git/MTFWBuilder/issues/182">#182</a> carries the work.</p>
 <ul>
 <li>FR-push-config-11 — When the device has managed mode on, the page shows "This device
 </li>
@@ -272,52 +272,121 @@ body.rv-open .layout { padding-right:21rem; }
 <div class="table-wrap"><table>
 <tr><th>State</th><th>What the operator sees</th></tr>
 <tr><td>Not connected</td><td>Connect via USB, Connect via Bluetooth, browser support note.</td></tr>
-<tr><td>Reading</td><td>"Reading device config…" with a step count.</td></tr>
+<tr><td>Profile warning</td><td>The <code>warning</code> text of the profile, for example "Sign in as admin to load the stored secrets."</td></tr>
+<tr><td>Reading</td><td>"Reading device config…". The page shows no step count.</td></tr>
+<tr><td>Read failed</td><td>The error. The page closes the port when the device sends no config in 10 seconds, or when the connection drops.</td></tr>
+<tr><td>Re-enter</td><td>A password field for each secret that the profile does not store. Push stays disabled until each one holds a valid value.</td></tr>
 <tr><td>Diff</td><td>Sections with changed fields: device value → profile value. Checkboxes per section.</td></tr>
+<tr><td>Not pushed</td><td>Each profile value that push config does not send, with the reason.</td></tr>
 <tr><td>No changes</td><td>"The device already matches this profile."</td></tr>
-<tr><td>Pushing</td><td>Progress per section.</td></tr>
+<tr><td>Pushing</td><td>Progress per section. Connect via USB and Connect via Bluetooth are disabled until the reconnect ends.</td></tr>
 <tr><td>Result</td><td>Applied / failed per section. Restart notice.</td></tr>
+<tr><td>Result unknown</td><td>"The result is unknown. Read the device again." The connection over USB dropped during the commit.</td></tr>
 <tr><td>Managed device</td><td>Managed message. Push disabled.</td></tr>
 <tr><td>Unsupported</td><td>"This browser cannot connect. Use Chrome or Edge on a desktop."</td></tr>
+<tr><td>Not secure</td><td>"Web Serial and Web Bluetooth need HTTPS. Open this page through the TLS proxy or on localhost."</td></tr>
 </table></div>
 <h3 id="push-config-behaviour-rules">Behaviour rules</h3>
 <ul>
 <li>AdminMessage reference: protobufs <code>meshtastic/admin.proto</code> at tag <code>v2.8.3</code>.
 </li>
-<li>Library candidates (checked 2026-11-21):
+<li>Library: <code>@meshtastic/core</code> 2.6.7, <code>@meshtastic/transport-web-serial</code> 0.2.5 and
+</li>
+</ul>
+<p><code>@meshtastic/transport-web-bluetooth</code> 0.1.5 from npm, GPL-3.0-only (ADR 0008). The page loads them from <code>static/vendor/</code> as three esm.sh builds with an import map.</p>
 <ul>
-<li><code>@meshtastic/core</code> 2.6.6, <code>@meshtastic/transport-web-serial</code> 0.2.5,
+<li>The core build carries protobufs 2.7.8. It has no <code>ModuleConfig</code> fields
 </li>
 </ul>
-</li>
-</ul>
-<p><code>@meshtastic/transport-web-bluetooth</code> 0.1.2 on https://jsr.io/@meshtastic. GPL-3.0. The source repo <code>meshtastic/js</code> is archived.</p>
+<p><code>statusmessage</code> and <code>traffic_management</code> (ADR 0008).</p>
 <ul>
-<li><code>meshtastic-sdk</code> (https://github.com/meshtastic/meshtastic-sdk), Kotlin Multiplatform,
+<li><code>meshtastic-sdk</code> (https://github.com/meshtastic/meshtastic-sdk) has no JS release, so
 </li>
 </ul>
-<p>GPL-3.0. Its JS build is "snapshot only until 0.3.0".</p>
+<p>the project does not use it (ADR 0008).</p>
 <ul>
 <li>Web Bluetooth: Chrome and Edge on desktop and Android.
 </li>
+<li>Managed mode: push config never sends <code>security.is_managed = true</code>. A managed device
+</li>
 </ul>
+<p>ignores each local admin message (<code>AdminModule::handleReceivedProtobuf</code>, <code>tests/fixtures/firmware/src/modules/AdminModule.cpp:86-89</code>), so a push cannot change that device again. Managed mode stays a factory default that a build sets. The page shows the field under "Not pushed" with "Set managed mode with a build. Push config does not set it."</p>
+<ul>
+<li>The page checks managed mode after each read: at connect and at the reconnect after a
+</li>
+</ul>
+<p>restart.</p>
+<ul>
+<li>Admin keys: when the profile sets an admin key, the push sends only the non-empty
+</li>
+</ul>
+<p>profile slots, in slot order. The device keeps no old key, and the list has no gap.</p>
+<ul>
+<li>Bluetooth: a profile PIN also sets the <code>FIXED_PIN</code> pairing mode, as
+</li>
+</ul>
+<p><code>USERPREFS_FIXED_BLUETOOTH</code> does (<code>NodeDB.cpp:736-737</code>). The diff compares the pairing mode (#184).</p>
+<ul>
+<li>Fixed position: the page sends the profile <code>fixed_lat</code> and <code>fixed_lon</code> with
+</li>
+</ul>
+<p><code>setFixedPosition</code> of core 2.6.7, inside the transaction and after the position config. The firmware delays the save of <code>set_fixed_position</code> until the commit while a transaction is open (<code>AdminModule::saveChanges</code>, <code>AdminModule.cpp:1364-1374</code>). The firmware also sets <code>fixed_position</code> (<code>AdminModule.cpp:419-433</code>), so a later position config would replace it. <code>setFixedPosition</code> takes no altitude, so <code>fixed_alt</code> is under "Not pushed".</p>
+<ul>
+<li>Not pushed: the page lists each profile value that push config does not send, with one
+</li>
+</ul>
+<p>of these reasons:</p>
+<ul>
+<li>Core 2.6.7 has no field for this value.
+<ul>
+<li>The firmware reads this value only from a build.
+</li>
+<li>Push config does not send this value.
+</li>
+<li>The managed mode text and the altitude text above.
+</li>
+</ul>
+</li>
+<li>Test hook: the page uses <code>window.__pushConfigTestDevice</code> only when the template renders
+</li>
+</ul>
+<p>the test flag. The template renders it only when the <code>push_test_hooks</code> setting (<code>MTFW_PUSH_TEST_HOOKS</code>) is on. Only the E2E test config turns it on.</p>
 <h3 id="push-config-data-touched">Data touched</h3>
 <p>None on the server.</p>
 <h3 id="push-config-interfaces">Interfaces</h3>
 <p>Device protocol only, through the chosen library. No server routes.</p>
 <h3 id="push-config-edge-cases-failures">Edge cases &amp; failures</h3>
 <ul>
-<li>The device has older firmware that lacks a field: the device rejects that message.
+<li>The device has older firmware that lacks a field: the device drops each field that its
 </li>
 </ul>
-<p>The page shows that section as failed, and the other sections still apply.</p>
+<p>protobufs do not have, and applies the rest of the message. The page shows that section as applied.</p>
+<ul>
+<li>The device rejects a set message: the page shows that section as failed with the device
+</li>
+</ul>
+<p>error, and the other sections still apply.</p>
 <ul>
 <li>The connection drops mid-transaction: no commit is sent, so the device keeps its old
 </li>
 </ul>
 <p>config. The page says so.</p>
 <ul>
+<li>The connection drops during the commit over USB: the page cannot tell if the device
+</li>
+</ul>
+<p>saved the config. It shows "The result is unknown. Read the device again." and closes the port.</p>
+<ul>
+<li>The connection drops during the commit over Bluetooth: the device turns its radio off
+</li>
+</ul>
+<p>at the commit, so the page counts the drop as the restart and connects again.</p>
+<ul>
+<li>The device rejects the commit: the page shows the device error and closes the port.
+</li>
 <li>A profile with "must re-enter" secrets: the page asks for them before Push.
+</li>
+<li>A profile with a <code>warning</code>: the page shows the warning text above the connect controls.
 </li>
 </ul>
 <h3 id="push-config-acceptance-criteria">Acceptance criteria</h3>
@@ -339,10 +408,12 @@ body.rv-open .layout { padding-right:21rem; }
 <p>Pushes to many devices at once. Push over TCP/HTTP.</p>
 <h3 id="push-config-open-questions" class="callout-h">Open questions</h3>
 <ul>
-<li>Which library: decided by the spike in FR-push-config-1. Not blocking: the epic is
+<li>Which library: decided by the spike in FR-push-config-1 (ADR 0008).
+</li>
+<li>Vendor layout: three ES modules and an import map, by the owner ruling on #70
 </li>
 </ul>
-<p>last.</p><h2>Mockups</h2><p>Mockups convey intent — the rough shape a user will see. An implementer may diverge where framework conventions, components, accessibility, or a better idea serve the feature's requirements; the FRs and acceptance criteria are the contract, not the pixels.</p><div class="mockup"><iframe src="../mockups/08-push-config.html" loading="lazy"></iframe><p><a href="../mockups/08-push-config.html" target="_blank">Open ../mockups/08-push-config.html in new tab</a></p></div><nav class="pager">
+<p>(ADR 0008).</p><h2>Mockups</h2><p>Mockups convey intent — the rough shape a user will see. An implementer may diverge where framework conventions, components, accessibility, or a better idea serve the feature's requirements; the FRs and acceptance criteria are the contract, not the pixels.</p><div class="mockup"><iframe src="../mockups/08-push-config.html" loading="lazy"></iframe><p><a href="../mockups/08-push-config.html" target="_blank">Open ../mockups/08-push-config.html in new tab</a></p></div><nav class="pager">
 <a href="feature-fleet-builds.html">&larr; Feature: Fleet builds</a>
 <span></span>
 </nav>

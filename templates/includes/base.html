@@ -8,6 +8,7 @@
         // This script runs before the stylesheets load, so the page never paints in the wrong theme.
         document.documentElement.setAttribute('data-bs-theme', localStorage.getItem('theme') || 'dark');
     </script>
+    {% block head %}{% endblock %}
     <link rel="stylesheet" href="{{ url_for('static', path='vendor/bootstrap-5.3.9.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', path='vendor/bootstrap-icons-1.13.2/bootstrap-icons.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
@@ -33,6 +34,9 @@
                 </a>
                 <a href="/fleets" class="btn btn-outline-secondary me-2">
                     <i class="bi bi-diagram-3 me-1"></i>Fleets
+                </a>
+                <a href="/push-config" class="btn btn-outline-secondary me-2">
+                    <i class="bi bi-usb-symbol me-1"></i>Push config
                 </a>
                 <a href="/admin" class="btn btn-outline-secondary me-2" title="Admin Dashboard" aria-label="Admin dashboard">
                     <i class="bi bi-shield-lock-fill"></i>
