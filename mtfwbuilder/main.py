@@ -104,6 +104,11 @@ def create_app() -> FastAPI:
     app.include_router(admin_router)
     app.include_router(pages_router)
 
+    @app.get("/healthz")
+    async def healthz() -> dict:
+        """Return a fixed status, so the Docker healthcheck sees that the process serves requests."""
+        return {"status": "ok"}
+
     # Static files mount AFTER routers — Starlette matches routes in order,
     # and /static must not shadow API routes, but url_for('static') still works
     if os.path.isdir(static_dir):
