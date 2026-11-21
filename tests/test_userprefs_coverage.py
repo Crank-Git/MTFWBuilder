@@ -31,11 +31,6 @@ REMOVED_KEYS = frozenset(
 # `read_keys` keeps string literals, so the `#error` text of the same guard gives these two partial names.
 PARTIAL_NAMES = frozenset({"USERPREFS_MESH_BEACON_ON_", "USERPREFS_MESH_BEACON_TARGET_0_"})
 
-# TODO(#50): The maintainer rules on these two keys. Neither is in spec Non-goals.
-# `src/platform/portduino/SimRadio.cpp` reads USERPREFS_SIMRADIO_EMULATE_COLLISIONS, so only a native build reads it.
-# `src/graphics/img/icon.xbm` reads USERPREFS_HAS_SPLASH. The key removes the boot icon, and no key gives a new one.
-UNRULED_KEYS = frozenset({"USERPREFS_SIMRADIO_EMULATE_COLLISIONS", "USERPREFS_HAS_SPLASH"})
-
 
 @pytest.fixture
 async def client(app):
@@ -52,7 +47,7 @@ def non_goal_keys() -> frozenset[str]:
 
 def required_keys() -> frozenset[str]:
     """Return the userPrefs keys that the fixture firmware source reads and that the form must write."""
-    return read_keys(FIXTURE_DIR) - non_goal_keys() - REMOVED_KEYS - PARTIAL_NAMES - UNRULED_KEYS
+    return read_keys(FIXTURE_DIR) - non_goal_keys() - REMOVED_KEYS - PARTIAL_NAMES
 
 
 async def form_controls(client) -> dict[str, set[str]]:

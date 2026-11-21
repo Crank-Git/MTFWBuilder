@@ -165,6 +165,10 @@ the header of `userPrefs.jsonc` in `meshtastic/firmware` `develop@fe89ac1`.
 - Accounts for operators. The admin password is the only sign-in.
 - The userPrefs keys `USERPREFS_UI_TEST_LOG`, `USERPREFS_FIRMWARE_EDITION` and
   `USERPREFS_MESH_BEACON_LEGACY_SPLIT`. They are for upstream testing and vendor editions.
+- The userPrefs key `USERPREFS_SIMRADIO_EMULATE_COLLISIONS`. Only a native build reads
+  it, and native Linux variants are a non-goal.
+- The userPrefs key `USERPREFS_HAS_SPLASH`. It removes the boot icon, and no userPrefs
+  key supplies a new icon.
 
 ## Users & personas
 
