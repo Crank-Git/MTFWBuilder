@@ -3,16 +3,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const darkModeToggle = document.getElementById('darkModeToggle');
     const htmlElement = document.documentElement;
     
-    // Check for saved theme preference or use dark mode as default
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-        htmlElement.setAttribute('data-bs-theme', savedTheme);
-        updateDarkModeIcon(savedTheme);
-    } else {
-        // Default to dark mode
-        htmlElement.setAttribute('data-bs-theme', 'dark');
-        updateDarkModeIcon('dark');
-    }
+    // The script in <head> sets the theme before first paint, so only the icon follows it here.
+    updateDarkModeIcon(htmlElement.getAttribute('data-bs-theme'));
     
     // Toggle dark/light mode
     if (darkModeToggle) {
@@ -209,7 +201,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         
-        console.log('Raw form data collected:', formData);
         return formData;
     }
     

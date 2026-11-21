@@ -86,7 +86,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        console.log('Enhanced form data collected:', formData);
         return formData;
     }
     
@@ -144,7 +143,6 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .then(response => response.json())
             .then(data => {
-                console.log('Enhanced preview response:', data);
                 if (data.success) {
                     // Show content in preview container
                     previewContainer.innerHTML = '<pre class="bg-dark text-light p-3 rounded">' + 
