@@ -13,6 +13,10 @@ from mtfwbuilder.time_zones import to_posix_tz
 CHANNEL_SLOTS = 8
 PSK_LENGTHS = (0, 1, 16, 32)
 MAX_TX_POWER_DBM = 30
+# Upstream `channel.options` gives `ChannelSettings.name` a `max_size` of 12, and the C string ends with a 0 byte.
+MAX_CHANNEL_NAME_BYTES = 11
+# A `ChannelSet` of 8 full channels gives a URL of about 670 characters, so the limit leaves room for new fields.
+MAX_CHANNEL_URL_LENGTH = 4096
 
 # Spec feature config-coverage: an interval field is 0 or 60 to 2,592,000 seconds (30 days).
 MIN_INTERVAL_SECS = 60
@@ -75,6 +79,14 @@ class ChannelConfig(_UserPrefsFields):
     uplink_enabled: str | None = None
     downlink_enabled: str | None = None
     muted: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _check_name_length(cls, value: str | None) -> str | None:
+        # Upstream copies the name into a 12-byte array with `strcpy`, so a longer name overflows the array.
+        if value and len(value.encode("utf-8")) > MAX_CHANNEL_NAME_BYTES:
+            raise ValueError(f"the channel name is longer than {MAX_CHANNEL_NAME_BYTES} bytes")
+        return value
 
     @field_validator("psk")
     @classmethod
@@ -540,7 +552,7 @@ class InstallStatus(BaseModel):
 class ChannelUrlRequest(BaseModel):
     """Request body of `POST /api/v1/import/channel-url`."""
 
-    url: str
+    url: str = Field(max_length=MAX_CHANNEL_URL_LENGTH)
 
 
 class ImportedChannel(BaseModel):
@@ -581,10 +593,14 @@ class ChannelUrlImport(BaseModel):
 
 
 class ChannelUrlExport(BaseModel):
-    """Response of `POST /api/v1/export/channel-url`. `qr_svg` is an SVG document of a QR code that holds `url`."""
+    """Response of `POST /api/v1/export/channel-url`.
+
+    `qr_svg` is an SVG document of a QR code that holds `url`. `warnings` holds each problem of the URL for a mesh.
+    """
 
     url: str
     qr_svg: str
+    warnings: list[str]
 
 
 class CliYamlImport(BaseModel):

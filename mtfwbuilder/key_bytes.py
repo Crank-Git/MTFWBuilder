@@ -32,5 +32,7 @@ def decode_key(value: str) -> bytes:
 
 
 def byte_array(data: bytes) -> str:
-    """Return `data` as a `{ 0x.., 0x.. }` C array initializer."""
+    """Return `data` as a `{ 0x.., 0x.. }` C array initializer, or `{ }` for no bytes."""
+    if not data:
+        return "{ }"
     return "{ " + ", ".join(f"0x{b:02x}" for b in data) + " }"

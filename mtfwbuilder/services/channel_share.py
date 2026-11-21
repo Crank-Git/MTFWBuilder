@@ -10,7 +10,6 @@ package does not know is a number.
 """
 
 import base64
-import binascii
 import io
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -20,7 +19,7 @@ from urllib.parse import urlsplit
 import segno
 import yaml
 from google.protobuf.message import DecodeError
-from meshtastic.protobuf import apponly_pb2, channel_pb2, config_pb2
+from meshtastic.protobuf import apponly_pb2, channel_pb2, config_pb2, localonly_pb2
 from meshtastic.util import camel_to_snake
 from pydantic import ValidationError
 
@@ -65,16 +64,19 @@ def _channel_set(fragment: str) -> apponly_pb2.ChannelSet:
     padded = fragment + "=" * (-len(fragment) % 4)
     try:
         channel_set = apponly_pb2.ChannelSet.FromString(base64.b64decode(padded, altchars=b"-_", validate=True))
-    except (binascii.Error, DecodeError):
-        # The error text can quote the fragment, and the fragment holds the PSKs.
+    except (ValueError, DecodeError):
+        # `b64decode` raises `ValueError` for a non-ASCII fragment. The error text can quote the PSKs of the fragment.
         raise InvalidChannelUrl from None
     if not channel_set.settings:
         raise InvalidChannelUrl
     return channel_set
 
 
-def _channel(index: int, settings: channel_pb2.ChannelSettings) -> ImportedChannel:
-    """Return the channel at `index` of a URL, with the role that upstream `setURL` gives it."""
+def _channel(index: int, settings: channel_pb2.ChannelSettings, add: bool) -> ImportedChannel:
+    """Return the channel at `index` of a URL, with the role that upstream `setURL` gives it.
+
+    Upstream `setURL` gives each channel of an `add=true` URL the SECONDARY role.
+    """
     psk = bytes(settings.psk)
     return ImportedChannel(
         index=index,
@@ -82,7 +84,7 @@ def _channel(index: int, settings: channel_pb2.ChannelSettings) -> ImportedChann
         psk=base64.b64encode(psk).decode("ascii"),
         # Upstream reads a PSK of 1 byte as the number of a default key, not as key material.
         default_key=psk[0] if len(psk) == 1 else None,
-        role="PRIMARY" if index == 0 else "SECONDARY",
+        role="PRIMARY" if index == 0 and not add else "SECONDARY",
         uplink_enabled=settings.uplink_enabled,
         downlink_enabled=settings.downlink_enabled,
         position_precision=settings.module_settings.position_precision,
@@ -98,7 +100,11 @@ def decode_channel_url(url: str) -> ChannelUrlImport:
     Raises:
         InvalidChannelUrl: The URL is not in one of the two forms, or its fragment does not decode.
     """
-    parts = urlsplit(url.strip())
+    try:
+        parts = urlsplit(url.strip())
+    except ValueError:
+        # `urlsplit` rejects a host with an unclosed `[`. The error text can quote the URL.
+        raise InvalidChannelUrl from None
     is_channel_url = (parts.scheme, parts.netloc, parts.path) == ("https", "meshtastic.org", "/e/")
     if not is_channel_url or parts.query not in _QUERIES or not parts.fragment:
         raise InvalidChannelUrl
@@ -108,8 +114,9 @@ def decode_channel_url(url: str) -> ChannelUrlImport:
         count = len(channel_set.settings)
         warnings.append(f"The URL has {count} channels. The import takes the first {CHANNEL_SLOTS}.")
     lora = channel_set.lora_config
+    add = _QUERIES[parts.query]
     return ChannelUrlImport(
-        channels=[_channel(index, settings) for index, settings in enumerate(channel_set.settings[:CHANNEL_SLOTS])],
+        channels=[_channel(index, s, add) for index, s in enumerate(channel_set.settings[:CHANNEL_SLOTS])],
         lora=ImportedLora(
             region=_enum_name(_REGION_NAMES, lora.region),
             modem_preset=_enum_name(_PRESET_NAMES, lora.modem_preset),
@@ -121,7 +128,7 @@ def decode_channel_url(url: str) -> ChannelUrlImport:
             ignore_mqtt=lora.ignore_mqtt,
             config_ok_to_mqtt=lora.config_ok_to_mqtt,
         ),
-        add=_QUERIES[parts.query],
+        add=add,
         warnings=warnings,
     )
 
@@ -131,6 +138,8 @@ _DEFAULT_PSK = b"\x01"
 _DEFAULT_POSITION_PRECISION = 13
 # Upstream `NodeDB.cpp` sets `HOP_RELIABLE`, and the config form has no hop limit field.
 _DEFAULT_HOP_LIMIT = 3
+# The form value of a PSK of 0 bytes. A primary channel without a PSK has no encryption.
+NO_ENCRYPTION_PSK = "{ }"
 _MAX_UINT32 = 0xFFFFFFFF
 NOT_UINT32_MESSAGE = f"the value is not a whole number from 0 to {_MAX_UINT32}"
 
@@ -166,7 +175,8 @@ def _settings(slot: int, channel: ChannelConfig | None) -> channel_pb2.ChannelSe
     module_settings = channel_pb2.ModuleSettings(position_precision=precision, is_muted=is_muted)
     return channel_pb2.ChannelSettings(
         name=channel.name or "",
-        psk=decode_key(channel.psk or "") or _DEFAULT_PSK,
+        # A blank PSK field writes no key, and `{ }` writes an empty PSK, which means no encryption.
+        psk=decode_key(channel.psk) if channel.psk and channel.psk.strip() else _DEFAULT_PSK,
         uplink_enabled=channel.uplink_enabled == "true",
         downlink_enabled=channel.downlink_enabled == "true",
         module_settings=module_settings if precision or is_muted else None,
@@ -277,14 +287,18 @@ def _numbered_enum(name: str, names: list[str]) -> Converter:
 
 
 def _admin_keys(value: Any, _section: dict) -> dict[str, str] | None:
-    """Return an admin key field for each key of the `adminKey` list, without the `base64:` tag."""
+    """Return the 3 admin key fields of `adminKey`, without the `base64:` tag. A slot without a key is empty."""
     if not (isinstance(value, list) and len(value) <= _ADMIN_KEY_SLOTS and all(isinstance(k, str) for k in value)):
         return None
-    return {f"admin_key_{n}": key.removeprefix(_BASE64_TAG) for n, key in enumerate(value)}
+    keys = [key.removeprefix(_BASE64_TAG) for key in value] + [""] * (_ADMIN_KEY_SLOTS - len(value))
+    return {f"admin_key_{n}": key for n, key in enumerate(keys)}
 
 
 def _button(value: Any, section: dict) -> dict[str, str] | None:
-    """Return the button pin field with its switch on."""
+    """Return the button pin field with its switch on, or the switch off for the proto default 0."""
+    # The firmware reads `button_gpio` 0 as no pin, so the variant pin stays in use.
+    if type(value) is int and value == 0:
+        return {"button_pin_enabled": "false"}
     pin = _plain("button_pin")(value, section)
     return None if pin is None else pin | {"button_pin_enabled": "true"}
 
@@ -311,6 +325,13 @@ def _mqtt_enabled(value: Any, section: dict) -> dict[str, str] | None:
 def _canned_messages(value: Any, _section: dict) -> dict[str, str] | None:
     # Upstream separates the messages with `|`, and the form takes one message on each line.
     return {"canned_messages": value.replace("|", "\n")} if isinstance(value, str) else None
+
+
+def _region(value: Any, section: dict) -> dict[str, str] | None:
+    """Return the region field. The region `UNSET` is the empty field, because the form has no `UNSET` value."""
+    if value in ("UNSET", 0) and not isinstance(value, bool):
+        return {"lora_region": ""}
+    return _numbered_enum("lora_region", _REGION_NAMES)(value, section)
 
 
 def _location(value: Any, _section: dict) -> dict[str, str] | None:
@@ -352,7 +373,7 @@ _SECTIONS: dict[tuple[str, str], dict[str, Converter]] = {
         "fixed_position": _plain("fixed_position"),
     },
     ("config", "lora"): {
-        "region": _numbered_enum("lora_region", _REGION_NAMES),
+        "region": _region,
         "modem_preset": _numbered_enum("lora_modem_preset", _PRESET_NAMES),
         "channel_num": _plain("lora_channel_num"),
         "ignore_mqtt": _plain("lora_ignore_mqtt"),
@@ -395,6 +416,9 @@ _SECTIONS: dict[tuple[str, str], dict[str, Converter]] = {
 }
 
 # The generator writes the fields of these sections only when the section switch of the form is on.
+# The message of each part, for the proto default of a field that `MessageToDict` leaves out.
+_PART_MESSAGES = {"config": localonly_pb2.LocalConfig, "module_config": localonly_pb2.LocalModuleConfig}
+
 _SECTION_SWITCHES = {
     ("config", "position"): "gps_enabled",
     ("config", "lora"): "lora_enabled",
@@ -408,13 +432,15 @@ def _channel_fields(url: ChannelUrlImport) -> dict[str, str]:
     for channel in url.channels:
         prefix = f"channel_{channel.index}"
         fields[f"{prefix}[name]"] = channel.name
-        fields[f"{prefix}[psk]"] = channel.psk
+        # A blank PSK field gives default key 1, so an empty PSK becomes the empty byte list.
+        fields[f"{prefix}[psk]"] = channel.psk or NO_ENCRYPTION_PSK
         fields[f"{prefix}[precision]"] = str(channel.position_precision)
         fields[f"{prefix}[uplink_enabled]"] = "true" if channel.uplink_enabled else "false"
         fields[f"{prefix}[downlink_enabled]"] = "true" if channel.downlink_enabled else "false"
-    # The form has no `UNSET` region, and an empty region field keeps the firmware default.
-    lora = {"lora_region": url.lora.region, "lora_modem_preset": url.lora.modem_preset}
-    lora = {name: value for name, value in lora.items() if value not in (None, "UNSET")}
+    # The form has no `UNSET` region, and an empty region field keeps the firmware default `UNSET`.
+    region = "" if url.lora.region == "UNSET" else url.lora.region
+    lora = {"lora_region": region, "lora_modem_preset": url.lora.modem_preset}
+    lora = {name: value for name, value in lora.items() if value is not None}
     return fields | lora | ({"lora_enabled": "true"} if lora else {})
 
 
@@ -461,9 +487,35 @@ class _Import:
                 self.apply(f"{part}.{section}", None, {})
                 continue
             switch = {_SECTION_SWITCHES[key]: "true"} if key in _SECTION_SWITCHES else {}
+            self._add_defaults(key, values, converters, switch)
             for name, value in values.items():
                 convert = converters.get(camel_to_snake(str(name)))
                 self.apply(f"{part}.{section}.{name}", convert(value, values) if convert else None, switch)
+
+    def _add_defaults(
+        self, key: tuple[str, str], values: dict, converters: dict[str, Converter], switch: dict[str, str]
+    ) -> None:
+        """Add the form fields of the proto default of each mapped field that the section of the file leaves out.
+
+        `MessageToDict` leaves out a false, zero, empty or first enum value, so the form must not keep its own value.
+        A default that has no form value adds no field and no "Not applied" path.
+        """
+        part, section = key
+        given = {camel_to_snake(str(name)) for name in values}
+        proto_fields = _PART_MESSAGES[part].DESCRIPTOR.fields_by_name[section].message_type.fields_by_name
+        for name, convert in converters.items():
+            proto_field = proto_fields.get(name)
+            if name in given or proto_field is None:
+                continue
+            if proto_field.is_repeated:
+                default = []
+            elif proto_field.enum_type is not None:
+                default = proto_field.enum_type.values_by_number[proto_field.default_value].name
+            else:
+                default = proto_field.default_value
+            fields = convert(default, values)
+            if fields is not None:
+                self.apply(f"{part}.{section}.{proto_field.json_name}", fields, switch)
 
     def result(self) -> CliYamlImport:
         """Return the form fields that the form accepts, in the form value format, and list each rejected path."""
@@ -502,7 +554,8 @@ def read_cli_export(data: bytes) -> CliYamlImport:
     """
     try:
         export = yaml.safe_load(data.decode("utf-8"))
-    except (UnicodeDecodeError, yaml.YAMLError, RecursionError):
+    except (yaml.YAMLError, RecursionError, ValueError, OverflowError):
+        # `safe_load` raises `ValueError` for an int over 4300 digits or an impossible date, and bad UTF-8 does too.
         # The error text can quote the file, and the file holds the PSKs.
         raise InvalidExportFile from None
     if not isinstance(export, dict):

@@ -59,7 +59,7 @@
                                 </button>
                             </div>
                             <div id="error-channel_{{ n }}.psk" class="field-error invalid-feedback d-block"></div>
-                            <div class="form-text text-muted">Base64 or hex. The key is 0, 1, 16 or 32 bytes. <code class="small">USERPREFS_CHANNEL_{{ n }}_PSK</code></div>
+                            <div class="form-text text-muted">Base64 or hex. The key is 0, 1, 16 or 32 bytes. The PSK <code class="small">{ }</code> has 0 bytes: Channel 1 then has no encryption, and another channel uses the key of Channel 1. <code class="small">USERPREFS_CHANNEL_{{ n }}_PSK</code></div>
                         </fieldset>
                     </div>
                     <div class="row">

@@ -9,6 +9,7 @@ import re
 import xml.etree.ElementTree as ET
 
 import pytest
+import segno
 import zxingcpp
 from httpx import ASGITransport, AsyncClient
 from meshtastic.protobuf import apponly_pb2, channel_pb2, config_pb2
@@ -18,6 +19,8 @@ EXPORT_URL = "/api/v1/export/channel-url"
 URL_PREFIX = "https://meshtastic.org/e/#"
 # The default `LongFast` channel: PSK byte 1, no region, hop limit 3, TX on.
 LONG_FAST_URL = "https://meshtastic.org/e/#CgMSAQESBggBQANIAQ"
+NO_REGION_WARNING = "The config sets no LoRa region, so the channel URL holds the region UNSET."
+QR_OVERFLOW_MESSAGE = "the channel URL is too long for a QR code"
 
 LoRaConfig = config_pb2.Config.LoRaConfig
 
@@ -50,7 +53,8 @@ def config_from_import(imported: dict) -> dict:
     for channel in imported["channels"]:
         config[f"channel_{channel['index']}"] = {
             "name": channel["name"],
-            "psk": channel["psk"],
+            # The form reads an empty PSK field as default key 1, so the page fills `{ }` for an empty PSK.
+            "psk": channel["psk"] or "{ }",
             "precision": str(channel["position_precision"]),
             "uplink_enabled": _true_false(channel["uplink_enabled"]),
             "downlink_enabled": _true_false(channel["downlink_enabled"]),
@@ -227,3 +231,65 @@ async def test_export_writes_no_part_of_the_url_or_the_psk_to_the_log(client, ca
     fragment = response.json()["url"].removeprefix(URL_PREFIX)
     for secret in (fragment, base64.b64encode(key).decode("ascii"), key.hex()):
         assert secret not in caplog.text
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        pytest.param({}, id="lora-switch-off"),
+        pytest.param({"lora_enabled": "true", "lora_modem_preset": "LONG_FAST"}, id="no-region"),
+    ],
+)
+async def test_export_without_a_region_returns_the_url_and_a_warning(client, config):
+    response = await client.post(EXPORT_URL, json=config)
+
+    assert response.status_code == 200
+    assert response.json()["warnings"] == [NO_REGION_WARNING]
+
+
+async def test_export_with_a_region_returns_no_warning(client):
+    response = await client.post(EXPORT_URL, json={"lora_enabled": "true", "lora_region": "EU_868"})
+
+    assert response.json()["warnings"] == []
+
+
+async def test_empty_psk_byte_list_exports_a_channel_without_encryption(client):
+    response = await client.post(EXPORT_URL, json={"channels_to_write": "1", "channel_0": {"psk": "{ }"}})
+
+    assert response.status_code == 200
+    assert bytes(decoded_set(response.json()["url"]).settings[0].psk) == b""
+
+
+async def test_export_of_an_imported_url_without_encryption_gives_the_same_url(client):
+    channel_set = apponly_pb2.ChannelSet()
+    channel_set.settings.add(name="Open", module_settings=channel_pb2.ModuleSettings(position_precision=13))
+    channel_set.lora_config.CopyFrom(LoRaConfig(use_preset=True, hop_limit=3, tx_enabled=True))
+    url = channel_url(channel_set)
+
+    assert await export_of_import(client, url) == url
+
+
+@pytest.mark.parametrize("name", ["A" * 12, "Ä" * 6])
+async def test_channel_name_longer_than_11_bytes_returns_422(client, name):
+    response = await client.post(EXPORT_URL, json={"channel_0": {"name": name}})
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["body", "channel_0", "name"]
+
+
+async def test_channel_name_of_11_bytes_exports(client):
+    response = await client.post(EXPORT_URL, json={"channel_0": {"name": "A" * 11}})
+
+    assert response.status_code == 200
+
+
+async def test_url_too_long_for_a_qr_code_returns_422(client, monkeypatch):
+    def overflow(*_args, **_kwargs):
+        raise segno.DataOverflowError("too much data")
+
+    monkeypatch.setattr(segno, "make", overflow)
+
+    response = await client.post(EXPORT_URL, json={})
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["msg"] == QR_OVERFLOW_MESSAGE

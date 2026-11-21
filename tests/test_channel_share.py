@@ -191,3 +191,32 @@ async def test_import_writes_no_part_of_the_url_or_the_psk_to_the_log(client, ca
     fragment = url.split("#")[1]
     for secret in (fragment, fragment[:-3], base64.b64encode(key).decode("ascii"), key.hex()):
         assert secret not in caplog.text
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        pytest.param("https://meshtastic.org/e/#CgMSAQé", id="non-ascii-fragment"),
+        pytest.param("https://[meshtastic.org/e/#CgMSAQE", id="bad-ipv6-host"),
+    ],
+)
+async def test_url_that_urlsplit_or_base64_rejects_returns_422(client, url):
+    response = await client.post(IMPORT_URL, json={"url": url})
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["msg"] == INVALID_URL_MESSAGE
+
+
+async def test_url_longer_than_the_maximum_returns_422(client):
+    response = await client.post(IMPORT_URL, json={"url": "https://meshtastic.org/e/#" + "A" * 5000})
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["type"] == "string_too_long"
+
+
+async def test_add_url_gives_every_channel_the_secondary_role(client):
+    url = channel_url(long_fast_set(), prefix="https://meshtastic.org/e/?add=true#")
+
+    response = await client.post(IMPORT_URL, json={"url": url})
+
+    assert [channel["role"] for channel in response.json()["channels"]] == ["SECONDARY"]
