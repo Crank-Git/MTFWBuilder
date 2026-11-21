@@ -414,3 +414,12 @@ def test_field_behind_a_form_switch_that_is_off_gives_no_diff_row(table_page, fo
     result = table_page.evaluate(MAPPING_JS, [form, raw, other, other, {**SWITCHES_ON, **switches}])
 
     assert (result["same"], result["other"]) == (0, 0)
+
+
+def test_enum_value_that_core_does_not_name_gives_no_diff_row(table_page):
+    # Push cannot send a value name with no number, so the diff shows no row for it.
+    raw = "meshtastic_Config_DeviceConfig_Role_NEWER_ROLE"
+
+    result = table_page.evaluate(MAPPING_JS, ["device_role", raw, 0, 1, SWITCHES_ON])
+
+    assert (result["same"], result["other"]) == (0, 0)

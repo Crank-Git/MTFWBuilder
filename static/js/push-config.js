@@ -1,4 +1,5 @@
-// The push config page (feature push-config): connect to a device, read its config, and show the diff with a profile.
+// The push config page (feature push-config): connect to a device, read its config, show the diff with a profile,
+// and push the selected sections.
 // The library calls follow the vendored @meshtastic/core 2.6.7 build and its two transports (ADR 0008).
 
 const el = id => document.getElementById(id);
@@ -6,6 +7,15 @@ const el = id => document.getElementById(id);
 const CONNECT_STATES = ['push-reading', 'push-connected', 'push-managed', 'push-error'];
 // @meshtastic/core 2.6.7 sends this status when the device answers the end of want_config (Types.DeviceStatusEnum).
 const DEVICE_CONFIGURED = 7;
+// The transports send this status when the port closes or the Bluetooth link drops (Types.DeviceStatusEnum).
+const DEVICE_DISCONNECTED = 2;
+// A USB serial bridge keeps the port open while the device restarts, so no drop tells the page that the restart began.
+const RESTART_WAIT_MS = 15000;
+const LOG_OFF = 7;
+const RETRY_MS = 2000;
+const RECONNECT_MS = 120000;
+// A device that is still starting can miss want_config, and the read then never ends.
+const READ_MS = 10000;
 const NO_SECURITY = 'The device sent its config without a security section.';
 // The build log mask uses the same text, so the operator sees one mask for each secret.
 const MASK = '***';
@@ -71,7 +81,12 @@ const ADMIN_KEY = keyType(ADMIN_KEY_LENGTHS, 'The value is not hex, base64 or a 
 function enumType(name) {
   const prefix = `meshtastic_${name}_`;
   return {
-    profile: raw => (raw.startsWith(prefix) ? raw.slice(prefix.length) : raw),
+    // A value name that core 2.6.7 does not have gives no number that the page can send.
+    profile: (raw, context) => {
+      const value = raw.startsWith(prefix) ? raw.slice(prefix.length) : raw;
+      return typeof context.protobuf.Config[name][value] === 'number' ? value : null;
+    },
+    wire: (value, context) => context.protobuf.Config[name][value],
     // A device with newer protobufs can send a number that core 2.6.7 does not name.
     device: (value, context) => context.protobuf.Config[name][value] ?? String(value),
     show: String,
@@ -244,6 +259,10 @@ function sectionLabel(section) {
   return section.startsWith('channels.') ? `Channel ${section.slice('channels.'.length)}` : SECTION_LABELS[section];
 }
 
+function filled(raw) {
+  return raw !== undefined && raw !== null && raw !== '';
+}
+
 /** Return true when the generator writes the field of `row` for the profile config `config`. */
 function applies(row, config) {
   if (row.slot !== undefined && row.slot >= Number(config.channels_to_write ?? '1')) {
@@ -287,7 +306,7 @@ export function diffSections(read, config, context) {
   const sections = new Map();
   FIELD_MAP.forEach(row => {
     const raw = config[row.form];
-    if (raw === undefined || raw === null || raw === '' || !applies(row, config)) {
+    if (!filled(raw) || !applies(row, config)) {
       return;
     }
     const diff = diffRow(row, read, raw, context);
@@ -302,13 +321,105 @@ export function diffSections(read, config, context) {
   return [...sections.values()];
 }
 
+// A protobuf-es message keeps a nested plain object as it is, so the page sends plain objects only.
+// `create` in core then builds each message again from its fields.
+function plain(value) {
+  if (value === null || typeof value !== 'object' || value instanceof Uint8Array) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map(plain);
+  }
+  return Object.fromEntries(Object.entries(value).filter(([key]) => key !== '$typeName')
+    .map(([key, item]) => [key, plain(item)]));
+}
+
+function setValue(target, path, value) {
+  const parts = path.split('.');
+  let node = target;
+  parts.slice(0, -1).forEach((part, index) => {
+    node[part] ??= /^[0-9]+$/.test(parts[index + 1]) ? [] : {};
+    node = node[part];
+  });
+  node[parts[parts.length - 1]] = value;
+}
+
+// The firmware gives a new channel slot these settings before it reads the userPrefs keys (`Channels::initDefaultChannel`).
+function newChannelSettings() {
+  return { psk: Uint8Array.of(1), moduleSettings: { positionPrecision: 13 } };
+}
+
+function channelMessage(read, slot, context) {
+  const role = context.protobuf.Channel.Channel_Role;
+  const found = read.channels[slot];
+  const channel = found && found.role !== role.DISABLED ? plain(found) : { settings: newChannelSettings() };
+  // The firmware gives slot 0 the PRIMARY role and each other slot that the profile counts the SECONDARY role.
+  return { ...channel, index: slot, role: slot === 0 ? role.PRIMARY : role.SECONDARY };
+}
+
+/**
+ * Return the admin call for one section of the diff: `{method, value}`, where `method` is the MeshDevice method.
+ *
+ * The device replaces the whole section, so `value` holds the device values with the profile values on top.
+ *
+ * Parameters:
+ * - `read`: the device read of `readDevice`.
+ * - `config`: the flat form fields of the profile, with the secrets that the operator entered again.
+ * - `section`: the section path of the mapping table, for example `config.lora` or `channels.1`.
+ * - `context`: `{protobuf, tzTable}`, as for `diffSections`.
+ */
+export function sectionMessage(read, config, section, context) {
+  const [root, key] = section.split('.');
+  let value;
+  if (root === 'channels') {
+    value = channelMessage(read, Number(key), context);
+  } else {
+    value = plain(root === 'owner' ? read.owner : read[root][key]) ?? {};
+  }
+  const written = new Set();
+  FIELD_MAP.filter(row => row.section === section && filled(config[row.form]) && applies(row, config)).forEach(row => {
+    const wanted = row.type.profile(String(config[row.form]), context);
+    if (wanted !== null) {
+      setValue(value, row.field, row.type.wire ? row.type.wire(wanted, context) : wanted);
+      written.add(row.form);
+    }
+  });
+  // USERPREFS_FIXED_BLUETOOTH sets the FIXED_PIN pairing mode with the PIN (`NodeDB::installDefaultConfig`).
+  if (written.has('bluetooth_fixed_pin')) {
+    value.mode = context.protobuf.Config.Config_BluetoothConfig_PairingMode.FIXED_PIN;
+  }
+  if (root === 'channels') {
+    return { method: 'setChannel', value };
+  }
+  if (root === 'owner') {
+    return { method: 'setOwner', value };
+  }
+  return { method: root === 'config' ? 'setConfig' : 'setModuleConfig', value: { payloadVariant: { case: key, value } } };
+}
+
+/**
+ * Return a MeshDevice of `core` on `transport`, with its logger off.
+ *
+ * The esm.sh build of core 2.6.7 replaces `util.types.isNativeError` with a function that throws. The tslog logger
+ * of MeshDevice calls it for each log line, so `configure()` and each set call throw. A level above fatal (6) ends
+ * each log call before that check.
+ */
+export function createMeshDevice(core, transport) {
+  const device = new core.MeshDevice(transport);
+  device.log.settings.minLevel = LOG_OFF;
+  return device;
+}
+
 /**
  * Return a connected MeshDevice for the transport `kind`, "usb" or "bluetooth".
  *
  * Test hook: when `window.__pushConfigTestDevice` is set before the page loads, the page uses that object
  * as the device and opens no transport. The object needs the MeshDevice members that the page calls:
  * `configure()`, `disconnect()`, and `subscribe` on the `events` members `onConfigPacket`, `onModuleConfigPacket`,
- * `onChannelPacket`, `onMyNodeInfo`, `onNodeInfoPacket` and `onDeviceStatus`.
+ * `onChannelPacket`, `onMyNodeInfo`, `onNodeInfoPacket` and `onDeviceStatus`. Push also calls `beginEditSettings()`,
+ * `setConfig`, `setModuleConfig`, `setChannel`, `setOwner` and `commitEditSettings()`. Each of them returns a promise
+ * that resolves when the device acknowledges the message, and that rejects with `{id, error}` when the device rejects
+ * it. After a restart, the page uses the same object again.
  *
  * Fails when the operator closes the browser picker (a `NotFoundError`) or when the transport does not open.
  */
@@ -320,7 +431,7 @@ async function openDevice(library, kind) {
   const transport = kind === 'bluetooth'
     ? await library.bluetooth.TransportWebBluetooth.create()
     : await library.serial.TransportWebSerial.create();
-  return new library.core.MeshDevice(transport);
+  return createMeshDevice(library.core, transport);
 }
 
 /**
@@ -374,7 +485,7 @@ function readDevice(device) {
 }
 
 // The secrets that the operator enters again live only in this map, so no request and no storage holds them.
-const state = { read: null, profile: null, secrets: new Map(), context: null };
+const state = { read: null, profile: null, secrets: new Map(), context: null, device: null, kind: null, pushing: false };
 
 function showState(id) {
   CONNECT_STATES.forEach(name => { el(name).hidden = name !== id; });
@@ -391,6 +502,7 @@ function sectionElement(section, checked) {
   input.className = 'form-check-input';
   input.id = `push-section-${section.section}`;
   input.checked = checked;
+  input.addEventListener('change', updatePush);
   const label = document.createElement('label');
   label.className = 'form-check-label fw-bold';
   label.htmlFor = input.id;
@@ -423,6 +535,7 @@ function renderDiff() {
   if (!state.read || !state.profile) {
     el('push-diff').hidden = true;
     el('push-no-changes').hidden = true;
+    updatePush();
     return;
   }
   const config = { ...state.profile.config, ...Object.fromEntries(state.secrets) };
@@ -432,9 +545,23 @@ function renderDiff() {
   const cleared = new Set([...container.querySelectorAll('[data-section]')]
     .filter(box => !box.querySelector('input').checked).map(box => box.dataset.section));
   container.replaceChildren(...sections.map(section => sectionElement(section, !cleared.has(section.section))));
-  const pending = reenterRows(state.profile).some(row => !state.secrets.has(row.form));
   el('push-diff').hidden = sections.length === 0;
-  el('push-no-changes').hidden = sections.length > 0 || pending;
+  el('push-no-changes').hidden = sections.length > 0 || secretsPending();
+  updatePush();
+}
+
+function secretsPending() {
+  return reenterRows(state.profile).some(row => !state.secrets.has(row.form));
+}
+
+function selectedSections() {
+  return [...el('push-diff-sections').querySelectorAll('[data-section]')]
+    .filter(box => box.querySelector('input').checked).map(box => box.dataset.section);
+}
+
+function updatePush() {
+  const ready = state.device && state.read && state.profile && !secretsPending() && selectedSections().length > 0;
+  el('push-send').disabled = state.pushing || !ready;
 }
 
 function secretInput(row) {
@@ -518,6 +645,8 @@ async function connect(library, kind) {
     return;
   }
   state.read = null;
+  state.device = null;
+  hidePushNotices();
   showState('push-reading');
   try {
     const read = await readDevice(device);
@@ -527,13 +656,167 @@ async function connect(library, kind) {
       await close(device);
       return;
     }
-    state.read = read;
-    showState('push-connected');
-    renderDiff();
+    showConnected(device, kind, read);
   } catch (error) {
     // An open port makes the next Connect fail, so the page closes the connection before it shows the error.
     await close(device);
     showError(error);
+  }
+}
+
+function showConnected(device, kind, read) {
+  Object.assign(state, { device, kind, read });
+  showState('push-connected');
+  renderDiff();
+}
+
+function hidePushNotices() {
+  ['push-results', 'push-restart', 'push-dropped', 'push-reconnect-failed'].forEach(id => { el(id).hidden = true; });
+}
+
+function delay(ms) {
+  return new Promise(resolve => { setTimeout(resolve, ms); });
+}
+
+// The library rejects with `{id, error}` for a routing error of the device, and with an Error for a local failure.
+function deviceError(error) {
+  if (error && typeof error.error === 'number') {
+    return state.context.protobuf.Mesh.Routing_Error[error.error] ?? String(error.error);
+  }
+  return error && error.message ? error.message : String(error);
+}
+
+function showResult(section, text) {
+  const item = document.createElement('li');
+  item.dataset.result = section;
+  item.textContent = `${sectionLabel(section)}: ${text}`;
+  el('push-results').append(item);
+}
+
+/**
+ * Send the selected sections in one transaction, and return "committed", "dropped" or "commit-failed".
+ *
+ * The page sends begin_edit_settings, one set message for each section, then commit_edit_settings (FR-push-config-7).
+ * Core 2.6.7 sends begin_edit_settings only inside `setConfig`, so the page sends it itself (ADR 0008).
+ * A rejected set message gives a failed result, and the page sends the next one (FR-push-config-8).
+ * A drop before the commit stops the transaction, so the device keeps its old config.
+ *
+ * Parameters:
+ * - `device`: the connected MeshDevice.
+ * - `messages`: the `{section, method, value}` admin calls, in the order of the mapping table.
+ * - `drop`: a promise that resolves when the connection drops.
+ */
+async function sendTransaction(device, messages, drop) {
+  const dropped = Symbol('dropped');
+  // A lost port leaves the promise of the library open until its 60-second timeout, so the drop ends the wait.
+  const send = call => Promise.race([call().then(() => null, error => error), drop.then(() => dropped)]);
+  if (await send(() => device.beginEditSettings()) === dropped) {
+    return 'dropped';
+  }
+  for (const message of messages) {
+    // The page waits for each answer before the next message, so the results show the progress.
+    const error = await send(() => device[message.method](message.value));
+    if (error === dropped) {
+      return 'dropped';
+    }
+    showResult(message.section, error === null ? 'applied' : `failed, ${deviceError(error)}`);
+  }
+  // A device on Bluetooth turns its radio off at the commit, so a drop after the commit is the restart.
+  const error = await send(() => device.commitEditSettings());
+  if (error !== null && error !== dropped) {
+    showError(new Error(`The device did not save the config: ${deviceError(error)}`));
+    return 'commit-failed';
+  }
+  return 'committed';
+}
+
+async function push(library) {
+  const { device, kind } = state;
+  const config = { ...state.profile.config, ...Object.fromEntries(state.secrets) };
+  const messages = selectedSections().map(section => ({
+    section,
+    ...sectionMessage(state.read, config, section, state.context),
+  }));
+  state.pushing = true;
+  updatePush();
+  hidePushNotices();
+  el('push-results').replaceChildren();
+  el('push-results').hidden = false;
+  let onDrop;
+  const drop = new Promise(resolve => { onDrop = resolve; });
+  const stop = device.events.onDeviceStatus.subscribe(status => {
+    if (status === DEVICE_DISCONNECTED) {
+      onDrop();
+    }
+  });
+  try {
+    const outcome = await sendTransaction(device, messages, drop);
+    if (outcome === 'commit-failed') {
+      return;
+    }
+    state.device = null;
+    if (outcome === 'dropped') {
+      el('push-results').hidden = true;
+      el('push-dropped').hidden = false;
+      await close(device);
+      return;
+    }
+    el('push-restart').hidden = false;
+    await Promise.race([drop, delay(RESTART_WAIT_MS)]);
+    await reconnect(library, kind, device);
+  } finally {
+    stop();
+    state.pushing = false;
+    updatePush();
+  }
+}
+
+/**
+ * Return a MeshDevice on the port or the Bluetooth device of `old`, after the restart.
+ *
+ * A USB device can return as a new SerialPort. Web Serial then fires `connect` with it, and `ports.latest` holds it.
+ */
+async function reopenDevice(library, kind, old, ports) {
+  if (window.__pushConfigTestDevice) {
+    return window.__pushConfigTestDevice;
+  }
+  const transport = kind === 'bluetooth'
+    ? await library.bluetooth.TransportWebBluetooth.createFromDevice(old.transport.gattServer.device)
+    : await library.serial.TransportWebSerial.createFromPort(ports.latest ?? old.transport.connection);
+  return createMeshDevice(library.core, transport);
+}
+
+function readWithTimeout(device) {
+  const late = delay(READ_MS).then(() => { throw new Error('The device did not send its config.'); });
+  return Promise.race([readDevice(device), late]);
+}
+
+/** Connect to the device again after the restart, and show the new diff (FR-push-config-9). */
+async function reconnect(library, kind, old) {
+  await close(old);
+  const ports = { latest: null };
+  const onPort = event => { ports.latest = event.target; };
+  const serial = window.navigator.serial;
+  serial?.addEventListener('connect', onPort);
+  try {
+    const deadline = Date.now() + RECONNECT_MS;
+    while (Date.now() < deadline) {
+      let device = null;
+      try {
+        device = await reopenDevice(library, kind, old, ports);
+        showConnected(device, kind, await readWithTimeout(device));
+        return;
+      } catch (error) {
+        // The device is still starting, so the page tries again.
+        if (device) {
+          await close(device);
+        }
+        await delay(RETRY_MS);
+      }
+    }
+    el('push-reconnect-failed').hidden = false;
+  } finally {
+    serial?.removeEventListener('connect', onPort);
   }
 }
 
@@ -552,6 +835,7 @@ function showError(error) {
 
 function bind(library) {
   state.context = { protobuf: library.core.Protobuf, tzTable };
+  el('push-send').addEventListener('click', () => push(library).catch(showError));
   ['usb', 'bluetooth'].forEach(kind => {
     const button = el(kind === 'usb' ? 'push-connect-usb' : 'push-connect-bluetooth');
     button.addEventListener('click', async () => {
