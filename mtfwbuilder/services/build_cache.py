@@ -68,12 +68,13 @@ async def find_entry(settings: Settings, key: str) -> Path | None:
         if row is None:
             return None
         entry_dir = Path(row[0])
-        if entry_dir.is_dir():
+        found = entry_dir.is_dir()
+        if found:
             await db.execute("UPDATE cache_entries SET last_used_at = ? WHERE config_hash = ?", (time.time(), key))
         else:
             await db.execute("DELETE FROM cache_entries WHERE config_hash = ?", (key,))
         await db.commit()
-    return entry_dir if entry_dir.is_dir() else None
+    return entry_dir if found else None
 
 
 async def store_entry(settings: Settings, key: str, firmware_version: str, variant: str, artifacts: list[Path]) -> None:
