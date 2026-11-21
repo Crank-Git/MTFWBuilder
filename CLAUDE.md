@@ -20,7 +20,7 @@ edit `docs/specs/spec.html` or `docs/specs/html/` by hand.
 
 ## Stack and layout
 
-- Python (3.11 today, 3.13 after Epic 4), FastAPI + uvicorn, one process.
+- Python 3.13 (uv manages the environment), FastAPI + uvicorn, one process.
 - Jinja2 templates + htmx (Epic 3), Bootstrap 5.3. No JavaScript build step.
 - SQLite through aiosqlite. PlatformIO for firmware builds.
 
@@ -39,11 +39,11 @@ edit `docs/specs/spec.html` or `docs/specs/html/` by hand.
 ## Commands
 
 ```bash
-pip install -e ".[dev]"        # install (uv sync after Epic 4)
-pytest                         # tests (uv run pytest after Epic 4)
-ruff check mtfwbuilder/ tests/ # lint
-ruff format mtfwbuilder/ tests/ # format
-uvicorn mtfwbuilder.main:app --reload --port 5000   # dev server
+uv sync                               # install, with the dev group
+uv run pytest                         # tests
+uv run ruff check mtfwbuilder/ tests/ # lint
+uv run ruff format mtfwbuilder/ tests/ # format
+uv run uvicorn mtfwbuilder.main:app --reload --port 5000   # dev server
 docker compose up -d           # Docker
 ```
 
