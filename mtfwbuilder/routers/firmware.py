@@ -7,7 +7,7 @@ import requests
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sse_starlette.sse import EventSourceResponse
 
-from mtfwbuilder.auth import require_admin
+from mtfwbuilder.auth import require_admin, require_csrf
 from mtfwbuilder.database import list_firmware_sources
 from mtfwbuilder.models import AvailableFirmwareVersions, FirmwareSource, InstallRequest
 from mtfwbuilder.services import firmware_updater
@@ -37,7 +37,7 @@ async def available(request: Request):
         raise HTTPException(status_code=502, detail="Cannot reach api.meshtastic.org or GitHub.") from e
 
 
-@router.post("/install", status_code=202, dependencies=[Depends(require_admin)])
+@router.post("/install", status_code=202, dependencies=[Depends(require_admin), Depends(require_csrf)])
 async def install(body: InstallRequest, request: Request):
     """Start an install by channel or by exact tag, and return its install id and progress stream URL.
 
@@ -68,7 +68,7 @@ async def install_progress(install_id: str, request: Request):
     return EventSourceResponse(firmware_updater.install_events(started))
 
 
-@router.delete("/{version}", status_code=204, dependencies=[Depends(require_admin)])
+@router.delete("/{version}", status_code=204, dependencies=[Depends(require_admin), Depends(require_csrf)])
 async def remove(version: str, request: Request):
     """Delete the firmware source of the firmware version and its record.
 

@@ -17,6 +17,7 @@ import secrets
 import shutil
 import time
 from collections.abc import Callable
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import quote
@@ -35,6 +36,8 @@ logger = logging.getLogger("mtfwbuilder.build")
 FIRMWARE_SOURCE_MISSING = "Firmware source not installed. An admin must install a firmware version."
 CANCELLED_MESSAGE = "Build cancelled."
 ENDED_STATUSES = frozenset({"complete", "failed", "cancelled"})
+# A copy of the firmware source records the firmware version that it holds in this file.
+COPY_VERSION_FILE = ".worker-version"
 # The progress number of each build status that pio output shows.
 STEP_PROGRESS = {"compiling": 10, "linking": 70, "packaging": 90}
 
@@ -67,7 +70,9 @@ class BuildContext:
     task: asyncio.Task | None = None
     changed: asyncio.Event = field(default_factory=asyncio.Event)
     firmware_version: str | None = None
-    # The directory `<firmware_dir>/<tag>/` of the firmware source; `run_build` sets it when the build starts.
+    # The build worker that runs the build, so the build uses the firmware source of that build worker.
+    worker: int = 0
+    # The firmware source or the build worker copy that the build compiles in; `run_build` sets it when it starts.
     source_dir: Path | None = None
     # The build queue sets this to put each build status change in the `builds` table.
     on_change: Callable[["BuildContext"], None] = field(default=lambda _ctx: None, repr=False)
@@ -135,6 +140,104 @@ class BuildContext:
         self.changed = asyncio.Event()
 
 
+class FirmwareLock:
+    """Let builds hold the firmware source together, and give a firmware update the firmware source alone.
+
+    A build holds a shared hold with `shared()`. A firmware update holds the exclusive hold with
+    `exclusive()`, or with `acquire()` and `release()`. The install and the removal of a firmware
+    version are firmware updates. A build waits while a firmware update waits, so a stream of builds
+    cannot delay an update for ever.
+    """
+
+    def __init__(self):
+        self._builds = 0
+        self._update = False
+        self._updates_waiting = 0
+        self._changed = asyncio.Event()
+
+    def locked(self) -> bool:
+        """Return True while a firmware update holds the exclusive hold."""
+        return self._update
+
+    @asynccontextmanager
+    async def shared(self):
+        """Hold the firmware source for one build, after no firmware update holds or waits for it."""
+        await self._wait_until(lambda: not self._update and not self._updates_waiting)
+        self._builds += 1
+        try:
+            yield
+        finally:
+            self._builds -= 1
+            self._notify()
+
+    async def acquire(self) -> None:
+        """Take the exclusive hold, after each build releases its shared hold."""
+        self._updates_waiting += 1
+        try:
+            await self._wait_until(lambda: not self._update and not self._builds)
+        finally:
+            self._updates_waiting -= 1
+            # A cancelled update must wake the builds that wait behind it.
+            self._notify()
+        self._update = True
+
+    def release(self) -> None:
+        """Release the exclusive hold; a done callback calls this, so it does not wait."""
+        self._update = False
+        self._notify()
+
+    @asynccontextmanager
+    async def exclusive(self):
+        """Hold the exclusive hold for the body of the `async with` block."""
+        await self.acquire()
+        try:
+            yield
+        finally:
+            self.release()
+
+    async def _wait_until(self, ready: Callable[[], bool]) -> None:
+        while not ready():
+            await self._changed.wait()
+
+    def _notify(self) -> None:
+        # A waiter holds the old event, so a set-and-replace wakes each waiter once.
+        self._changed.set()
+        self._changed = asyncio.Event()
+
+
+def worker_firmware_source(source_dir: Path, worker: int) -> Path:
+    """Return the directory that build worker `worker` compiles in, for the firmware source `source_dir`.
+
+    Build worker 0 compiles in `source_dir` itself. Each other build worker compiles in a copy at
+    `<source_dir>/.worker-<worker>/`. So each copy is in the directory of its firmware version, and a build of
+    one firmware version never compiles in a copy of another firmware version. The function makes the copy on
+    first use. A copy without its version file is incomplete, so the function makes it again.
+    """
+    if worker == 0:
+        return source_dir
+    copy = source_dir / f".worker-{worker}"
+    # A copy that the startup import moved from the old layout holds another text, so the function makes it again.
+    version = source_dir.name
+    version_file = copy / COPY_VERSION_FILE
+    if version_file.exists() and version_file.read_text() == version:
+        return copy
+
+    def running_build_files(directory: str, names: list[str]) -> set[str]:
+        # Build worker 0 can build in the source during the copy, so its userPrefs file and object files hold secrets.
+        if Path(directory) == source_dir:
+            return {n for n in names if n == "userPrefs.jsonc" or n.startswith(".worker-")}
+        if Path(directory) == source_dir / ".pio":
+            return {n for n in names if n in ("build", "build_cache")}
+        return set()
+
+    if copy.exists():
+        shutil.rmtree(copy)
+    shutil.copytree(source_dir, copy, symlinks=True, ignore=running_build_files)
+    version_file.write_text(version)
+    logger.info(f"Copied the firmware source {version} for build worker {worker}")
+    return copy
+
+
 class BuildQueue:
     """Hold the builds of this process and run them in build workers, in queue order."""
 
@@ -146,9 +249,8 @@ class BuildQueue:
         # Each record is a copy taken at the change, so a later change cannot alter what is written.
         self._records: asyncio.Queue[dict | None] = asyncio.Queue()
         self._recorder: asyncio.Task | None = None
-        # A build worker holds the lock for each build, and a firmware update holds it while it replaces the source.
-        # TODO(#88): Let build workers hold the lock together, so that only a firmware update excludes them.
-        self.firmware_lock = asyncio.Lock()
+        # Each build holds a shared hold, and a firmware update holds the exclusive hold while it replaces the source.
+        self.firmware_lock = FirmwareLock()
 
     def get(self, build_id: str) -> BuildContext | None:
         return self._builds.get(build_id)
@@ -190,11 +292,8 @@ class BuildQueue:
         return ctx
 
     def start(self) -> None:
-        """Start the build workers in the running event loop."""
-        if self.settings.build_workers > 1:
-            # TODO(#88): Copy the firmware source per build worker and start `build_workers` of them.
-            logger.warning("MTFW_BUILD_WORKERS > 1 needs one firmware source per build worker; one build worker runs")
-        self._workers = [asyncio.create_task(self._work())]
+        """Start `build_workers` build workers in the running event loop."""
+        self._workers = [asyncio.create_task(self._work(worker)) for worker in range(self.settings.build_workers)]
         self._recorder = asyncio.create_task(self._write_records())
 
     async def stop(self) -> None:
@@ -232,10 +331,11 @@ class BuildQueue:
             while (record := await self._records.get()) is not None:
                 await save_build(db, record)
 
-    async def _work(self) -> None:
+    async def _work(self, worker: int) -> None:
         while True:
             ctx = await self._queue.get()
-            async with self.firmware_lock:
+            ctx.worker = worker
+            async with self.firmware_lock.shared():
                 await self._run(ctx)
             self._queue.task_done()
 
@@ -260,15 +360,18 @@ class BuildQueue:
             del self._builds[build_id]
 
 
-async def progress_events(ctx: BuildContext):
+async def progress_events(ctx: BuildContext, log_from: int | None = None):
     """Yield the SSE events of the progress stream for one build.
 
     The first event is the current build status. Then the stream sends each change of the
     build status and each new log line. The stream ends after the build ends. A closed
     stream has no effect on the build.
+
+    `log_from` is the index of the first log line to send. Without it, the stream sends only
+    the lines that come after the connect.
     """
     sent_status = None
-    log_index = len(ctx.build_log)
+    log_index = len(ctx.build_log) if log_from is None else log_from
     while True:
         # Hold the event before the read, so a change during a yield is not lost.
         changed = ctx.changed
@@ -305,7 +408,9 @@ async def run_build(ctx: BuildContext) -> None:
     if source is None:
         ctx.set_status("failed", error=FIRMWARE_SOURCE_MISSING)
         return
-    ctx.firmware_version, ctx.source_dir = source
+    ctx.firmware_version, source_dir = source
+    # The copy holds no secret yet, so it stays outside the scrub.
+    ctx.source_dir = await asyncio.to_thread(worker_firmware_source, source_dir, ctx.worker)
     ctx.set_status("compiling", message=f"Building firmware for {ctx.variant.name}...")
     try:
         status, fields = await _compile(ctx)

@@ -6,8 +6,8 @@ allowed-tools: Bash, Read
 
 # Run MTFWBuilder
 
-1. Install the project: `pip install -e ".[dev]"` (after Epic 4: `uv sync`).
-2. Start the dev server: `uvicorn mtfwbuilder.main:app --reload --port 5000`.
+1. Install the project: `uv sync`.
+2. Start the dev server: `uv run uvicorn mtfwbuilder.main:app --reload --port 5000`.
 3. Open `http://localhost:5000/`. The page loads when the server is up.
 4. For a real build, an admin must install a firmware source:
    1. Open `http://localhost:5000/admin`.

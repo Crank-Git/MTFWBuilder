@@ -125,6 +125,30 @@ async def test_connect_after_the_build_ends_gets_the_final_build_status(app, cli
     assert [(kind, data["status"]) for kind, data in events if kind == "status"] == [("status", "complete")]
 
 
+@pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
+async def test_progress_stream_with_log_from_sends_each_log_line_after_that_index(app, client):
+    resp = await _post_build(client)
+    ctx = app.state.build_queue.get(resp.json()["build_id"])
+    await _wait_for(ctx, {"complete", "failed", "cancelled"})
+
+    stream = await client.get(f"{resp.json()['progress_url']}?log_from=1")
+
+    lines = [data["line"] for kind, data in _sse_events(stream.text) if kind == "log"]
+    assert len(ctx.build_log) > 1
+    assert lines == ctx.build_log[1:]
+
+
+@pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
+async def test_progress_stream_with_a_negative_log_from_returns_422(app, client):
+    resp = await _post_build(client)
+    # An ended build closes its stream, so a regression fails this test and does not hang it.
+    await _wait_for(app.state.build_queue.get(resp.json()["build_id"]), {"complete", "failed", "cancelled"})
+
+    stream = await client.get(f"{resp.json()['progress_url']}?log_from=-1")
+
+    assert stream.status_code == 422
+
+
 @pytest.mark.usefixtures("fake_pio", "firmware_source")
 async def test_closed_progress_stream_does_not_cancel_the_build(app, monkeypatch):
     monkeypatch.setenv("FAKE_PIO_SLEEP", "0.5")

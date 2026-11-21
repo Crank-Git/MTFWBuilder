@@ -8,10 +8,11 @@ from pathlib import Path
 import pytest
 import yaml
 
+from mtfwbuilder.auth import CSRF_COOKIE, SESSION_COOKIE, create_session_token, csrf_token
 from mtfwbuilder.config import _hash_password, load_settings
 from mtfwbuilder.database import init_db, record_firmware_source
 from mtfwbuilder.main import create_app
-from mtfwbuilder.rate_limit import limiter
+from mtfwbuilder.rate_limit import configure_rate_limits, limiter
 from mtfwbuilder.services.build_service import BuildQueue
 from mtfwbuilder.services.device_registry import DeviceRegistry
 from mtfwbuilder.services.firmware_catalog import FirmwareCatalog
@@ -27,6 +28,28 @@ FIRMWARE_VERSION = "v2.7.26.54e0d8d"
 
 # bcrypt is slow by design, so the suite hashes the password once.
 _ADMIN_PASSWORD_HASH = _hash_password(ADMIN_PASSWORD)
+
+
+# A fixed CSRF cookie value, so a test can sign the CSRF token without a page request.
+_CSRF_NONCE = "test-csrf-nonce"
+
+
+def sign_in_admin(client, settings):
+    """Return the CSRF token for admin forms, after the client gets an admin session and the CSRF cookie."""
+    # A cookie from a response has a domain, so a second cookie of that name would go with each request.
+    for name, value in ((SESSION_COOKIE, create_session_token(settings)), (CSRF_COOKIE, _CSRF_NONCE)):
+        client.cookies.delete(name)
+        client.cookies.set(name, value)
+    return csrf_token(_CSRF_NONCE, settings)
+
+
+def pytest_collection_modifyitems(items):
+    """Move the `e2e` tests to the end of the run.
+
+    The Playwright sync API keeps its event loop running until the session ends.
+    An async test after the first `e2e` test then fails with "Runner.run() cannot be called from a running event loop".
+    """
+    items.sort(key=lambda item: item.get_closest_marker("e2e") is not None)
 
 
 @pytest.fixture
@@ -49,7 +72,7 @@ def fake_pio(monkeypatch):
 
 @pytest.fixture
 def temp_dir():
-    """Temporary directory for test artifacts."""
+    """Return a temporary directory that the test can write artifacts into."""
     with tempfile.TemporaryDirectory() as d:
         yield Path(d)
 
@@ -62,15 +85,13 @@ def admin_password():
 
 @pytest.fixture
 def settings_env(tmp_path, monkeypatch):
-    """Return a base directory under `tmp_path` that the `MTFW_*` variables point at.
+    """Return a directory under `tmp_path` that is both the base directory and the data directory.
 
     The directory holds a `config.yaml` with a known admin password and secret key.
     The registry stays the real `devices/variants.yaml`, which the tests only read.
     """
     monkeypatch.setenv("MTFW_BASE_DIR", str(tmp_path))
-    monkeypatch.setenv("MTFW_TEMP_DIR", str(tmp_path / "tmp"))
-    monkeypatch.setenv("MTFW_DATABASE_PATH", str(tmp_path / "mtfwbuilder.db"))
-    monkeypatch.setenv("MTFW_FIRMWARE_DIR", str(tmp_path / "firmware"))
+    monkeypatch.setenv("MTFW_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("MTFW_DEVICES_FILE", str(REPO_ROOT / "devices" / "variants.yaml"))
     config = {"admin_password_hash": _ADMIN_PASSWORD_HASH, "secret_key": SECRET_KEY}
     (tmp_path / "config.yaml").write_text(yaml.safe_dump(config))
@@ -93,6 +114,7 @@ def app(settings):
     asyncio.run(init_db(settings))
     app = create_app()
     app.state.settings = settings
+    configure_rate_limits(settings)
     app.state.device_registry = DeviceRegistry(settings.devices_file)
     app.state.build_queue = BuildQueue(settings)
     app.state.firmware_installs = FirmwareInstalls(settings, app.state.build_queue)

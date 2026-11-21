@@ -12,29 +12,28 @@ Settings read `config.yaml` first, then `MTFW_<FIELD>` environment variables
 | `MTFW_LOG_LEVEL` | Log level | built |
 | `MTFW_LOG_JSON` | JSON log format | built |
 | `MTFW_DEBUG` | Debug mode | built |
-| `MTFW_BASE_DIR` | Project root. Holds `config.yaml` and `config.json`. | built |
-| `MTFW_FIRMWARE_DIR` | Firmware source directory | built |
-| `MTFW_TEMP_DIR` | Build directories | built |
-| `MTFW_DATABASE_PATH` | SQLite file | built |
+| `MTFW_BASE_DIR` | Project root. Holds `config.json` and the old paths that the startup move reads. | built |
+| `MTFW_FIRMWARE_DIR` | Firmware source directory. Default `firmware/` in the data directory. | built |
+| `MTFW_TEMP_DIR` | Build directories. Default `artifacts/` in the data directory. | built |
+| `MTFW_DATABASE_PATH` | SQLite file. Default `mtfwbuilder.db` in the data directory. | built |
 | `MTFW_DEVICES_FILE` | Registry YAML | built; removed by feature 10 |
 | `MTFW_MAX_QUEUE_SIZE` | Build queue limit | built; used by the build queue |
-| `MTFW_BUILD_WORKERS` | Number of build workers | built; a value above 1 logs a warning, and one build worker runs until #88 |
+| `MTFW_BUILD_WORKERS` | Number of build workers | built; each build worker after the first builds in its own copy `<firmware_dir>/.worker-<n>/` of the firmware source |
 | `MTFW_BUILD_TIMEOUT_SECONDS` | Build timeout | built |
 | `MTFW_CLEANUP_INTERVAL_SECONDS` | Cleanup task interval | built |
 | `MTFW_BUILD_MAX_AGE_SECONDS` | Artifact age limit | built |
 | `MTFW_ADMIN_PASSWORD_HASH` | Admin bcrypt hash | built |
 | `MTFW_SECRET_KEY` | Session and CSRF signing key | built |
 | `MTFW_SESSION_MAX_AGE` | Session length | built |
-| `MTFW_BUILD_RATE_LIMIT`, `MTFW_LOGIN_RATE_LIMIT` | Rate limits | built (unused); used by feature 08 |
-| `MTFW_HOST`, `MTFW_PORT` | Not read | removed by feature 08 |
-| `MTFW_DATA_DIR` | One state directory | planned, feature 08 |
-| `MTFW_TRUSTED_PROXIES` | Proxies whose `X-Forwarded-For` is trusted | planned, feature 08 |
+| `MTFW_BUILD_RATE_LIMIT`, `MTFW_LOGIN_RATE_LIMIT` | Rate limits of the build route and the login route, in slowapi notation (`5/minute`) | built |
+| `MTFW_DATA_DIR` | Data directory. Holds firmware sources, artifacts, the database and `config.yaml`. Default `data/` in the project root, `/data` in Docker. | built |
+| `MTFW_TRUSTED_PROXIES` | Comma-separated addresses or subnets of the proxies whose `X-Forwarded-For` the rate limiter reads. Default empty: the limiter counts the peer address. | built |
 | `MTFW_INSTALL_TIMEOUT_SECONDS` | Time limit of `pio pkg install` in a firmware install, default 3600 | built |
 | `MTFW_CACHE_ENABLED`, `MTFW_CACHE_TTL_SECONDS` | Build cache | planned, feature 14 |
 | `MTFW_MAX_FLEET_SIZE` | Fleet size limit | planned, feature 14 |
 | `GITHUB_TOKEN` | Optional. Raises the GitHub API rate limit for firmware lists and source downloads | built |
 | `PLATFORMIO_FORCE_COLOR`, `PLATFORMIO_NO_ANSI` | Set by the build for `pio` | built |
-| `PLATFORMIO_CORE_DIR` | PlatformIO toolchain directory (Docker volume) | planned, feature 08 |
+| `PLATFORMIO_CORE_DIR` | PlatformIO toolchain directory. The Docker image sets `/home/app/.platformio`, a volume. | built |
 
 ## Upstream services
 

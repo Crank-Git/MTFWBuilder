@@ -244,7 +244,7 @@ class FirmwareInstalls:
         """
         # The checks run before the wait for the firmware lock, so a refusal does not wait for a running build.
         await self._removable(version)
-        async with self.build_queue.firmware_lock:
+        async with self.build_queue.firmware_lock.exclusive():
             # A build can arrive while the removal waits for the firmware lock, so the checks run again.
             record = await self._removable(version)
             await delete_firmware_source(self.settings.database_path, version)
@@ -279,7 +279,7 @@ class FirmwareInstalls:
             install.set_status("installing packages")
             await self._pio_pkg_install(tree)
             # A build reads the firmware source under this lock, so it never sees a half-written record.
-            async with self.build_queue.firmware_lock:
+            async with self.build_queue.firmware_lock.exclusive():
                 if source_dir.exists():
                     raise InstallFailed(f"{source_dir} exists")
                 tree.rename(source_dir)
@@ -347,7 +347,7 @@ async def install_events(install: Install):
 
 def get_firmware_version(settings: Settings) -> dict:
     """Read current firmware version info."""
-    version_file = settings.base_dir / "firmware_version.txt"
+    version_file = settings.data_dir / "firmware_version.txt"
     if not version_file.exists():
         return {"version": "Not installed", "last_updated": "Never"}
 

@@ -20,7 +20,7 @@ import pytest
 import requests
 from httpx import ASGITransport, AsyncClient
 
-from mtfwbuilder.auth import SESSION_COOKIE, create_session_token
+from mtfwbuilder.auth import CSRF_HEADER
 from mtfwbuilder.config import load_settings
 from mtfwbuilder.services import firmware_updater
 from mtfwbuilder.services.firmware_updater import (
@@ -31,6 +31,7 @@ from mtfwbuilder.services.firmware_updater import (
     install_events,
     resolve_channel,
 )
+from tests.conftest import sign_in_admin
 
 STABLE = "v2.7.26.54e0d8d"
 ALPHA = "v2.8.2.d5f1619"
@@ -89,7 +90,8 @@ async def client(app):
 
 @pytest.fixture
 def admin(client, settings):
-    client.cookies.set(SESSION_COOKIE, create_session_token(settings))
+    """Return the client with an admin session, and with the CSRF token in the header of each request."""
+    client.headers[CSRF_HEADER] = sign_in_admin(client, settings)
     return client
 
 
@@ -217,6 +219,30 @@ async def test_install_requires_an_admin_session(client):
     resp = await client.post("/api/v1/firmware/install", json={"channel": "stable"})
 
     assert resp.status_code == 401
+
+
+# FR-frontend-htmx-14: every admin route that changes state requires the CSRF token
+
+
+@pytest.mark.usefixtures("installs")
+@pytest.mark.parametrize("headers", [{}, {CSRF_HEADER: "wrong"}], ids=["no_token", "wrong_token"])
+async def test_install_without_a_valid_csrf_token_returns_403_and_starts_no_install(
+    app, client, settings, downloads, headers
+):
+    sign_in_admin(client, settings)
+
+    resp = await client.post("/api/v1/firmware/install", json={"channel": "stable"}, headers=headers)
+
+    assert resp.status_code == 403
+    assert downloads == []
+    assert app.state.firmware_installs._installs == {}
+
+
+@pytest.mark.usefixtures("installs")
+async def test_install_accepts_the_csrf_token_in_the_header(app, admin):
+    install = await _install(admin, app, {"channel": "stable"})
+
+    assert install.status == "ready"
 
 
 @pytest.mark.usefixtures("installs")
@@ -526,6 +552,18 @@ async def test_remove_requires_an_admin_session(client, settings):
     assert (settings.firmware_dir / STABLE).is_dir()
 
 
+@pytest.mark.usefixtures("firmware_source")
+@pytest.mark.parametrize("headers", [{}, {CSRF_HEADER: "wrong"}], ids=["no_token", "wrong_token"])
+async def test_remove_without_a_valid_csrf_token_returns_403_and_keeps_the_firmware_source(client, settings, headers):
+    sign_in_admin(client, settings)
+
+    resp = await client.delete(f"/api/v1/firmware/{STABLE}", headers=headers)
+
+    assert resp.status_code == 403
+    assert (settings.firmware_dir / STABLE).is_dir()
+    assert [row["version"] for row in await _rows(settings)] == [STABLE]
+
+
 @pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
 async def test_remove_request_during_a_build_of_that_version_returns_409(app, admin, settings, monkeypatch):
     monkeypatch.setenv("FAKE_PIO_SLEEP", "1")
@@ -597,6 +635,39 @@ async def test_install_moves_the_firmware_source_only_after_the_firmware_lock_is
 
     assert state_while_locked == ("installing packages", False, [])
     assert install.status == "ready"
+
+
+@pytest.mark.usefixtures("installs", "firmware_source", "workers")
+async def test_install_moves_the_firmware_source_only_after_the_running_build_ends(app, admin, monkeypatch):
+    monkeypatch.setenv("FAKE_PIO_SLEEP", "1")
+    statuses_at_move = []
+    record = firmware_updater.record_firmware_source
+
+    def record_after_status(*args):
+        statuses_at_move.append(ctx.status)
+        record(*args)
+
+    monkeypatch.setattr(firmware_updater, "record_firmware_source", record_after_status)
+    ctx = await app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
+    await _until(lambda: ctx.status == "compiling")
+
+    install = await _install(admin, app, {"channel": "alpha"})
+
+    assert install.status == "ready", install.error
+    assert statuses_at_move == ["complete"]
+
+
+@pytest.mark.usefixtures("installs", "firmware_source", "workers")
+async def test_remove_waits_until_the_running_build_ends(app, admin, settings, monkeypatch):
+    await _install(admin, app, {"channel": "alpha"})
+    monkeypatch.setenv("FAKE_PIO_SLEEP", "1")
+    ctx = await app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
+    await _until(lambda: ctx.status == "compiling")
+
+    resp = await admin.delete(f"/api/v1/firmware/{ALPHA}")
+
+    assert resp.status_code == 204
+    assert ctx.status == "complete", ctx.error
 
 
 @pytest.mark.usefixtures("installs", "firmware_source", "workers")

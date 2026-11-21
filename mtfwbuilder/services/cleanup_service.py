@@ -1,5 +1,7 @@
 """Build artifact cleanup, and the scrub of the firmware source after a build."""
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import re
@@ -7,8 +9,11 @@ import shutil
 import time
 from collections.abc import Callable, Collection
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from mtfwbuilder.config import Settings
+if TYPE_CHECKING:
+    # config.py imports this module to scrub an old firmware source at startup.
+    from mtfwbuilder.config import Settings
 
 logger = logging.getLogger("mtfwbuilder.cleanup")
 # `generate_build_id` gives 32 lower-case hex characters, and `temp_dir` can hold other directories.
@@ -66,9 +71,17 @@ def scrub_sources_after_restart(firmware_dir: Path) -> None:
 def scrub_after_restart(firmware_dir: Path) -> None:
     """Delete `userPrefs.jsonc`, `.pio/build_cache` and each `.pio/build/<env>/` directory from the firmware source.
 
-    A build scrubs its own env directory when it ends, so an env directory at startup is from a build
-    that a restart stopped. Raises `OSError` when a delete fails.
+    The scrub also covers each build worker copy `<firmware_dir>/.worker-<n>/`. A build scrubs its own env
+    directory when it ends, so an env directory at startup is from a build that a restart stopped.
+    Raises `OSError` when a delete fails.
     """
+    for copy in firmware_dir.glob(".worker-*"):
+        if copy.is_dir():
+            _scrub_every_env(copy)
+    _scrub_every_env(firmware_dir)
+
+
+def _scrub_every_env(firmware_dir: Path) -> None:
     _delete_shared_secrets(firmware_dir)
     pio_build = firmware_dir / ".pio" / "build"
     if pio_build.is_dir():

@@ -8,14 +8,16 @@ from contextlib import asynccontextmanager
 
 import aiosqlite
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from mtfwbuilder.config import load_settings
 from mtfwbuilder.database import fail_unended_builds, init_db
-from mtfwbuilder.rate_limit import limiter
+from mtfwbuilder.htmx import validation_error_response
+from mtfwbuilder.rate_limit import configure_rate_limits, limiter
+from mtfwbuilder.routers.admin import rate_limit_response
 from mtfwbuilder.routers.admin import router as admin_router
 from mtfwbuilder.routers.config_generator import router as config_router
 from mtfwbuilder.routers.firmware import router as firmware_versions_router
@@ -90,6 +92,7 @@ async def lifespan(app: FastAPI):
     app.state.firmware_installs = FirmwareInstalls(settings, build_queue, resolver=app.state.firmware_catalog.resolve)
     logger.info("Build queue started")
     cleanup_task = asyncio.create_task(cleanup_every_interval(settings, build_queue.unended_build_ids))
+    configure_rate_limits(settings)
 
     yield
 
@@ -117,7 +120,8 @@ def create_app() -> FastAPI:
 
     # Rate limiting
     app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_exception_handler(RateLimitExceeded, rate_limit_response)
+    app.add_exception_handler(RequestValidationError, validation_error_response)
 
     # Routers
     app.include_router(config_router)
@@ -125,6 +129,11 @@ def create_app() -> FastAPI:
     app.include_router(firmware_versions_router)
     app.include_router(admin_router)
     app.include_router(pages_router)
+
+    @app.get("/healthz")
+    async def healthz() -> dict:
+        """Return a fixed status, so the Docker healthcheck sees that the process serves requests."""
+        return {"status": "ok"}
 
     # Static files mount AFTER routers — Starlette matches routes in order,
     # and /static must not shadow API routes, but url_for('static') still works

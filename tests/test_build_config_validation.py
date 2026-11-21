@@ -52,9 +52,8 @@ async def _post_upload(client, content: bytes):
     )
 
 
-@pytest.mark.parametrize("field", ["config_json", "stored_config"])
-async def test_15_byte_psk_returns_422_for_channel_0_psk_and_queues_no_build(client, submitted, field):
-    resp = await _post_config(client, {"channels_to_write": "1", "channel_0[psk]": PSK_15_BYTES_HEX}, field)
+async def test_15_byte_psk_returns_422_for_channel_0_psk_and_queues_no_build(client, submitted):
+    resp = await _post_config(client, {"channels_to_write": "1", "channel_0[psk]": PSK_15_BYTES_HEX})
 
     assert resp.status_code == 422
     assert error_fields(resp) == ["channel_0.psk"]
@@ -89,14 +88,23 @@ async def test_config_json_that_is_not_a_json_object_returns_422(client, submitt
     assert submitted == []
 
 
-@pytest.mark.parametrize("field", ["config_json", "stored_config"])
-async def test_valid_config_returns_202_and_queues_the_generated_userprefs_file(client, submitted, field):
+async def test_valid_config_returns_202_and_queues_the_generated_userprefs_file(client, submitted):
     config = {"owner_long_name": "TestNode", "button_pin": "36", "button_pin_enabled": "true", "event_mode": "1"}
 
-    resp = await _post_config(client, config, field)
+    resp = await _post_config(client, config)
 
     assert resp.status_code == 202
     assert json.loads(submitted[0])["USERPREFS_BUTTON_PIN"] == "36"
+
+
+async def test_stored_config_field_is_not_a_config_source(client, submitted):
+    config = {"owner_long_name": "TestNode"}
+
+    resp = await _post_config(client, config, "stored_config")
+
+    assert resp.status_code == 400
+    assert resp.json() == {"detail": "No configuration data provided"}
+    assert submitted == []
 
 
 async def test_upload_that_is_not_utf8_returns_422_for_userprefs(client, submitted):

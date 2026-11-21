@@ -1,0 +1,12 @@
+<div class="alert alert-danger mb-0" role="alert">
+    <p class="mb-1">The config has errors. Correct the fields marked below.</p>
+    <ul class="mb-0">
+        {% for error in errors %}
+        <li>{% if error.field %}<code>{{ error.field }}</code>: {% endif %}{{ error.message }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{# htmx swaps each element below into the error slot with the same id under its field. #}
+{% for error in errors if error.field %}
+<div id="error-{{ error.field }}" class="field-error invalid-feedback d-block" data-field="{{ error.name }}" hx-swap-oob="true">{{ error.message }}</div>
+{% endfor %}

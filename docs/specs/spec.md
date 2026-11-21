@@ -104,6 +104,8 @@ the header of `userPrefs.jsonc` in `meshtastic/firmware` `develop@fe89ac1`.
 | factory default | noun | A value the firmware applies on first boot and on factory reset only. Every userPrefs key is a factory default. | baked setting, locked setting |
 | firmware source | noun | One extracted copy of the `meshtastic/firmware` source tree at one firmware version. | firmware tree, repo copy |
 | firmware version | noun | One upstream release tag, for example `v2.7.26.54e0d8d`. | release, tag (alone) |
+| release channel | noun | The upstream release track of a firmware version: `stable` or `alpha`, or `pinned` for an exact tag. | channel (alone), track |
+| install | verb | To download a firmware source and its packages onto the server. Never used for a device. | download, fetch |
 | channel | noun | A Meshtastic channel: index 0–7, name, PSK, precision, uplink, downlink, muted. | room, group |
 | PSK | noun | The pre-shared key that encrypts a channel. | password, key (alone) |
 | secret | noun | Any config value that gives access: a PSK, a WiFi password, an MQTT password, an admin key. | credential, sensitive data |
@@ -114,6 +116,7 @@ the header of `userPrefs.jsonc` in `meshtastic/firmware` `develop@fe89ac1`.
 | artifact | noun | One file a build produces for the operator, for example `firmware-heltec-v4-2.7.26.54e0d8d.factory.bin`. | output, binary, image |
 | build queue | noun | The ordered list of builds that wait for a free build worker. | job queue |
 | build worker | noun | The process slot that runs one build at a time. | runner, executor |
+| data directory | noun | The one directory that holds all state: firmware sources, artifacts, the database and `config.yaml`. `MTFW_DATA_DIR` sets it. | state dir, volume (alone) |
 | build cache | noun | Stored artifacts, keyed by a hash of firmware version, variant and userPrefs file. | artifact store |
 | progress stream | noun | The Server-Sent Events (SSE) stream that sends build status and log lines to the page. | event feed, socket |
 | scrub | verb | To delete every file that holds a secret, after a build ends. | sanitize, wipe, clean |
@@ -239,8 +242,8 @@ the database is not used (see `features/02-firmware-builder.md`).
 | Push config | `@meshtastic/core` + `@meshtastic/transport-web-serial` (GPL-3.0, JSR), or `meshtastic-sdk` JS when it reaches 0.3.0 | The only maintained client libraries. Choice deferred to a spike in Epic 12. |
 | Data store | SQLite through aiosqlite | Built (schema only). Zero setup for a self-hoster. ADR 0003. |
 | Firmware build | PlatformIO Core 6.2 (`pioarduino` core for ESP32 on firmware 2.8) | Upstream build system. Source: `meshtastic/gh-action-firmware`. |
-| Packaging | `pyproject.toml` + hatchling today; uv + `uv.lock` planned | Interview choice (stack modernization). |
-| Runtime | Python 3.11 today (Docker); Python 3.13 planned | `asyncio.timeout` needs 3.11. `meshtastic` python requires `<3.15`. |
+| Packaging | `pyproject.toml` + hatchling, uv + `uv.lock` (Epic 4) | Interview choice (stack modernization). |
+| Runtime | Python 3.13 (Docker and CI; CI also tests 3.14) | `meshtastic` python requires `<3.15`. |
 | Deploy | Docker Compose, self-hosted. No hosted instance. | Interview answer: not deployed. |
 | Protobuf decode | `meshtastic` python package (GPL-3.0) | Decodes channel URLs and CLI YAML. Allowed by the GPL-3.0 relicense (ADR 0004). |
 
@@ -311,15 +314,25 @@ This is the planned build lifecycle. The `scrub` step runs on every transition i
 
 **Authentication and authorization (built).** The admin password is a bcrypt hash in
 `config.yaml`. `POST /admin/login` sets the cookie `mtfw_session`: an itsdangerous
-signature of the string `admin`, HttpOnly, SameSite=Lax, Secure unless `debug`, max age
-3600 s. Only `/api/v1/update-firmware` and `/api/v1/cleanup` require it. The project has
-no CSRF token. A cookie with `Secure` set does not work on plain HTTP, so admin sign-in
-fails on a default Docker install (`mtfwbuilder/routers/admin.py:44-51`).
+signature of the string `admin`, HttpOnly, SameSite=Lax, max age 3600 s. The cookie sets
+`Secure` only when the request scheme is `https`. These routes require the session:
+`/api/v1/update-firmware`, `/api/v1/cleanup`, `GET /api/v1/firmware/available`,
+`POST /api/v1/firmware/install` and `DELETE /api/v1/firmware/{version}`. The `/admin` page shows a sign-in form when no
+session exists.
 
-**Planned auth changes** (feature `frontend-htmx` and `build-pipeline-repair`):
-- The `/admin` page shows a sign-in form when no session exists.
-- The `Secure` flag follows the request scheme.
-- Every state-changing admin form carries a CSRF token.
+**CSRF (built, Epic 3).** Each admin form carries the hidden field `csrf_token`. The token
+is the value of the cookie `mtfw_csrf`, signed with the same itsdangerous secret key. Sign-in
+sets a new `mtfw_csrf` value, so the token belongs to one session. A JSON request and a DELETE
+request send the token in the header `X-CSRF-Token`. Each admin POST or DELETE without a
+valid token returns 403:
+- `/admin/login`
+- `/admin/logout`
+- `/api/v1/update-firmware`
+- `/api/v1/cleanup`
+- `POST /api/v1/firmware/install`
+- `DELETE /api/v1/firmware/{version}`
+
+**Planned auth changes** (feature `build-pipeline-repair`):
 - Build ids are random, so one operator cannot guess another operator's build.
 
 **Validation.** Today the routes read raw JSON. The pydantic models in `models.py` are
@@ -371,8 +384,8 @@ Planned: a test fixture holds a small firmware source subset (a few variant
 
 ## Testing strategy
 
-- **Unit:** pytest, `asyncio_mode = "auto"`. 106 tests today: generator 39, build service
-  26, registry 20, security 14, routes 7.
+- **Unit:** pytest, `asyncio_mode = "auto"`. 106 tests at the inherit (2026-11-21, `bd15bb1`);
+  the suite grows with each epic.
 - **Contract tests (planned):** the userPrefs keys the generator writes are a subset of
   the keys the fixture firmware source reads. The registry fixture matches
   `pio project config --json-output` output.
@@ -702,3 +715,5 @@ Written by `/spec-to-issues` on 2026-11-21.
 - 2026-11-21 — Epic 0 shipped (#82). Batch ruling: the generic ruff criterion on each Epic 0 sub-issue was checked at the batch gate, after #7. Out-of-plan fix accepted in #80: Starlette 1.10 needs `TemplateResponse(request, name, context)`; every page returned 500 before it. `dev` is now the repository default branch.
 - 2026-11-21 — Epic 1 shipped (#92). PM decision, flagged for the owner: the event mode select defaults to Disabled (#13), so a form left at its defaults does not turn event mode on. The contract test found that firmware v2.7.26 reads no `USERPREFS_CHANNEL_3_*` key; the generator writes channel slots 0–2 only until #47. The build route still skips `ConfigRequest`: filed as #94 in epic #16.
 - 2026-11-21 — Epic 2 shipped (#102). PM decision from the batch review, flagged for the owner: the project sets no shared PlatformIO build cache and the scrub deletes `.pio/build_cache`, because the cache keeps objects compiled with secrets (Goal 7). Each build then compiles from the start; toolchains stay cached. `config_hash` is an HMAC with `secret_key`. Follow-up #88 (more than one build worker) stays open.
+- 2026-11-21 — Epic 4 shipped (#112). Batch review fixes: the data-directory move respects path overrides and scrubs an old firmware tree it keeps; production trusts only the nginx network for `X-Forwarded-For`; nginx repeats its security headers in each block. Terms: added `release channel` and `install` (the word `channel` alone means a Meshtastic channel).
+- 2026-11-21 — Epic 3 shipped (#124). Milestone M1 (Works again) is complete. Additions accepted at the batch gate: `GET /api/v1/builds/{id}`, `config_source=form`, and `?log_from=` on the progress stream. CSRF covers sign-in and sign-out too. Not built from the Screens table: the build queue position and the elapsed time.
