@@ -25,7 +25,8 @@ def _duplicate(name: str) -> HTTPException:
     return HTTPException(status_code=409, detail=f"A profile with the name {name} exists")
 
 
-def _is_admin(request: Request) -> bool:
+def is_admin(request: Request) -> bool:
+    """Return True when the request has a valid admin session."""
     token = get_session_token(request)
     return bool(token) and validate_session_token(token, request.app.state.settings)
 
@@ -36,7 +37,7 @@ async def _require_admin_for_secrets(request: Request) -> None:
     Raises:
         HTTPException: 403 when the admin session is absent or expired, or the CSRF token is invalid.
     """
-    if not _is_admin(request):
+    if not is_admin(request):
         raise HTTPException(
             status_code=403, detail="An admin session is required to store or remove the secrets of a profile"
         )
@@ -46,7 +47,7 @@ async def _require_admin_for_secrets(request: Request) -> None:
 async def _load(request: Request, profile_id: int) -> dict | None:
     """Return the profile, with the stored secrets only for an admin session."""
     settings = request.app.state.settings
-    admin = _is_admin(request)
+    admin = is_admin(request)
     profile = await profiles.get_profile(settings.database_path, profile_id, settings.secret_key if admin else None)
     if profile is not None and profile["stores_secrets"] and not admin:
         profile["warning"] = profiles.SIGN_IN_FOR_SECRETS

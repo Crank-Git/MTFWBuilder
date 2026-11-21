@@ -29,7 +29,9 @@ MESH_BEACON_TARGETS = 4
 _FLAT_CHANNEL_KEY = re.compile(r"(channel_[0-7])\[(\w+)\]")
 
 # The generator writes these fields as `{ 0x.. }` byte arrays, so a `//` in base64 input never reaches the file.
-_BYTE_ARRAY_FIELDS = frozenset({"psk", "admin_key_0", "admin_key_1", "admin_key_2", "mesh_beacon_offer_channel_psk"})
+_BYTE_ARRAY_FIELDS = frozenset(
+    {"psk", "admin_key", "admin_key_0", "admin_key_1", "admin_key_2", "mesh_beacon_offer_channel_psk"}
+)
 
 
 # Upstream writes each enum value into the build unchanged, so only a value with its C prefix compiles.
@@ -46,6 +48,13 @@ _ENUM_FIELDS = (
     | {f"mesh_beacon_target_{n}_preset": meshtastic_enums.MODEM_PRESETS for n in range(MESH_BEACON_TARGETS)}
     | {f"mesh_beacon_target_{n}_region": meshtastic_enums.REGIONS for n in range(MESH_BEACON_TARGETS)}
 )
+
+
+def _check_role(value: str | None) -> str | None:
+    """Return an offered role with its C prefix, and reject a router role with the router-role message."""
+    if value and value.removeprefix(meshtastic_enums.ROLES.c_prefix) in meshtastic_enums.ROUTER_ROLES:
+        raise ValueError(meshtastic_enums.ROUTER_ROLE_MESSAGE)
+    return meshtastic_enums.ROLES.c_value(value) if value else value
 
 
 def _is_whole_number(value: str) -> bool:
@@ -255,10 +264,7 @@ class ConfigRequest(_UserPrefsFields):
     @field_validator("device_role")
     @classmethod
     def _check_device_role(cls, value: str | None) -> str | None:
-        """Return an offered role with its C prefix, and reject a router role with the router-role message."""
-        if value and value.removeprefix(meshtastic_enums.ROLES.c_prefix) in meshtastic_enums.ROUTER_ROLES:
-            raise ValueError(meshtastic_enums.ROUTER_ROLE_MESSAGE)
-        return meshtastic_enums.ROLES.c_value(value) if value else value
+        return _check_role(value)
 
     @field_validator("security_is_managed")
     @classmethod
@@ -455,6 +461,106 @@ class Profile(BaseModel):
     must_reenter: list[str]
     stores_secrets: bool
     warning: str | None = None
+    created_at: str
+    updated_at: str
+
+
+# Firmware 2.8 holds a long name of at most 25 bytes and a short name of at most 4 characters.
+MAX_LONG_NAME_BYTES = 25
+MAX_SHORT_NAME_LENGTH = 4
+
+FleetName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+
+
+class FleetDevice(_UserPrefsFields):
+    """One fleet device in a fleet request (FR-fleet-builds-11).
+
+    Each field except `label` is optional and overrides the profile. `role` comes back with its C prefix.
+    `admin_key` is None to keep the saved admin key of the fleet device with the same label, and "" for no admin key.
+    """
+
+    label: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    variant: str | None = None
+    long_name: str | None = None
+    short_name: Annotated[str, StringConstraints(max_length=MAX_SHORT_NAME_LENGTH)] | None = None
+    role: str | None = None
+    lat: Annotated[float, Field(ge=-90, le=90)] | None = None
+    lon: Annotated[float, Field(ge=-180, le=180)] | None = None
+    alt: Annotated[int, Field(ge=-1000, le=10000)] | None = None
+    admin_key: str | None = None
+
+    @field_validator("long_name")
+    @classmethod
+    def _check_long_name(cls, value: str | None) -> str | None:
+        if value and len(value.encode()) > MAX_LONG_NAME_BYTES:
+            raise ValueError(f"the long name is more than {MAX_LONG_NAME_BYTES} bytes")
+        return value
+
+    @field_validator("role")
+    @classmethod
+    def _check_role(cls, value: str | None) -> str | None:
+        return _check_role(value)
+
+    @field_validator("admin_key")
+    @classmethod
+    def _check_admin_key_length(cls, value: str | None) -> str | None:
+        """Accept an admin key in hex, `{ 0x.. }` or base64 form that is 32 bytes."""
+        if value and len(decode_key(value)) != ADMIN_KEY_LENGTH:
+            raise ValueError(f"the admin key is not {ADMIN_KEY_LENGTH} bytes")
+        return value
+
+
+class FleetRequest(BaseModel):
+    """The body of `POST /api/v1/fleets`: a fleet name, the profile of the fleet, and the fleet devices.
+
+    A `firmware_version` of None selects the default firmware source at fleet run time.
+    """
+
+    name: FleetName
+    profile_id: int
+    firmware_version: str | None = None
+    devices: list[FleetDevice] = []
+
+
+class FleetUpdate(BaseModel):
+    """The body of `PUT /api/v1/fleets/{id}`. A None field keeps the saved value, and `devices` replaces all of them."""
+
+    name: FleetName | None = None
+    profile_id: int | None = None
+    firmware_version: str | None = None
+    devices: list[FleetDevice] | None = None
+
+    @model_validator(mode="after")
+    def _check_not_empty(self) -> "FleetUpdate":
+        if not self.model_fields_set:
+            raise ValueError("the body holds no field")
+        return self
+
+
+class FleetDeviceRecord(BaseModel):
+    """A saved fleet device. `admin_key` is set only for an admin session, and `has_admin_key` tells if one is saved."""
+
+    id: int
+    label: str
+    variant: str | None
+    long_name: str | None
+    short_name: str | None
+    role: str | None
+    lat: float | None
+    lon: float | None
+    alt: int | None
+    admin_key: str | None = None
+    has_admin_key: bool
+
+
+class Fleet(BaseModel):
+    """A saved fleet with its fleet devices in the order of the request."""
+
+    id: int
+    name: str
+    profile_id: int
+    firmware_version: str | None
+    devices: list[FleetDeviceRecord]
     created_at: str
     updated_at: str
 
