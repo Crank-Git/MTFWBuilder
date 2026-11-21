@@ -62,7 +62,7 @@ cp config.yaml.example data/config.yaml
 # Edit data/config.yaml — set admin_password and secret_key
 ```
 
-At startup, the project moves a `config.yaml` in the project root to `data/config.yaml`. In Docker, `config.yaml` is `/data/config.yaml` in the `data` volume. The image does not copy a `config.yaml` from the project root.
+At startup, the project moves a `config.yaml` in the project root to `data/config.yaml`. It moves the old `mtfwbuilder.db` and `firmware/` only when `MTFW_DATABASE_PATH` and `MTFW_FIRMWARE_DIR` have their default values. An old `firmware/` that stays in the project root is scrubbed and kept, and a warning names it. In Docker, `config.yaml` is `/data/config.yaml` in the `data` volume. The image does not copy a `config.yaml` from the project root.
 
 If no `config.yaml` exists, the app auto-migrates from `config.json` (v1 format) or uses defaults. Plaintext passwords are auto-hashed to bcrypt on first startup.
 
@@ -194,6 +194,14 @@ docker compose exec -T mtfwbuilder tee /data/config.yaml < config.yaml > /dev/nu
 docker compose restart mtfwbuilder
 ```
 
+### Upgrade from a release before the `data` volume
+
+Older releases used the named volumes `firmware_data`, `build_cache`, `temp_data`, `logs` and `platformio_cache`. The compose files do not mount them now, so the new container does not see the old firmware source.
+
+1. Start the new release.
+2. Go to `/admin` and click Update Firmware to install the firmware source in the `data` volume.
+3. When the first build succeeds, remove the old volumes with `docker volume rm`. Compose adds the project name to each volume name, for example `mtfwbuilder_firmware_data`. The `build_cache` volume can hold object files that contain secrets.
+
 ### Volumes
 
 | Volume | Mount | Purpose |
@@ -205,11 +213,12 @@ docker compose restart mtfwbuilder
 
 - Admin passwords stored as **bcrypt hashes** (auto-migrated from plaintext)
 - Session cookies: **httpOnly, SameSite=Lax, Secure** (unless `debug` is on)
-- After a successful build, the project **scrubs** the userPrefs file and the firmware files from the firmware source. A failed build does not scrub yet, and `.elf` and object files keep the secret values (planned fix: `build-pipeline-repair`).
-- Build directories **isolated** per build, cleaned after download
+- When a build ends, the project **scrubs** the firmware source: it deletes `userPrefs.jsonc`, `.pio/build_cache` and the `.pio/build/<env>/` directory of the build. A failed build and a cancelled build also scrub.
+- Build directories **isolated** per build. A download does not delete a build directory. The periodic cleanup deletes it when it is older than `build_max_age_seconds`.
 - All subprocess calls use **parameterized arguments** (no `shell=True`)
 - **Rate limiting** on the login and build endpoints. The defaults are `10/minute` (`MTFW_LOGIN_RATE_LIMIT`) and `5/minute` (`MTFW_BUILD_RATE_LIMIT`).
 - Behind a proxy, set `MTFW_TRUSTED_PROXIES` to the proxy addresses or subnets, comma-separated. The rate limiter then reads `X-Forwarded-For` from those proxies. The default is empty: the limiter counts the peer address.
+- The production overlay sets `MTFW_TRUSTED_PROXIES` to `172.30.80.0/24`, the fixed subnet of its `backend` network. Only nginx and the app use that network. If you change the subnet in `docker-compose.prod.yml`, change both values.
 - File uploads **checked** for size (64KB max) and UTF-8 encoding only
 - **Path traversal protection** on firmware download endpoint
 
@@ -252,8 +261,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed contribution guidelines.
 - Docker: ensure the `platformio` volume is mounted
 
 **Docker disk space issues**
-- A build directory is deleted after its download.
-- The project has no periodic cleanup task yet. With an admin session, `POST /api/v1/cleanup` deletes builds older than `build_max_age_seconds` (default 1 hour).
+- A periodic cleanup runs at startup and then each `cleanup_interval_seconds` (default 30 minutes). It deletes the build directories older than `build_max_age_seconds` (default 1 hour).
+- With an admin session, `POST /api/v1/cleanup` runs the same cleanup at once.
 
 ## License
 
