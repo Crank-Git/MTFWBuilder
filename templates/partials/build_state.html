@@ -42,7 +42,7 @@
 </button>
 {% elif build.status in ("failed", "cancelled") %}
 <button type="button" class="btn btn-outline-warning" id="build-retry"
-        hx-post="/api/v1/build-firmware" hx-include="#configForm, #variant" hx-vals='{"config_source": "form"}'
+        hx-post="/api/v1/build-firmware" hx-include="#configForm, #variant, #firmware_version" hx-vals='{"config_source": "form"}'
         hx-target="#build-panel">
     <i class="bi bi-arrow-clockwise me-2"></i>{{ "Retry" if build.status == "failed" else "Build again" }}
 </button>
