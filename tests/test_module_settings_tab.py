@@ -1,5 +1,7 @@
 """Tests for the Modules tab of the config form (feature module-settings, FR 1 to 4 and 7)."""
 
+import re
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -123,13 +125,26 @@ async def test_each_module_enum_offers_the_values_that_the_validator_accepts(cli
     assert [o["attrs"]["value"] for o in _options(tree, _control(tree, field))] == ["", *values]
 
 
-@pytest.mark.parametrize(("field", "limits"), MODULE_NUMBER_LIMITS.items())
+# The browser blocks a submit below `min` with its own message, so the FR 11 message of the server never shows.
+NO_MIN_FIELDS = {"neighbor_info_update_interval"}
+
+
+@pytest.mark.parametrize(
+    ("field", "limits"), [(name, limits) for name, limits in MODULE_NUMBER_LIMITS.items() if name not in NO_MIN_FIELDS]
+)
 async def test_each_module_number_is_empty_with_the_range_that_the_validator_accepts(client, field, limits):
     _, tree = await _page(client)
     control = _control(tree, field)
     assert control["attrs"]["type"] == "number"
     assert "value" not in control["attrs"]
     assert (int(control["attrs"]["min"]), int(control["attrs"]["max"])) == limits
+
+
+async def test_neighbor_info_interval_input_has_no_min_so_the_server_message_shows(client):
+    _, tree = await _page(client)
+    control = _control(tree, "neighbor_info_update_interval")
+    assert "min" not in control["attrs"]
+    assert int(control["attrs"]["max"]) == MODULE_NUMBER_LIMITS["neighbor_info_update_interval"][1]
 
 
 async def test_detection_sensor_name_is_an_empty_text_field(client):
@@ -188,3 +203,36 @@ async def test_a_profile_with_module_fields_saves_loads_and_exports_them_unchang
     assert config.items() <= loaded["config"].items()
     assert exported["config"] == loaded["config"]
     assert loaded["must_reenter"] == []
+
+
+def _error_slots(html: str) -> dict[str, str]:
+    """Return the text of each out-of-band error slot in a 422 fragment, by its field."""
+    return dict(re.findall(r'<div id="error-([^"]+)"[^>]*hx-swap-oob="true">([^<]*)</div>', html))
+
+
+async def test_neighbor_info_interval_of_14399_shows_only_the_firmware_message_under_the_field(client):
+    data = {"neighbor_info_update_interval": "14399"}
+
+    response = await client.post("/api/v1/preview", data=data, headers={"HX-Request": "true"})
+
+    assert response.status_code == 422
+    assert _error_slots(response.text)["neighbor_info_update_interval"] == NEIGHBOR_INFO_MESSAGE
+
+
+async def test_no_build_form_field_error_begins_with_the_pydantic_prefix(client):
+    data = {
+        "neighbor_info_update_interval": "3600",
+        "serial_rxd": "-1",
+        "lora_tx_power": "x",
+        "node_info_reply_suppress_secs": "x",
+        "channel_0[name]": "a name longer than twelve bytes",
+    }
+
+    response = await client.post("/api/v1/preview", data=data, headers={"HX-Request": "true"})
+
+    assert response.status_code == 422
+    slots = _error_slots(response.text)
+    assert len(slots) == len(data)
+    items = re.findall(r"<li>(?:<code>[^<]*</code>: )?([^<]*)</li>", response.text)
+    assert len(items) == len(data)
+    assert [m for m in [*slots.values(), *items] if m.startswith("Value error, ")] == []

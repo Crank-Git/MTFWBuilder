@@ -90,8 +90,7 @@ def test_a_wrong_module_field_shows_its_error_and_opens_the_modules_tab(page: Pa
 
     page.click("#previewBtn")
 
-    # The build form shows each field error with the "Value error, " prefix of pydantic.
-    expect(page.locator("#error-neighbor_info_update_interval")).to_contain_text(NEIGHBOR_INFO_MESSAGE)
+    expect(page.locator("#error-neighbor_info_update_interval")).to_have_text(NEIGHBOR_INFO_MESSAGE)
     expect(page.locator("#config-tab-modules")).to_have_attribute("aria-selected", "true")
     expect(_field(page, "neighbor_info_update_interval")).to_have_class(IS_INVALID)
     expect(page.locator("#config-tab-modules .tab-error-dot")).to_be_visible()

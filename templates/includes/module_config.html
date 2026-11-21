@@ -1,5 +1,6 @@
 {# Feature module-settings: no build writes these fields, so no fieldset has a `data-userprefs-key` and the key scan never hides one. #}
 {# The options and the number limits come from the tables in `mtfwbuilder/models.py`, so the form offers what the validators accept. #}
+{# The neighbor info interval has no `min`, because the browser would then block the submit and hide the FR 11 message of the server. #}
 {% set module_cards = [
     ("serial", "Serial", [
         ("serial_enabled", "Enabled", False),
@@ -88,7 +89,7 @@
                         {% endfor %}
                     </select>
                     {% elif name in module_number_limits %}
-                    <input type="number" class="form-control" id="{{ control_id }}" name="{{ name }}" min="{{ module_number_limits[name][0] }}" max="{{ module_number_limits[name][1] }}" step="1" placeholder="Keep device value">
+                    <input type="number" class="form-control" id="{{ control_id }}" name="{{ name }}"{% if name != 'neighbor_info_update_interval' %} min="{{ module_number_limits[name][0] }}"{% endif %} max="{{ module_number_limits[name][1] }}" step="1" placeholder="Keep device value">
                     {% else %}
                     <input type="text" class="form-control" id="{{ control_id }}" name="{{ name }}" placeholder="Keep device value" autocomplete="off">
                     {% endif %}
