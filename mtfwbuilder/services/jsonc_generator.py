@@ -1,6 +1,7 @@
 """JSONC configuration generator for Meshtastic userPrefs files.
 
-Migrated from utils/jsonc_generator.py — logic preserved exactly.
+Each key name is a name that the firmware source reads at `v2.7.26.54e0d8d`.
+The firmware ignores an unknown key without an error.
 """
 
 import json
@@ -14,7 +15,6 @@ def generate_jsonc(config_data: dict[str, Any]) -> str:
     channels_to_write = config_data.get("channels_to_write", "1")
     output["USERPREFS_CHANNELS_TO_WRITE"] = channels_to_write
 
-    _set_if_present(config_data, output, "device_name", "USERPREFS_CONFIG_DEVICE_NAME")
     _set_if_present(config_data, output, "owner_short_name", "USERPREFS_CONFIG_OWNER_SHORT_NAME")
     _set_if_present(config_data, output, "owner_long_name", "USERPREFS_CONFIG_OWNER_LONG_NAME")
     _set_if_present(config_data, output, "tz_string", "USERPREFS_TZ_STRING")
@@ -105,12 +105,13 @@ def _process_gps_config(config_data: dict, output: dict) -> None:
     _set_if_present(config_data, output, "position_broadcast_interval", "USERPREFS_CONFIG_POSITION_BROADCAST_INTERVAL")
 
     if config_data.get("fixed_position") == "true":
-        _set_if_present(config_data, output, "fixed_lat", "USERPREFS_CONFIG_POSITION_FIXED_LAT")
-        _set_if_present(config_data, output, "fixed_lon", "USERPREFS_CONFIG_POSITION_FIXED_LON")
-        _set_if_present(config_data, output, "fixed_alt", "USERPREFS_CONFIG_POSITION_FIXED_ALT")
+        output["USERPREFS_FIXED_GPS"] = "true"
+        _set_if_present(config_data, output, "fixed_lat", "USERPREFS_FIXED_GPS_LAT")
+        _set_if_present(config_data, output, "fixed_lon", "USERPREFS_FIXED_GPS_LON")
+        _set_if_present(config_data, output, "fixed_alt", "USERPREFS_FIXED_GPS_ALT")
 
     if "smart_position_enabled" in config_data:
-        output["USERPREFS_CONFIG_POSITION_SMART_ENABLED"] = (
+        output["USERPREFS_CONFIG_SMART_POSITION_ENABLED"] = (
             "true" if config_data["smart_position_enabled"] == "true" else "false"
         )
 
@@ -126,11 +127,12 @@ def _process_network_config(config_data: dict, output: dict) -> None:
     if config_data.get("network_enabled") != "true":
         return
 
-    _set_if_present(config_data, output, "network_protocols", "USERPREFS_CONFIG_NETWORK_ENABLED_PROTOCOLS")
+    _set_if_present(config_data, output, "network_protocols", "USERPREFS_NETWORK_ENABLED_PROTOCOLS")
 
     if config_data.get("wifi_enabled") == "true":
-        _set_if_present(config_data, output, "wifi_ssid", "USERPREFS_CONFIG_WIFI_SSID")
-        _set_if_present(config_data, output, "wifi_psk", "USERPREFS_CONFIG_WIFI_PSK")
+        output["USERPREFS_NETWORK_WIFI_ENABLED"] = "true"
+        _set_if_present(config_data, output, "wifi_ssid", "USERPREFS_NETWORK_WIFI_SSID")
+        _set_if_present(config_data, output, "wifi_psk", "USERPREFS_NETWORK_WIFI_PSK")
 
     if config_data.get("mqtt_enabled") == "true":
         _process_mqtt_config(config_data, output)
@@ -138,21 +140,22 @@ def _process_network_config(config_data: dict, output: dict) -> None:
 
 def _process_mqtt_config(config_data: dict, output: dict) -> None:
     """Process MQTT-specific configuration settings."""
-    _set_if_present(config_data, output, "mqtt_address", "USERPREFS_CONFIG_MQTT_SERVER")
-    _set_if_present(config_data, output, "mqtt_root_topic", "USERPREFS_CONFIG_MQTT_ROOT_TOPIC")
-    _set_if_present(config_data, output, "mqtt_username", "USERPREFS_CONFIG_MQTT_USERNAME")
-    _set_if_present(config_data, output, "mqtt_password", "USERPREFS_CONFIG_MQTT_PASSWORD")
+    output["USERPREFS_MQTT_ENABLED"] = "true"
+    _set_if_present(config_data, output, "mqtt_address", "USERPREFS_MQTT_ADDRESS")
+    _set_if_present(config_data, output, "mqtt_root_topic", "USERPREFS_MQTT_ROOT_TOPIC")
+    _set_if_present(config_data, output, "mqtt_username", "USERPREFS_MQTT_USERNAME")
+    _set_if_present(config_data, output, "mqtt_password", "USERPREFS_MQTT_PASSWORD")
 
     for field in ("mqtt_encryption_enabled", "mqtt_tls_enabled"):
         if field in config_data:
-            key = "USERPREFS_CONFIG_" + field.upper()
+            key = "USERPREFS_" + field.upper()
             output[key] = "true" if config_data[field] == "true" else "false"
 
 
 def _process_oem_config(config_data: dict, output: dict) -> None:
     """Process OEM and branding configuration settings."""
-    _set_if_present(config_data, output, "oem_text", "USERPREFS_CONFIG_OEM_TEXT")
-    _set_if_present(config_data, output, "oem_font_size", "USERPREFS_CONFIG_OEM_FONT_SIZE")
-    _set_if_present(config_data, output, "oem_image_width", "USERPREFS_CONFIG_OEM_IMAGE_WIDTH")
-    _set_if_present(config_data, output, "oem_image_height", "USERPREFS_CONFIG_OEM_IMAGE_HEIGHT")
-    _set_if_present(config_data, output, "oem_image_data", "USERPREFS_CONFIG_OEM_IMAGE_DATA")
+    _set_if_present(config_data, output, "oem_text", "USERPREFS_OEM_TEXT")
+    _set_if_present(config_data, output, "oem_font_size", "USERPREFS_OEM_FONT_SIZE")
+    _set_if_present(config_data, output, "oem_image_width", "USERPREFS_OEM_IMAGE_WIDTH")
+    _set_if_present(config_data, output, "oem_image_height", "USERPREFS_OEM_IMAGE_HEIGHT")
+    _set_if_present(config_data, output, "oem_image_data", "USERPREFS_OEM_IMAGE_DATA")
