@@ -420,13 +420,23 @@ _SECTIONS: dict[tuple[str, str], dict[str, Converter]] = {
 }
 
 
-def _neighbor_info_interval(value: Any, section: dict) -> dict[str, str] | None:
-    """Return the neighbor info interval field, or the empty field for the proto default 0."""
-    # Upstream `NeighborInfoModule.cpp` reads 0 as its default interval, and the form rejects an interval below 14400.
-    if type(value) is int and value == 0:
-        return {"neighbor_info_update_interval": ""}
-    return _plain("neighbor_info_update_interval")(value, section)
-
+# The form fields that stay empty ("keep the device value") when the export leaves out the proto field.
+# The firmware reads a pin of 0 as the board default pin, so the 0 of one board can be wrong for another board.
+# Upstream `NeighborInfoModule.cpp` reads an interval of 0 as its default, and the form rejects an interval below 14400.
+_DEVICE_DEFAULT_FIELDS = {
+    "serial_rxd",
+    "serial_txd",
+    "serial_override_console_serial_port",
+    "ext_notify_output",
+    "ext_notify_output_vibra",
+    "ext_notify_output_buzzer",
+    "ext_notify_active",
+    "ext_notify_use_pwm",
+    "ext_notify_use_i2s_as_buzzer",
+    "detection_sensor_monitor_pin",
+    "detection_sensor_use_pullup",
+    "neighbor_info_update_interval",
+}
 
 # The form field prefix of each module section that has module settings fields (feature module-settings).
 _MODULE_PREFIXES = {
@@ -441,7 +451,6 @@ _MODULE_PREFIXES = {
 # The fields that do not take the form field name of the section prefix and the proto field name.
 _MODULE_SPECIAL = {
     ("external_notification", "nag_timeout"): _plain("ringtone_nag_secs"),
-    ("neighbor_info", "update_interval"): _neighbor_info_interval,
     ("detection_sensor", "detection_trigger_type"): _numbered_enum(
         "detection_sensor_trigger_type", list(MODULE_ENUMS["detection_sensor_trigger_type"])
     ),
@@ -550,6 +559,7 @@ class _Import:
 
         `MessageToDict` leaves out a false, zero, empty or first enum value, so the form must not keep its own value.
         A default that has no form value adds no field and no "Not applied" path.
+        A field in `_DEVICE_DEFAULT_FIELDS` gets the empty form value instead of the default.
         """
         part, section = key
         given = {camel_to_snake(str(name)) for name in values}
@@ -566,6 +576,7 @@ class _Import:
                 default = proto_field.default_value
             fields = convert(default, values)
             if fields is not None:
+                fields = {form: "" if form in _DEVICE_DEFAULT_FIELDS else value for form, value in fields.items()}
                 self.apply(f"{part}.{section}.{proto_field.json_name}", fields, switch)
 
     def result(self) -> CliYamlImport:

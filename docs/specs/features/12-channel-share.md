@@ -69,9 +69,15 @@ same mesh.
     `bleThreshold`.
 
   The form field of each module setting is in the Behaviour rules table of feature 16.
-  `nagTimeout` fills `ringtone_nag_secs`. The proto default 0 of `updateInterval` gives
-  an empty field, because upstream `NeighborInfoModule.cpp` reads 0 as its default
-  interval.
+  `nagTimeout` fills `ringtone_nag_secs`. When an imported section leaves out one of the
+  fields below, the import gives an empty field ("keep the device value"), not the proto
+  default:
+  - Each pin or hardware field (HW in the feature 16 table). The firmware reads a pin of
+    0 as the board default pin, so the 0 of one board can be wrong for another board.
+  - `neighborInfo.updateInterval`. Upstream `NeighborInfoModule.cpp` reads 0 as its
+    default interval.
+
+  A pin or hardware field that the file gives maps to its form field.
 - FR-channel-share-6 — The YAML import lists as "Not applied" each field that has no
   form field, and each value that the config rejects. For example, `rangeTest.clearOnReboot`
   and a `Serial_Mode` value that `@meshtastic/core` 2.6.7 does not have are "Not applied".

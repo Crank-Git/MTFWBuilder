@@ -278,7 +278,18 @@ body.rv-open .layout { padding-right:21rem; }
 </li>
 </ul>
 <p><code>bleThreshold</code>.</p>
-<p>The form field of each module setting is in the Behaviour rules table of feature 16. <code>nagTimeout</code> fills <code>ringtone_nag_secs</code>. The proto default 0 of <code>updateInterval</code> gives an empty field, because upstream <code>NeighborInfoModule.cpp</code> reads 0 as its default interval.</p>
+<p>The form field of each module setting is in the Behaviour rules table of feature 16. <code>nagTimeout</code> fills <code>ringtone_nag_secs</code>. When an imported section leaves out one of the fields below, the import gives an empty field ("keep the device value"), not the proto default:</p>
+<ul>
+<li>Each pin or hardware field (HW in the feature 16 table). The firmware reads a pin of
+</li>
+</ul>
+<p>0 as the board default pin, so the 0 of one board can be wrong for another board.</p>
+<ul>
+<li><code>neighborInfo.updateInterval</code>. Upstream <code>NeighborInfoModule.cpp</code> reads 0 as its
+</li>
+</ul>
+<p>default interval.</p>
+<p>A pin or hardware field that the file gives maps to its form field.</p>
 <ul>
 <li>FR-channel-share-6 — The YAML import lists as "Not applied" each field that has no
 </li>

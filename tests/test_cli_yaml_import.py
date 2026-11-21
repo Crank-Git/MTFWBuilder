@@ -624,7 +624,7 @@ async def test_module_field_that_the_export_leaves_out_gets_its_proto_default(cl
 
     config = body["config"]
     assert config["serial_echo"] == "false"
-    assert config["serial_rxd"] == "0"
+    assert config["serial_timeout"] == "0"
     assert config["serial_baud"] == "BAUD_DEFAULT"
     assert config["serial_mode"] == "DEFAULT"
     assert body["not_applied"] == []
@@ -674,3 +674,42 @@ async def test_range_test_clear_on_reboot_is_listed_as_not_applied(client):
 
     assert body["config"]["range_test_enabled"] == "true"
     assert body["not_applied"] == ["module_config.rangeTest.clearOnReboot"]
+
+
+# The pin and hardware fields of the feature 16 Behaviour rules table, by module section.
+HARDWARE_FIELDS = {
+    "serial": ["serial_rxd", "serial_txd", "serial_override_console_serial_port"],
+    "external_notification": [
+        "ext_notify_output",
+        "ext_notify_output_vibra",
+        "ext_notify_output_buzzer",
+        "ext_notify_active",
+        "ext_notify_use_pwm",
+        "ext_notify_use_i2s_as_buzzer",
+    ],
+    "detection_sensor": ["detection_sensor_monitor_pin", "detection_sensor_use_pullup"],
+}
+
+
+@pytest.mark.parametrize("section", HARDWARE_FIELDS)
+async def test_hardware_field_that_the_export_leaves_out_keeps_the_device_value(client, section):
+    body = await imported(client, module_export(section, {"enabled": True}))
+
+    assert {name: body["config"][name] for name in HARDWARE_FIELDS[section]} == dict.fromkeys(
+        HARDWARE_FIELDS[section], ""
+    )
+    assert body["not_applied"] == []
+
+
+async def test_hardware_field_that_the_export_gives_maps_its_value(client):
+    # `MessageToDict` never writes a 0 or a false value, but a file that a person writes can.
+    text = (
+        "module_config:\n  serial:\n    enabled: true\n    rxd: 0\n    txd: 43\n    overrideConsoleSerialPort: false\n"
+    )
+
+    body = await imported(client, text)
+
+    config = body["config"]
+    assert config["serial_rxd"] == "0"
+    assert config["serial_txd"] == "43"
+    assert config["serial_override_console_serial_port"] == "false"
