@@ -24,11 +24,10 @@ from urllib.parse import quote
 import aiosqlite
 
 from mtfwbuilder.config import Settings
-from mtfwbuilder.database import init_db, save_build
+from mtfwbuilder.database import find_firmware_source, init_db, save_build
 from mtfwbuilder.models import Artifact, BuildStatus
 from mtfwbuilder.services.cleanup_service import scrub_firmware_source
 from mtfwbuilder.services.device_registry import DeviceVariant
-from mtfwbuilder.services.firmware_updater import get_firmware_version
 from mtfwbuilder.services.secret_mask import secret_masker
 
 logger = logging.getLogger("mtfwbuilder.build")
@@ -68,6 +67,8 @@ class BuildContext:
     task: asyncio.Task | None = None
     changed: asyncio.Event = field(default_factory=asyncio.Event)
     firmware_version: str | None = None
+    # The directory `<firmware_dir>/<tag>/` of the firmware source; `run_build` sets it when the build starts.
+    source_dir: Path | None = None
     # The build queue sets this to put each build status change in the `builds` table.
     on_change: Callable[["BuildContext"], None] = field(default=lambda _ctx: None, repr=False)
     mask: Callable[[str], str] = field(init=False, repr=False)
@@ -152,19 +153,21 @@ class BuildQueue:
     def get(self, build_id: str) -> BuildContext | None:
         return self._builds.get(build_id)
 
-    def submit(self, variant: DeviceVariant, config_content: str) -> BuildContext:
+    async def submit(self, variant: DeviceVariant, config_content: str) -> BuildContext:
         """Return a new build, after it is put in the build queue.
 
         Raises `BuildQueueFull` when the build queue holds `max_queue_size` builds. A build
         for a missing firmware source fails at once and does not go in the build queue.
         """
+        # The read is before the queue check, so no other submit can fill the build queue between the two.
+        source = await installed_firmware_source(self.settings)
         if self._queue.full():
             raise BuildQueueFull
         self._forget_old_builds()
         ctx = BuildContext(generate_build_id(), variant, config_content, self.settings, on_change=self._record)
         self._builds[ctx.build_id] = ctx
         self._record(ctx)
-        if self.settings.firmware_dir.exists():
+        if source is not None:
             self._queue.put_nowait(ctx)
         else:
             ctx.set_status("failed", error=FIRMWARE_SOURCE_MISSING)
@@ -276,20 +279,31 @@ async def progress_events(ctx: BuildContext):
         await changed.wait()
 
 
+async def installed_firmware_source(settings: Settings) -> tuple[str, Path] | None:
+    """Return the firmware version and the directory of the default firmware source.
+
+    Returns None when no firmware source is installed, or when the directory of its record is missing.
+    """
+    record = await find_firmware_source(settings.database_path)
+    if record is None or not Path(record["path"]).is_dir():
+        return None
+    return record["version"], Path(record["path"])
+
+
 async def run_build(ctx: BuildContext) -> None:
     """Run one build to an ended build status, and scrub the firmware source before the end event."""
-    if not ctx.settings.firmware_dir.exists():
+    # A firmware update can add a firmware source while the build waits, so the build reads it when it starts.
+    source = await installed_firmware_source(ctx.settings)
+    if source is None:
         ctx.set_status("failed", error=FIRMWARE_SOURCE_MISSING)
         return
-    # A firmware update can replace the source while the build waits, so the version is read when the build starts.
-    version = get_firmware_version(ctx.settings)["version"]
-    ctx.firmware_version = None if version == "Not installed" else version
+    ctx.firmware_version, ctx.source_dir = source
     ctx.set_status("compiling", message=f"Building firmware for {ctx.variant.name}...")
     try:
         status, fields = await _compile(ctx)
     finally:
         # A cancel arrives as `CancelledError`, and an internal error as any exception, so both pass here.
-        scrub_firmware_source(ctx.settings.firmware_dir, ctx.variant.id)
+        scrub_firmware_source(ctx.source_dir, ctx.variant.id)
     ctx.set_status(status, **fields)
 
 
@@ -336,7 +350,7 @@ async def _run_pio_build(ctx: BuildContext) -> int:
 
     A cancel of the build kills the pio process.
     """
-    firmware_dir = ctx.settings.firmware_dir
+    firmware_dir = ctx.source_dir
     # Upstream `bin/platformio-custom.py` reads only `<PROJECT_DIR>/userPrefs.jsonc`.
     (firmware_dir / "userPrefs.jsonc").write_text(ctx.config_content)
 
@@ -436,7 +450,7 @@ def _collect_artifacts(ctx: BuildContext) -> None:
 
     Raises `FileNotFoundError` when pio wrote no firmware artifact.
     """
-    pio_build_dir = ctx.settings.firmware_dir / ".pio" / "build" / ctx.variant.id
+    pio_build_dir = ctx.source_dir / ".pio" / "build" / ctx.variant.id
     artifacts = []
     for path in sorted(pio_build_dir.iterdir()):
         kind = artifact_kind(path.name, ctx.variant.id)

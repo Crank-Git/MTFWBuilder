@@ -32,12 +32,6 @@ def _config(**extra):
 
 
 @pytest.fixture
-def firmware_source(settings):
-    settings.firmware_dir.mkdir(parents=True)
-    return settings.firmware_dir
-
-
-@pytest.fixture
 async def client(app):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c

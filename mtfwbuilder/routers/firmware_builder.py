@@ -46,7 +46,7 @@ async def start_build(request: Request):
         config_content = await _config_from_upload(form.get("userPrefs"))
 
     try:
-        ctx = request.app.state.build_queue.submit(variant, config_content)
+        ctx = await request.app.state.build_queue.submit(variant, config_content)
     except build_service.BuildQueueFull as e:
         raise HTTPException(status_code=503, detail="Build queue is full. Try again later.") from e
 

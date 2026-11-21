@@ -1,18 +1,27 @@
-"""Firmware source updater: download the latest Meshtastic firmware source from GitHub."""
+"""Firmware source updater: download the latest Meshtastic firmware source from GitHub.
+
+Each firmware source is the directory `<firmware_dir>/<tag>/`, and the `firmware_sources` table holds its record.
+"""
 
 import logging
 import os
+import re
 import shutil
 import subprocess
 import tempfile
 import zipfile
-from datetime import datetime
+from datetime import UTC, datetime
+from pathlib import Path
 
 import requests
 
 from mtfwbuilder.config import Settings
+from mtfwbuilder.database import record_firmware_source
 
 logger = logging.getLogger("mtfwbuilder.firmware_updater")
+
+# The tag is also a directory name, so this pattern keeps a path separator out of it.
+TAG = re.compile(r"v\d+\.\d+\.\d+\.[0-9a-f]{7}")
 
 
 def get_latest_release_info() -> dict | None:
@@ -47,13 +56,17 @@ def update_firmware(settings: Settings) -> bool:
     temp_dir = tempfile.mkdtemp()
 
     try:
-        firmware_dir = settings.firmware_dir
         base_dir = settings.base_dir
 
         # Get latest release
         release_info = get_latest_release_info()
         if not release_info:
             return False
+        version = release_info["version"]
+        if not TAG.fullmatch(version):
+            logger.error(f"Release tag {version!r} is not a firmware version")
+            return False
+        source_dir = settings.firmware_dir / version
 
         # Save version info
         version_file = base_dir / "firmware_version.txt"
@@ -84,19 +97,20 @@ def update_firmware(settings: Settings) -> bool:
 
         extracted_dir = os.path.join(temp_dir, top_dir)
 
-        # Replace existing firmware directory
-        if firmware_dir.exists():
-            logger.info(f"Removing existing firmware: {firmware_dir}")
-            shutil.rmtree(str(firmware_dir))
+        # Replace the directory of this firmware version only.
+        if source_dir.exists():
+            logger.info(f"Removing existing firmware: {source_dir}")
+            shutil.rmtree(str(source_dir))
 
-        logger.info(f"Moving firmware to {firmware_dir}")
-        shutil.move(extracted_dir, str(firmware_dir))
+        logger.info(f"Moving firmware to {source_dir}")
+        settings.firmware_dir.mkdir(parents=True, exist_ok=True)
+        shutil.move(extracted_dir, str(source_dir))
 
         # Set up PlatformIO (no shell=True)
         logger.info("Installing PlatformIO dependencies...")
         result = subprocess.run(
             ["pio", "pkg", "install"],
-            cwd=str(firmware_dir),
+            cwd=str(source_dir),
             capture_output=True,
             text=True,
             check=False,
@@ -105,6 +119,8 @@ def update_firmware(settings: Settings) -> bool:
             logger.error(f"PlatformIO setup failed: {result.stderr}")
             return False
 
+        # `releases/latest` excludes prereleases, so the release is the newest stable firmware version.
+        record_firmware_source(settings.database_path, _source_record(source_dir, "stable", datetime.now(UTC)))
         logger.info("Firmware update completed successfully!")
         return True
 
@@ -133,3 +149,61 @@ def get_firmware_version(settings: Settings) -> dict:
             updated = line.replace("Updated:", "").strip()
 
     return {"version": version, "last_updated": updated}
+
+
+def import_old_firmware_source(settings: Settings) -> str | None:
+    """Return the firmware version of the old firmware source, after it moves to `<firmware_dir>/<tag>/`.
+
+    Before feature 09, the firmware source was `<firmware_dir>` itself, and `firmware_version.txt` held its
+    firmware version. The import also writes the record of the firmware source. The `channel` is `stable` when
+    the tag is the newest stable firmware version on GitHub, else `pinned`.
+
+    Returns None, and changes nothing, in these cases:
+    - `<firmware_dir>` holds no old firmware source.
+    - The version file holds no tag.
+    - `<firmware_dir>/<tag>/` exists.
+    """
+    firmware_dir = settings.firmware_dir
+    if not (firmware_dir / "platformio.ini").is_file():
+        return None
+    info = get_firmware_version(settings)
+    version = info["version"]
+    if not TAG.fullmatch(version):
+        logger.warning(f"The old firmware source stays in {firmware_dir}: {version!r} is not a firmware version")
+        return None
+    # An update after a skipped import installs `<tag>/` inside the old tree, and a move would nest it.
+    if (firmware_dir / version).exists():
+        logger.warning(f"The old firmware source stays in {firmware_dir}: {firmware_dir / version} exists")
+        return None
+    latest = get_latest_release_info()
+    channel = "stable" if latest is not None and latest["version"] == version else "pinned"
+
+    # Two renames in one parent directory move the tree without a copy.
+    staging = firmware_dir.with_name(f"{firmware_dir.name}.import")
+    firmware_dir.rename(staging)
+    firmware_dir.mkdir()
+    source_dir = firmware_dir / version
+    staging.rename(source_dir)
+
+    try:
+        installed_at = datetime.fromisoformat(info["last_updated"]).astimezone(UTC)
+    except ValueError:
+        # `get_firmware_version` gives `Unknown` when the version file has no `Updated:` line.
+        installed_at = datetime.now(UTC)
+    record_firmware_source(settings.database_path, _source_record(source_dir, channel, installed_at))
+    logger.info(f"Imported the old firmware source as {source_dir}")
+    return version
+
+
+def _source_record(source_dir: Path, channel: str, installed_at: datetime) -> dict:
+    return {
+        "version": source_dir.name,
+        "channel": channel,
+        "path": str(source_dir),
+        "installed_at": installed_at.isoformat(timespec="seconds"),
+        # `lstat` counts a symlink as itself, so a link out of the tree adds nothing.
+        "size_bytes": sum(
+            os.lstat(os.path.join(root, name)).st_size for root, _dirs, files in os.walk(source_dir) for name in files
+        ),
+        "status": "ready",
+    }

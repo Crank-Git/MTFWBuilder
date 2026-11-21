@@ -1,5 +1,9 @@
 """SQLite database initialization and access (raw SQL, no ORM)."""
 
+import sqlite3
+from contextlib import closing
+from pathlib import Path
+
 import aiosqlite
 
 from mtfwbuilder.config import Settings
@@ -28,6 +32,15 @@ CREATE TABLE IF NOT EXISTS config_profiles (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS firmware_sources (
+    version TEXT PRIMARY KEY,
+    channel TEXT,
+    path TEXT,
+    installed_at TIMESTAMP,
+    size_bytes INTEGER,
+    status TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_builds_status ON builds(status);
 CREATE INDEX IF NOT EXISTS idx_builds_created ON builds(created_at);
 """
@@ -53,6 +66,19 @@ ON CONFLICT(id) DO UPDATE SET
     error_message = excluded.error_message,
     firmware_version = excluded.firmware_version,
     completed_at = excluded.completed_at
+"""
+
+SAVE_FIRMWARE_SOURCE = """
+INSERT OR REPLACE INTO firmware_sources (version, channel, path, installed_at, size_bytes, status)
+VALUES (:version, :channel, :path, :installed_at, :size_bytes, :status)
+"""
+
+# Without a requested firmware version, a build uses the newest stable firmware source, else the newest one.
+FIND_FIRMWARE_SOURCE = """
+SELECT * FROM firmware_sources
+WHERE status = 'ready' AND (:version IS NULL OR version = :version)
+ORDER BY channel = 'stable' DESC, installed_at DESC
+LIMIT 1
 """
 
 
@@ -110,3 +136,33 @@ async def get_recent_builds(db: aiosqlite.Connection, limit: int = 20) -> list[d
     cursor = await db.execute("SELECT * FROM builds ORDER BY created_at DESC LIMIT ?", (limit,))
     rows = await cursor.fetchall()
     return [dict(row) for row in rows]
+
+
+def record_firmware_source(database_path: Path, record: dict) -> None:
+    """Insert the firmware source record, or replace the record with the same firmware version.
+
+    `record` holds one value for each named parameter of `SAVE_FIRMWARE_SOURCE`. The firmware updater runs in a
+    worker thread, so this write uses the `sqlite3` module and no event loop.
+    """
+    with closing(sqlite3.connect(database_path)) as db, db:
+        db.execute(SAVE_FIRMWARE_SOURCE, record)
+
+
+async def find_firmware_source(database_path: Path, version: str | None = None) -> dict | None:
+    """Return the ready firmware source record of `version`, or None when no record matches.
+
+    When `version` is None, the result is the newest stable firmware source, else the newest firmware source.
+    """
+    async with aiosqlite.connect(database_path) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(FIND_FIRMWARE_SOURCE, {"version": version})
+        row = await cursor.fetchone()
+    return None if row is None else dict(row)
+
+
+async def list_firmware_sources(database_path: Path) -> list[dict]:
+    """Return every firmware source record, the newest installed first."""
+    async with aiosqlite.connect(database_path) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute("SELECT * FROM firmware_sources ORDER BY installed_at DESC")
+        return [dict(row) for row in await cursor.fetchall()]

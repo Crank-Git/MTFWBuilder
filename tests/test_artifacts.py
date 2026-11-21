@@ -13,12 +13,6 @@ CONFIG = json.dumps({"owner_long_name": "TestNode"})
 
 
 @pytest.fixture
-def firmware_source(settings):
-    settings.firmware_dir.mkdir(parents=True)
-    return settings.firmware_dir
-
-
-@pytest.fixture
 async def client(app):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
