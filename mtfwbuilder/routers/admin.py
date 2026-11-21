@@ -67,12 +67,14 @@ async def update_firmware_route(request: Request):
     """Start firmware update from GitHub (admin only)."""
     settings = request.app.state.settings
 
-    # Run firmware update in a thread (blocking I/O)
-    loop = asyncio.get_event_loop()
+    # The update replaces the firmware source, so it waits for the running build and blocks the next one.
+    lock = request.app.state.build_queue.firmware_lock
+    await lock.acquire()
+    update = asyncio.get_running_loop().run_in_executor(None, update_firmware, settings)
+    # A cancelled request cannot stop the update thread, so the lock stays held until the thread ends.
+    update.add_done_callback(lambda _future: lock.release())
     try:
-        # The update replaces the firmware source, so it waits for the running build and blocks the next one.
-        async with request.app.state.build_queue.firmware_lock:
-            success = await loop.run_in_executor(None, update_firmware, settings)
+        success = await asyncio.shield(update)
     except Exception as e:
         logger.error(f"Firmware update error: {e}")
         return {"success": False, "error": str(e)}

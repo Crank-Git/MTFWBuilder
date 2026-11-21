@@ -102,6 +102,28 @@ async def test_cancel_during_compiling_gives_cancelled_and_scrubs(app, client, f
 
 
 @pytest.mark.usefixtures("fake_pio", "workers")
+async def test_cancel_scrubs_before_the_cancelled_end_event(app, client, firmware_source, monkeypatch):
+    monkeypatch.setenv("FAKE_PIO_SLEEP", "5")
+    body, ctx = await _start(app, client)
+    await _wait_for(ctx, {"compiling"})
+    userprefs_at_change = []
+    record = ctx.on_change
+
+    def watch(changed):
+        userprefs_at_change.append((changed.status, (firmware_source / "userPrefs.jsonc").exists()))
+        record(changed)
+
+    ctx.on_change = watch
+
+    resp = await client.post(f"/api/v1/builds/{body['build_id']}/cancel")
+    await _wait_for_task(ctx)
+    await _wait_for(ctx, ENDED)
+
+    assert resp.json()["status"] == "cancelled"
+    assert userprefs_at_change == [("cancelled", False)]
+
+
+@pytest.mark.usefixtures("fake_pio", "workers")
 async def test_failed_build_scrubs_userprefs_file_and_env_build_directory(app, client, firmware_source, monkeypatch):
     monkeypatch.setenv("FAKE_PIO_FAIL", "1")
     (firmware_source / ".pio" / "build" / "heltec-v3").mkdir(parents=True)
@@ -226,6 +248,22 @@ class TestSecretMasker:
         assert mask("Compiling 01.cpp") == "Compiling 01.cpp"
         assert mask("-DUSERPREFS_CHANNEL_0_PSK={ 0x01 }") == "-DUSERPREFS_CHANNEL_0_PSK=***"
 
+    def test_masks_a_byte_array_with_any_whitespace_and_hex_prefix_case(self):
+        spaced = "{ " + ", ".join(f"0x{b:02x}" for b in PSK_BYTES) + " }"
+        mask = secret_masker(json.dumps({"USERPREFS_CHANNEL_0_PSK": spaced}))
+        tight = "{" + ",".join(f"0X{b:02X}" for b in PSK_BYTES) + "}"
+        wide = "{  " + " ,\t".join(f"0x{b:x}" for b in PSK_BYTES) + "\n}"
+
+        for form in [spaced, tight, wide]:
+            assert mask(f"key {form} end") == "key *** end", form
+
+    def test_masks_a_userprefs_byte_array_with_an_upper_case_hex_prefix(self):
+        mask = secret_masker(
+            json.dumps({"USERPREFS_CHANNEL_0_PSK": "{" + ",".join(f"0X{b:02X}" for b in PSK_BYTES) + "}"})
+        )
+
+        assert mask(f"key {PSK_HEX} end") == "key *** end"
+
     def test_userprefs_file_with_no_secret_gives_no_change(self):
         assert secret_masker("not json at all")("a line") == "a line"
 
@@ -246,7 +284,7 @@ class TestScrubFirmwareSource:
         assert not (tmp_path / "userPrefs.jsonc").exists()
         assert not env_build.exists()
         assert other_env.exists()
-        assert cache.exists()
+        assert not cache.exists()
 
     def test_scrub_of_a_clean_firmware_source_does_nothing(self, tmp_path):
         scrub_firmware_source(tmp_path, "tbeam")

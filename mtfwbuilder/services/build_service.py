@@ -8,6 +8,7 @@ import asyncio
 import fnmatch
 import glob
 import hashlib
+import hmac
 import json
 import logging
 import multiprocessing
@@ -33,6 +34,7 @@ from mtfwbuilder.services.secret_mask import secret_masker
 logger = logging.getLogger("mtfwbuilder.build")
 
 FIRMWARE_SOURCE_MISSING = "Firmware source not installed. An admin must install a firmware version."
+CANCELLED_MESSAGE = "Build cancelled."
 ENDED_STATUSES = frozenset({"complete", "failed", "cancelled"})
 # The progress number of each build status that pio output shows.
 STEP_PROGRESS = {"compiling": 10, "linking": 70, "packaging": 90}
@@ -109,7 +111,10 @@ class BuildContext:
             "status": self.status,
             "firmware_path": str(self.build_dir / primary.name) if primary else None,
             "error_message": self.error or None,
-            "config_hash": hashlib.sha256(self.config_content.encode()).hexdigest(),
+            # The config holds the secrets, so a hash without a key lets a reader test a guessed PSK.
+            "config_hash": hmac.new(
+                self.settings.secret_key.encode(), self.config_content.encode(), hashlib.sha256
+            ).hexdigest(),
             "firmware_version": self.firmware_version,
         }
 
@@ -173,8 +178,11 @@ class BuildQueue:
         ctx = self._builds[build_id]
         if ctx.ended:
             raise BuildEnded
-        ctx.set_status("cancelled", message="Build cancelled.")
-        if ctx.task is not None:
+        if ctx.task is None:
+            # A queued build has written nothing to the firmware source, so it ends at once.
+            ctx.set_status("cancelled", message=CANCELLED_MESSAGE)
+        else:
+            # The build worker sends `cancelled` after the build task scrubs the firmware source.
             ctx.task.cancel()
         return ctx
 
@@ -227,7 +235,10 @@ class BuildQueue:
         ctx.task = asyncio.create_task(run_build(ctx))
         # `wait` does not raise when the build task is cancelled, so the build worker continues.
         await asyncio.wait({ctx.task})
-        if not ctx.task.cancelled() and ctx.task.exception() is not None:
+        if ctx.task.cancelled():
+            # Only `cancel` cancels the build task alone; `stop` also cancels this build worker, so it never gets here.
+            ctx.set_status("cancelled", message=CANCELLED_MESSAGE)
+        elif ctx.task.exception() is not None:
             # Without an ended build status, the progress stream of the build never ends.
             logger.error(f"Build {ctx.build_id} raised an error", exc_info=ctx.task.exception())
             ctx.set_status("failed", error="The build stopped because of an internal error.")
@@ -331,7 +342,6 @@ async def _run_pio_build(ctx: BuildContext) -> int:
 
     logger.info(f"Build {ctx.build_id}: config written, starting PIO for {ctx.variant.id}")
 
-    # Build command — no shell=True, no --silent, no custom build flags
     jobs = min(multiprocessing.cpu_count(), 8)
     cmd = [
         "pio",
@@ -344,9 +354,6 @@ async def _run_pio_build(ctx: BuildContext) -> int:
     ]
 
     env = os.environ.copy()
-    # Build cache (preserves incremental builds)
-    env["PLATFORMIO_BUILD_CACHE_DIR"] = str(firmware_dir / ".pio" / "build_cache")
-    # Disable color output for clean log parsing
     env["PLATFORMIO_FORCE_COLOR"] = "false"
     env["PLATFORMIO_NO_ANSI"] = "1"
 
@@ -362,8 +369,7 @@ async def _run_pio_build(ctx: BuildContext) -> int:
         async for raw_line in process.stdout:
             line = ctx.add_log(raw_line.decode("utf-8", errors="replace").rstrip())
             status = _parse_progress(line)
-            # Only the exit code of pio decides `complete` or `failed`, so one build sends one end event.
-            if status in STEP_PROGRESS and status != ctx.status:
+            if status is not None and status != ctx.status:
                 ctx.set_status(status, message=line[:200])
         return await process.wait()
     except asyncio.CancelledError:
@@ -374,7 +380,10 @@ async def _run_pio_build(ctx: BuildContext) -> int:
 
 
 def _parse_progress(line: str) -> str | None:
-    """Parse a PlatformIO output line for progress milestones."""
+    """Return the build status that a pio output line shows, or None for a line that shows no step.
+
+    Only the exit code of pio gives `complete` or `failed`, so one build sends one end event.
+    """
     lower = line.lower()
     if "compiling" in lower or "building .pio" in lower:
         return "compiling"
@@ -382,10 +391,6 @@ def _parse_progress(line: str) -> str | None:
         return "linking"
     if "checking size" in lower or "building firmware image" in lower:
         return "packaging"
-    if "[success]" in lower:
-        return "complete"
-    if "[failed]" in lower or (lower.strip().startswith("error") and ":" in lower):
-        return "failed"
     return None
 
 

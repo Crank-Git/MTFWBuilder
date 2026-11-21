@@ -11,7 +11,7 @@ from mtfwbuilder.services.build_service import (
     BuildContext,
     _parse_progress,
 )
-from mtfwbuilder.services.cleanup_service import cleanup_build_directory, cleanup_old_builds
+from mtfwbuilder.services.cleanup_service import cleanup_old_builds
 from mtfwbuilder.services.device_registry import DeviceVariant
 
 
@@ -29,28 +29,6 @@ class TestProgressParsing:
 
     def test_packaging_detected(self):
         assert _parse_progress("Checking size .pio/build/tbeam/firmware.bin") == "packaging"
-
-    def test_success_detected(self):
-        assert _parse_progress("========================= [SUCCESS] =========================") == "complete"
-
-    def test_success_no_false_positive(self):
-        """'Successfully installed' should NOT trigger complete."""
-        assert _parse_progress("Successfully installed toolchain") is None
-
-    def test_error_detected(self):
-        assert _parse_progress("error: undefined reference to 'foo'") == "failed"
-
-    def test_failed_banner_detected(self):
-        assert _parse_progress("========================= [FAILED] =========================") == "failed"
-
-    def test_warning_not_error(self):
-        """Warnings should not trigger 'failed' status."""
-        assert _parse_progress("warning: unused variable 'x'") is None
-
-    def test_error_in_filename_not_failed(self):
-        """A filename containing 'error' should not trigger failed — it's a compiling line."""
-        result = _parse_progress("Compiling .pio/build/tbeam/src/error_handler.cpp.o")
-        assert result != "failed"  # Should be "compiling", not "failed"
 
     def test_unrelated_line_returns_none(self):
         assert _parse_progress("Installing ESP32 platform") is None
@@ -86,19 +64,6 @@ class TestBuildContext:
 
 class TestCleanupService:
     """Tests for build directory cleanup."""
-
-    @pytest.mark.asyncio
-    async def test_cleanup_build_directory(self, temp_dir):
-        build_dir = temp_dir / "build_123"
-        build_dir.mkdir()
-        (build_dir / "firmware.bin").write_bytes(b"\x00")
-
-        await cleanup_build_directory(build_dir)
-        assert not build_dir.exists()
-
-    @pytest.mark.asyncio
-    async def test_cleanup_nonexistent_is_noop(self, temp_dir):
-        await cleanup_build_directory(temp_dir / "nonexistent")
 
     def test_cleanup_old_builds_removes_expired(self, temp_dir):
         old_build = temp_dir / ("0" * 32)

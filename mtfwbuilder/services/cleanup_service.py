@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import re
 import shutil
 import time
 from collections.abc import Callable, Collection
@@ -10,13 +11,8 @@ from pathlib import Path
 from mtfwbuilder.config import Settings
 
 logger = logging.getLogger("mtfwbuilder.cleanup")
-
-
-async def cleanup_build_directory(build_dir: Path) -> None:
-    """Remove a build directory and all its contents."""
-    if build_dir.exists():
-        shutil.rmtree(str(build_dir), ignore_errors=True)
-        logger.info(f"Cleaned up build directory: {build_dir}")
+# `generate_build_id` gives 32 lower-case hex characters, and `temp_dir` can hold other directories.
+BUILD_ID = re.compile(r"[0-9a-f]{32}")
 
 
 def cleanup_old_builds(settings: Settings, keep: Collection[str] = ()) -> int:
@@ -24,6 +20,7 @@ def cleanup_old_builds(settings: Settings, keep: Collection[str] = ()) -> int:
 
     A build directory is `<temp_dir>/<build_id>` and holds the artifacts of one build. Its age is the age of
     its last change. `keep` holds the build ids of the builds that have not ended, and their directories stay.
+    A directory whose name is not a build id stays.
     """
     temp_dir = settings.temp_dir
     if not temp_dir.exists():
@@ -32,7 +29,9 @@ def cleanup_old_builds(settings: Settings, keep: Collection[str] = ()) -> int:
     oldest = time.time() - settings.build_max_age_seconds
     removed = 0
     for build_path in temp_dir.iterdir():
-        if build_path.name in keep or not build_path.is_dir() or build_path.stat().st_mtime > oldest:
+        if not BUILD_ID.fullmatch(build_path.name) or build_path.name in keep or not build_path.is_dir():
+            continue
+        if build_path.stat().st_mtime > oldest:
             continue
         shutil.rmtree(build_path, ignore_errors=True)
         removed += 1
@@ -51,12 +50,12 @@ async def cleanup_every_interval(settings: Settings, unended_build_ids: Callable
 
 
 def scrub_after_restart(firmware_dir: Path) -> None:
-    """Delete `userPrefs.jsonc` and each `.pio/build/<env>/` directory from the firmware source.
+    """Delete `userPrefs.jsonc`, `.pio/build_cache` and each `.pio/build/<env>/` directory from the firmware source.
 
     A build scrubs its own env directory when it ends, so an env directory at startup is from a build
     that a restart stopped. Raises `OSError` when a delete fails.
     """
-    (firmware_dir / "userPrefs.jsonc").unlink(missing_ok=True)
+    _delete_shared_secrets(firmware_dir)
     pio_build = firmware_dir / ".pio" / "build"
     if pio_build.is_dir():
         for env_build in pio_build.iterdir():
@@ -65,13 +64,21 @@ def scrub_after_restart(firmware_dir: Path) -> None:
 
 
 def scrub_firmware_source(firmware_dir: Path, env_name: str) -> None:
-    """Delete `userPrefs.jsonc` and `.pio/build/<env_name>/` from the firmware source.
+    """Delete `userPrefs.jsonc`, `.pio/build_cache` and `.pio/build/<env_name>/` from the firmware source.
 
-    Both hold the secrets of the last build: the file holds the config, and the object files hold the PSK.
-    The build cache in `.pio/build_cache` stays. Raises `OSError` when a delete fails.
+    All three hold the secrets of the last build: the file holds the config, and the object files hold the PSK.
+    Raises `OSError` when a delete fails.
     """
-    (firmware_dir / "userPrefs.jsonc").unlink(missing_ok=True)
+    _delete_shared_secrets(firmware_dir)
     env_build = firmware_dir / ".pio" / "build" / env_name
     if env_build.exists():
         shutil.rmtree(env_build)
     logger.debug(f"Scrubbed the firmware source for {env_name}")
+
+
+def _delete_shared_secrets(firmware_dir: Path) -> None:
+    (firmware_dir / "userPrefs.jsonc").unlink(missing_ok=True)
+    # A build cache from an older version holds object files compiled with the `-D USERPREFS_*` flags.
+    build_cache = firmware_dir / ".pio" / "build_cache"
+    if build_cache.exists():
+        shutil.rmtree(build_cache)

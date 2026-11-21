@@ -2,6 +2,7 @@
 
 import asyncio
 import hashlib
+import hmac
 import json
 import os
 import threading
@@ -102,7 +103,7 @@ async def test_init_db_adds_config_hash_and_firmware_version_to_an_old_builds_ta
 
 
 @pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
-async def test_build_record_has_the_end_status_and_no_log_and_no_config(app, database):
+async def test_build_record_has_the_end_status_and_no_log_and_no_config(app, database, settings):
     ctx = app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
     await _wait_for(ctx, ENDED)
 
@@ -112,7 +113,7 @@ async def test_build_record_has_the_end_status_and_no_log_and_no_config(app, dat
     assert row["variant"] == "heltec-v3"
     assert row["build_log"] is None
     assert row["completed_at"] is not None
-    assert row["config_hash"] == hashlib.sha256(CONFIG.encode()).hexdigest()
+    assert row["config_hash"] == hmac.new(settings.secret_key.encode(), CONFIG.encode(), hashlib.sha256).hexdigest()
     assert not any(PSK in str(value) or CONFIG in str(value) for value in row.values())
 
 
@@ -176,7 +177,7 @@ async def test_startup_scrubs_the_firmware_source(firmware_source, app):
 
     assert not (firmware_source / "userPrefs.jsonc").exists()
     assert not env_build.exists()
-    assert build_cache.exists()
+    assert not build_cache.exists()
 
 
 # FR-build-pipeline-repair-15
@@ -206,6 +207,18 @@ def test_cleanup_keeps_the_directory_of_a_build_that_has_not_ended(settings):
 
     assert removed == 0
     assert active.exists()
+
+
+def test_cleanup_keeps_an_old_directory_whose_name_is_not_a_build_id(settings):
+    others = [settings.temp_dir / name for name in ("operator-files", "A" * 32, "a" * 31)]
+    for other in others:
+        other.mkdir(parents=True)
+        _make_old(other, settings.build_max_age_seconds + 60)
+
+    removed = cleanup_old_builds(settings)
+
+    assert removed == 0
+    assert all(other.exists() for other in others)
 
 
 async def test_cleanup_task_runs_every_cleanup_interval(settings_env, monkeypatch, app):
@@ -268,3 +281,31 @@ async def test_no_build_starts_while_a_firmware_update_runs(app, client, setting
 
     assert status_during_update == "queued"
     assert ctx.status == "complete", ctx.error
+
+
+@pytest.mark.usefixtures("firmware_source")
+async def test_cancelled_update_request_keeps_the_lock_until_the_update_thread_ends(app, client, settings, monkeypatch):
+    release = threading.Event()
+    started = threading.Event()
+
+    def slow_update(_settings):
+        started.set()
+        release.wait(5)
+        return True
+
+    monkeypatch.setattr(admin, "update_firmware", slow_update)
+    _sign_in(client, settings)
+    lock = app.state.build_queue.firmware_lock
+    update = asyncio.create_task(client.post("/api/v1/update-firmware"))
+    await asyncio.to_thread(started.wait, 5)
+
+    update.cancel()
+    await asyncio.gather(update, return_exceptions=True)
+    locked_after_cancel = lock.locked()
+    release.set()
+    deadline = time.monotonic() + 5
+    while lock.locked():
+        assert time.monotonic() < deadline, "the lock stayed held after the update thread ended"
+        await asyncio.sleep(0.02)
+
+    assert locked_after_cancel is True

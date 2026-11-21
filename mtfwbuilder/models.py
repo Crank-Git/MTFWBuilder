@@ -210,15 +210,6 @@ class Artifact(BaseModel):
     kind: Literal["factory", "app", "uf2", "ota-zip", "hex", "littlefs", "manifest"]
 
 
-class BuildResult(BaseModel):
-    """Result of a completed build."""
-
-    build_id: str
-    success: bool
-    download_url: str | None = None
-    error: str | None = None
-
-
 class AdminLoginRequest(BaseModel):
     """Admin login form data."""
 

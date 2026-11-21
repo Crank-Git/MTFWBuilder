@@ -120,7 +120,8 @@ async def cancel_build(build_id: str, request: Request):
         raise HTTPException(status_code=404, detail="Build not found") from e
     except build_service.BuildEnded as e:
         raise HTTPException(status_code=409, detail="Build has already ended") from e
-    return {"build_id": ctx.build_id, "status": ctx.status}
+    # A running build changes to `cancelled` after its scrub, so the response gives the accepted result.
+    return {"build_id": ctx.build_id, "status": "cancelled"}
 
 
 @router.get("/builds/{build_id}/artifacts", response_model=list[Artifact])
