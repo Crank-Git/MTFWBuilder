@@ -114,6 +114,7 @@ the header of `userPrefs.jsonc` in `meshtastic/firmware` `develop@fe89ac1`.
 | PSK | noun | The pre-shared key that encrypts a channel. | password, key (alone) |
 | secret | noun | Any config value that gives access: a PSK, a WiFi password, an MQTT password, an admin key. | credential, sensitive data |
 | channel URL | noun | A `https://meshtastic.org/e/#…` URL that encodes a ChannelSet protobuf. | share link, QR link |
+| proto default | noun | The value of a protobuf field that a message does not set: false, 0, empty, or the enum value 0. `MessageToDict` leaves it out. | zero value, unset value |
 | build | noun | One compile of one variant with one userPrefs file. A build has a build id and a status. | job, compile run |
 | build id | noun | The identifier of one build. | job id, token |
 | build status | noun | One of: `queued`, `compiling`, `linking`, `packaging`, `complete`, `failed`, `cancelled`. | state, phase |
@@ -258,6 +259,8 @@ the database is not used (see `features/02-firmware-builder.md`).
 | Runtime | Python 3.13 (Docker and CI; CI also tests 3.14) | `meshtastic` python requires `<3.15`. |
 | Deploy | Docker Compose, self-hosted. No hosted instance. | Interview answer: not deployed. |
 | Protobuf decode | `meshtastic` python package (GPL-3.0) | Decodes channel URLs and CLI YAML. Allowed by the GPL-3.0 relicense (ADR 0004). |
+| QR code | segno (BSD-3-Clause) | Writes the SVG QR code of an exported channel URL. Pure Python, no image library. |
+| QR decode in tests | zxing-cpp (Apache-2.0), dev dependency only | The tests decode the exported QR code. The app does not load it. |
 
 ## Data model
 
@@ -732,3 +735,5 @@ Written by `/spec-to-issues` on 2026-11-21.
 - 2026-11-21 — Epic 5 shipped (#132). PM decisions: the default firmware version falls back to the newest installed version of any release channel when no stable one is installed; `require_csrf` accepts the `X-CSRF-Token` header; `GET /api/v1/firmware/available` has no CSRF (read-only); the startup cleanup may remove a half-imported old firmware source after a crash (it is downloadable again).
 - 2026-11-21 — Epic 6 shipped (#145). The registry comes from `pio project config --json-output` per firmware version (ADR 0006); a bad value in one env skips that field or env, not the version. The YAML registry and feature 03 are retired. Open: #139 (device image source, owner question), #144 (weekly registry check). Epic 9 (held) must update its flash and UF2 branches to the new architecture values (PR #135 finding).
 - 2026-11-21 — Epic 7 shipped (#142). Milestone M2 (Current upstream) is complete. PM ruling on #50: `USERPREFS_SIMRADIO_EMULATE_COLLISIONS` and `USERPREFS_HAS_SPLASH` are Non-goals. Every 422 body leaves out the rejected input, so no secret returns to the caller.
+- 2026-11-21 — Epic 10 shipped (#160). PM decisions from the gates and the batch review: only an admin session may store, load or remove the secrets of a profile (ADR 0007). A config that holds a secret is never cached, because the project rule forbids a secret in a cache entry. The owner question is #158. The cache key also covers the app version.
+- 2026-11-21 — Epic 8 shipped (#170). PM decisions from the batch review: Apply never writes into a control that the firmware version does not read. An empty PSK means "No encryption" on a primary channel and "Uses the primary channel key" on a secondary channel (`Channels.cpp` `getKey`). An `add=true` URL follows upstream `setURL`. `requires-python` is `>=3.13,<3.15` because of the `meshtastic` package.

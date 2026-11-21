@@ -61,6 +61,9 @@ async def index(request: Request, build: str | None = None):
         "build_id": build,
         "region_options": meshtastic_enums.REGIONS.options(),
         "modem_preset_options": meshtastic_enums.MODEM_PRESETS.options(),
+        # The channel URL import returns bare enum names, and the form takes the values with the C prefix.
+        "region_prefix": meshtastic_enums.REGIONS.c_prefix,
+        "modem_preset_prefix": meshtastic_enums.MODEM_PRESETS.c_prefix,
         "role_options": meshtastic_enums.ROLES.options(),
         "rebroadcast_mode_options": meshtastic_enums.REBROADCAST_MODES.options(),
         "channel_slots": CHANNEL_SLOTS,

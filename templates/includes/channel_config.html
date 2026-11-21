@@ -53,13 +53,13 @@
                         <fieldset class="col-12" data-userprefs-key="USERPREFS_CHANNEL_{{ n }}_PSK"{{ key_attrs("USERPREFS_CHANNEL_" ~ n ~ "_PSK") }}>
                             <label for="channel{{ n }}PSK" class="form-label">Pre-Shared Key (PSK)</label>
                             <div class="input-group">
-                                <input type="text" class="form-control" id="channel{{ n }}PSK" name="channel_{{ n }}[psk]" placeholder="3q2+796tvu/erb7v3q2+796tvu/erb7v3q2+796tvu8=">
+                                <input type="text" class="form-control" id="channel{{ n }}PSK" name="channel_{{ n }}[psk]" aria-describedby="channel{{ n }}PSKHelp" placeholder="3q2+796tvu/erb7v3q2+796tvu/erb7v3q2+796tvu8=">
                                 <button class="btn btn-outline-secondary generate-psk-btn" type="button" data-target="channel{{ n }}PSK">
                                     <i class="bi bi-key-fill me-1"></i>Generate
                                 </button>
                             </div>
                             <div id="error-channel_{{ n }}.psk" class="field-error invalid-feedback d-block"></div>
-                            <div class="form-text text-muted">Base64 or hex. The key is 0, 1, 16 or 32 bytes. <code class="small">USERPREFS_CHANNEL_{{ n }}_PSK</code></div>
+                            <div id="channel{{ n }}PSKHelp" class="form-text text-muted">Base64 or hex. The key is 0, 1, 16 or 32 bytes. The PSK <code class="small">{ }</code> has 0 bytes, so {{ "the channel has no encryption" if n == 0 else "the channel uses the primary channel key" }}. The PSK <code class="small">AA==</code> is Default key 0 (no encryption). <code class="small">USERPREFS_CHANNEL_{{ n }}_PSK</code></div>
                         </fieldset>
                     </div>
                     <div class="row">

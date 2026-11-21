@@ -176,8 +176,11 @@ body.rv-open .layout { padding-right:21rem; }
 </ul>
 <h3 id="platform-modernization-functional-requirements">Functional requirements</h3>
 <ul>
-<li>FR-platform-modernization-1 — <code>pyproject.toml</code> sets <code>requires-python = "&gt;=3.13"</code>.
+<li>FR-platform-modernization-1 — <code>pyproject.toml</code> sets <code>requires-python = "&gt;=3.13,&lt;3.15"</code>.
 </li>
+</ul>
+<p>The cap comes from the <code>meshtastic</code> python package, which requires Python <code>&lt;3.15</code>.</p>
+<ul>
 <li>FR-platform-modernization-2 — The project uses uv. <code>uv.lock</code> is committed.
 </li>
 <li>FR-platform-modernization-3 — The dependency floors are at least: fastapi 0.165,
