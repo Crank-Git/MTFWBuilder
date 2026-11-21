@@ -77,6 +77,14 @@ async def _wait_for(ctx, statuses, timeout=10.0):
         await asyncio.sleep(0.02)
 
 
+async def _wait_for_log(ctx, timeout=10.0):
+    # The build status becomes compiling before pio starts, so a slow runner can show an empty log at that moment.
+    deadline = time.monotonic() + timeout
+    while not ctx.build_log:
+        assert time.monotonic() < deadline, f"build stayed without a log line at {ctx.status}"
+        await asyncio.sleep(0.02)
+
+
 async def _start(app, client, **form):
     resp = await client.post("/api/v1/build-firmware", data={**FORM, **form}, headers=HX)
     assert resp.status_code == 202, resp.text
@@ -291,6 +299,7 @@ async def test_reload_during_a_build_shows_the_same_build_id_and_its_current_ste
     monkeypatch.setenv("FAKE_PIO_SLEEP", "30")
     _, ctx = await _start(app, client)
     await _wait_for(ctx, {"compiling"})
+    await _wait_for_log(ctx)
 
     resp = await client.get(f"/?build={ctx.build_id}")
 
