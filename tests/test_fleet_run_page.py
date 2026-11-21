@@ -114,3 +114,4 @@ async def test_the_page_of_an_unknown_fleet_run_returns_404(client):
     response = await client.get("/fleet-runs/999")
 
     assert response.status_code == 404
+    assert response.json()["detail"] == "Fleet run 999 does not exist"

@@ -206,10 +206,11 @@ async def test_put_devices_keeps_the_id_of_each_fleet_device_with_a_saved_label(
 
 async def test_put_devices_removes_the_fleet_device_of_a_label_that_is_not_in_the_rows(client, fleet_id):
     await client.put(f"/api/v1/fleets/{fleet_id}/devices", json={"devices": [{"label": "a"}, {"label": "b"}]})
+    before = await _ids(client, fleet_id)
 
     await client.put(f"/api/v1/fleets/{fleet_id}/devices", json={"devices": [{"label": "b"}]})
 
-    assert list(await _ids(client, fleet_id)) == ["b"]
+    assert await _ids(client, fleet_id) == {"b": before["b"]}
 
 
 async def test_a_csv_import_keeps_the_ids_of_the_saved_fleet_devices(client, fleet_id):
