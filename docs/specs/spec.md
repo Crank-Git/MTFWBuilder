@@ -101,6 +101,8 @@ the header of `userPrefs.jsonc` in `meshtastic/firmware` `develop@fe89ac1`.
 | config | noun | The set of setting values that an operator enters for a device. | configuration, settings file, preferences |
 | userPrefs file | noun | The `userPrefs.jsonc` file the project writes from a config. The firmware build reads it. | prefs, jsonc |
 | userPrefs key | noun | One `USERPREFS_*` name in the userPrefs file. | define, flag, macro |
+| admin key | noun | The public key of a device that may change this device's config remotely. The firmware holds three. | admin password |
+| managed mode | noun | A device state in which the device rejects local config changes. Only an admin key holder changes the config. | locked mode |
 | factory default | noun | A value the firmware applies on first boot and on factory reset only. Every userPrefs key is a factory default. | baked setting, locked setting |
 | firmware source | noun | One extracted copy of the `meshtastic/firmware` source tree at one firmware version. | firmware tree, repo copy |
 | firmware version | noun | One upstream release tag, for example `v2.7.26.54e0d8d`. | release, tag (alone) |

@@ -544,3 +544,11 @@ body {
 .progress-bar-animated {
     animation: progress-bar-stripes 1s linear infinite;
 }
+/* The selector reads the toggle state, so the managed-mode notice shows without JavaScript too. */
+.managed-mode-notice {
+    display: none;
+}
+
+#securitySection:has(#securityIsManaged:checked) .managed-mode-notice {
+    display: block;
+}

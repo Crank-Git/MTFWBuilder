@@ -202,9 +202,9 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 /**
- * Return a new 32-byte key as base64 (FR-frontend-htmx-18).
+ * Return a new 32-byte PSK as base64 (FR-frontend-htmx-18).
  *
- * The server accepts a PSK or an admin key in base64, so one generator serves both fields.
+ * An admin key has no generator, because it is the public key of the admin device.
  */
 function generatePSK() {
     const bytes = new Uint8Array(32);

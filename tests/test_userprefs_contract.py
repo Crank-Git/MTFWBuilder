@@ -77,6 +77,20 @@ def full_config() -> dict[str, str]:
         "button_pin": "36",
         "button_pin_enabled": "true",
         "event_mode": "1",
+        "telemetry_device_interval": "900",
+        "telemetry_environment_enabled": "true",
+        "telemetry_environment_interval": "900",
+        "telemetry_environment_screen_enabled": "true",
+        "telemetry_air_quality_enabled": "true",
+        "telemetry_air_quality_screen_enabled": "true",
+        "telemetry_air_quality_interval": "900",
+        "security_is_managed": "true",
+        "security_packet_signature_policy": "PACKET_SIGNATURE_POLICY_BALANCED",
+        "event_mode_hop_limit": "3",
+        "event_block_position": "true",
+        "canned_messages": "Hi\nBye",
+        "ringtone_rtttl": "24:d=32,o=5,b=565:f6,p,f6",
+        "ringtone_nag_secs": "60",
     }
     for slot in range(CHANNEL_SLOTS):
         data[f"channel_{slot}[name]"] = f"Chan{slot}"

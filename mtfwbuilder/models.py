@@ -17,6 +17,10 @@ MAX_TX_POWER_DBM = 30
 MIN_INTERVAL_SECS = 60
 MAX_INTERVAL_SECS = 2_592_000
 
+MANAGED_MODE_MESSAGE = "Managed mode needs an admin key, or the device cannot be changed again."
+# Upstream `src/mesh/Default.h` fails the firmware build with a `static_assert` above 7 hops.
+MAX_EVENT_HOP_LIMIT = 7
+
 # The form posts each channel field as a flat key, for example `channel_0[psk]`.
 _FLAT_CHANNEL_KEY = re.compile(r"(channel_[0-7])\[(\w+)\]")
 
@@ -30,6 +34,7 @@ _ENUM_FIELDS = {
     "lora_modem_preset": meshtastic_enums.MODEM_PRESETS,
     "gps_mode": meshtastic_enums.GPS_MODES,
     "device_rebroadcast_mode": meshtastic_enums.REBROADCAST_MODES,
+    "security_packet_signature_policy": meshtastic_enums.PACKET_SIGNATURE_POLICIES,
 }
 
 
@@ -136,6 +141,19 @@ class ConfigRequest(_UserPrefsFields):
     admin_key_1: str | None = None
     admin_key_2: str | None = None
 
+    # Security. The managed-mode check reads the admin keys, so these fields come after them.
+    security_is_managed: str | None = None
+    security_packet_signature_policy: str | None = None
+
+    # Telemetry
+    telemetry_device_interval: str | None = None
+    telemetry_environment_enabled: str | None = None
+    telemetry_environment_interval: str | None = None
+    telemetry_environment_screen_enabled: str | None = None
+    telemetry_air_quality_enabled: str | None = None
+    telemetry_air_quality_screen_enabled: str | None = None
+    telemetry_air_quality_interval: str | None = None
+
     # OEM
     oem_text: str | None = None
     oem_font_size: str | None = None
@@ -147,6 +165,13 @@ class ConfigRequest(_UserPrefsFields):
     button_pin: str | None = None
     button_pin_enabled: str | None = None
     event_mode: str | None = None
+    event_mode_hop_limit: str | None = None
+    event_block_position: str | None = None
+
+    # Canned messages, one message on each line, and the ringtone
+    canned_messages: str | None = None
+    ringtone_rtttl: str | None = None
+    ringtone_nag_secs: str | None = None
 
     # Preview flag
     preview_only: bool = False
@@ -198,18 +223,61 @@ class ConfigRequest(_UserPrefsFields):
             raise ValueError(meshtastic_enums.ROUTER_ROLE_MESSAGE)
         return meshtastic_enums.ROLES.c_value(value) if value else value
 
-    @field_validator("lora_region", "lora_modem_preset", "gps_mode", "device_rebroadcast_mode")
+    @field_validator("security_is_managed")
+    @classmethod
+    def _check_managed_mode(cls, value: str | None, info: ValidationInfo) -> str | None:
+        """Reject managed mode without an admin key, with the managed-mode message.
+
+        Upstream `src/mesh/NodeDB.cpp` notes that a managed device without an admin key accepts no config change.
+        Only a factory reset then recovers it.
+        """
+        if value == "true" and not any(info.data.get(f) for f in ("admin_key_0", "admin_key_1", "admin_key_2")):
+            raise ValueError(MANAGED_MODE_MESSAGE)
+        return value
+
+    @field_validator(
+        "security_is_managed",
+        "telemetry_environment_enabled",
+        "telemetry_environment_screen_enabled",
+        "telemetry_air_quality_enabled",
+        "telemetry_air_quality_screen_enabled",
+        "event_block_position",
+    )
+    @classmethod
+    def _check_true_or_false(cls, value: str | None) -> str | None:
+        # Upstream passes only `true` and `false` unquoted, and the firmware reads each toggle as a C++ value.
+        if value and value not in ("true", "false"):
+            raise ValueError("the value is not true or false")
+        return value
+
+    @field_validator("event_mode_hop_limit")
+    @classmethod
+    def _check_event_hop_limit(cls, value: str | None) -> str | None:
+        """Accept a hop limit from 0 to 7."""
+        if value and not (_is_whole_number(value) and int(value) <= MAX_EVENT_HOP_LIMIT):
+            raise ValueError(f"the hop limit is not a whole number from 0 to {MAX_EVENT_HOP_LIMIT}")
+        return value
+
+    @field_validator("canned_messages")
+    @classmethod
+    def _check_canned_messages(cls, value: str | None) -> str | None:
+        # Upstream separates the messages with `|`, so a `|` in a message splits it in two.
+        if value and "|" in value:
+            raise ValueError("a message contains |, which separates the messages")
+        return value
+
+    @field_validator(
+        "lora_region", "lora_modem_preset", "gps_mode", "device_rebroadcast_mode", "security_packet_signature_policy"
+    )
     @classmethod
     def _check_enum_value(cls, value: str | None, info: ValidationInfo) -> str | None:
         """Return the value with its C prefix, if the protobufs enum of the field holds it."""
         return _ENUM_FIELDS[info.field_name].c_value(value) if value else value
 
-    @field_validator("button_pin", "event_mode", "node_info_reply_suppress_secs")
+    @field_validator("button_pin", "event_mode", "node_info_reply_suppress_secs", "ringtone_nag_secs")
     @classmethod
     def _check_digits(cls, value: str | None) -> str | None:
-        # The upstream parser quotes a value that is not all ASCII digits, and the firmware build then fails.
-        # `isdecimal()` alone accepts other scripts' digits, for example "١٢".
-        if value and not (value.isascii() and value.isdigit()):
+        if value and not _is_whole_number(value):
             raise ValueError("the value is not a whole number")
         return value
 
@@ -221,7 +289,12 @@ class ConfigRequest(_UserPrefsFields):
             raise ValueError(f"the TX power is not a whole number from 0 to {MAX_TX_POWER_DBM}")
         return value
 
-    @field_validator("node_info_broadcast_secs")
+    @field_validator(
+        "node_info_broadcast_secs",
+        "telemetry_device_interval",
+        "telemetry_environment_interval",
+        "telemetry_air_quality_interval",
+    )
     @classmethod
     def _check_interval(cls, value: str | None) -> str | None:
         """Accept an interval of 0, or of 60 to 2592000 seconds."""
