@@ -24,6 +24,10 @@ MAX_EVENT_HOP_LIMIT = 7
 # Upstream `src/mesh/NodeDB.cpp` changes a beacon interval under 3600 seconds to 3600.
 MIN_BEACON_INTERVAL_SECS = 3600
 MESH_BEACON_TARGETS = 4
+# Upstream `src/modules/PositionModule.cpp` keeps the top 1 to 31 bits of a 32-bit position, and 32 keeps them all.
+MAX_POSITION_PRECISION = 32
+# Protobufs `meshtastic/config.proto` declares `LoRaConfig.channel_num` as a `uint32`.
+MAX_UINT32 = 2**32 - 1
 
 # The form posts each channel field as a flat key, for example `channel_0[psk]`.
 _FLAT_CHANNEL_KEY = re.compile(r"(channel_[0-7])\[(\w+)\]")
@@ -83,6 +87,19 @@ class ChannelConfig(_UserPrefsFields):
         length = len(decode_key(value or ""))
         if length not in PSK_LENGTHS:
             raise ValueError("the PSK is not 0, 1, 16 or 32 bytes")
+        return value
+
+    @field_validator("precision")
+    @classmethod
+    def _check_precision(cls, value: str | None) -> str | None:
+        """Accept a position precision from 0 to 32 bits, and return None for an empty value.
+
+        The generator writes an empty precision unchanged, and the firmware build then fails.
+        """
+        if not value:
+            return None
+        if not (_is_whole_number(value) and int(value) <= MAX_POSITION_PRECISION):
+            raise ValueError(f"the position precision is not a whole number from 0 to {MAX_POSITION_PRECISION}")
         return value
 
 
@@ -324,6 +341,14 @@ class ConfigRequest(_UserPrefsFields):
         """Accept a TX power of 0 to 30 dBm, where 0 selects the region maximum."""
         if value and not (_is_whole_number(value) and int(value) <= MAX_TX_POWER_DBM):
             raise ValueError(f"the TX power is not a whole number from 0 to {MAX_TX_POWER_DBM}")
+        return value
+
+    @field_validator("lora_channel_num")
+    @classmethod
+    def _check_channel_num(cls, value: str | None) -> str | None:
+        """Accept a channel number from 0 to the `uint32` maximum, where 0 lets the region pick the slot."""
+        if value and not (_is_whole_number(value) and int(value) <= MAX_UINT32):
+            raise ValueError(f"the channel number is not a whole number from 0 to {MAX_UINT32}")
         return value
 
     @field_validator(
