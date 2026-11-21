@@ -4,8 +4,10 @@ import aiosqlite
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from mtfwbuilder.auth import CSRF_COOKIE, SESSION_COOKIE, create_session_token, csrf_token
 from mtfwbuilder.models import ProfileRequest
 from mtfwbuilder.routers import pages
+from tests.conftest import sign_in_admin
 
 EMPTY_STATE = "No profiles yet. Save one from the build page."
 STORES_SECRETS_NOTICE = "This profile stores secrets on the server."
@@ -135,23 +137,48 @@ async def test_build_page_profile_controls_are_outside_the_config_form(client):
     assert 'id="profileSelect"' not in form
 
 
-async def test_build_page_without_stored_secret_support_omits_the_store_secrets_option(client, monkeypatch):
+async def test_build_page_without_stored_secret_support_omits_the_store_secrets_option(client, settings, monkeypatch):
     class WithoutStoredSecrets(ProfileRequest):
         pass
 
     monkeypatch.setattr(pages, "ProfileRequest", WithoutStoredSecrets)
+    sign_in_admin(client, settings)
 
     text = (await client.get("/")).text
 
     assert 'id="profileStoresSecrets"' not in text
 
 
-async def test_build_page_with_stored_secret_support_offers_the_store_secrets_option(client, monkeypatch):
-    class WithStoredSecrets(ProfileRequest):
-        stores_secrets: bool = False
+class _WithStoredSecrets(ProfileRequest):
+    stores_secrets: bool = False
 
-    monkeypatch.setattr(pages, "ProfileRequest", WithStoredSecrets)
+
+async def test_build_page_for_an_admin_with_stored_secret_support_offers_the_store_secrets_option(
+    client, settings, monkeypatch
+):
+    monkeypatch.setattr(pages, "ProfileRequest", _WithStoredSecrets)
+    token = sign_in_admin(client, settings)
 
     text = (await client.get("/")).text
 
     assert 'id="profileStoresSecrets"' in text
+    assert f'data-csrf-token="{token}"' in text
+
+
+async def test_build_page_without_an_admin_session_omits_the_store_secrets_option(client, monkeypatch):
+    monkeypatch.setattr(pages, "ProfileRequest", _WithStoredSecrets)
+
+    text = (await client.get("/")).text
+
+    assert 'id="profileStoresSecrets"' not in text
+    assert "data-csrf-token" not in text
+
+
+async def test_build_page_for_an_admin_sets_the_csrf_cookie_of_its_token(client, settings, monkeypatch):
+    monkeypatch.setattr(pages, "ProfileRequest", _WithStoredSecrets)
+    client.cookies.set(SESSION_COOKIE, create_session_token(settings))
+
+    response = await client.get("/")
+
+    nonce = response.cookies[CSRF_COOKIE]
+    assert f'data-csrf-token="{csrf_token(nonce, settings)}"' in response.text
