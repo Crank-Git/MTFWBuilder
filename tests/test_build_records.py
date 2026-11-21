@@ -1,8 +1,6 @@
 """Tests for the build records, the cleanup task, the update lock and startup recovery (feature 06)."""
 
 import asyncio
-import hashlib
-import hmac
 import json
 import os
 import time
@@ -13,8 +11,9 @@ from httpx import ASGITransport, AsyncClient
 
 from mtfwbuilder.database import init_db
 from mtfwbuilder.main import lifespan
+from mtfwbuilder.services.build_cache import config_hash
 from mtfwbuilder.services.cleanup_service import cleanup_old_builds
-from tests.conftest import fixture_variant
+from tests.conftest import FIRMWARE_VERSION, fixture_variant
 
 PSK = "deadbeef" * 8
 CONFIG = json.dumps({"device_name": "TestNode", "channel_0_psk": PSK})
@@ -104,7 +103,7 @@ async def test_build_record_has_the_end_status_and_no_log_and_no_config(app, dat
     assert row["variant"] == "heltec-v3"
     assert row["build_log"] is None
     assert row["completed_at"] is not None
-    assert row["config_hash"] == hmac.new(settings.secret_key.encode(), CONFIG.encode(), hashlib.sha256).hexdigest()
+    assert row["config_hash"] == config_hash(settings.secret_key, FIRMWARE_VERSION, "heltec-v3", CONFIG)
     assert not any(PSK in str(value) or CONFIG in str(value) for value in row.values())
 
 
