@@ -67,7 +67,7 @@ async def update_firmware_route(request: Request):
     """Start firmware update from GitHub (admin only)."""
     settings = request.app.state.settings
 
-    # The update replaces the firmware source, so it waits for the running build and blocks the next one.
+    # The update replaces the firmware source and each copy, so it waits for each running build and blocks the next one.
     lock = request.app.state.build_queue.firmware_lock
     await lock.acquire()
     update = asyncio.get_running_loop().run_in_executor(None, update_firmware, settings)
