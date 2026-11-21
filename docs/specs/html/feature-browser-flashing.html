@@ -239,12 +239,13 @@ body.rv-open .layout { padding-right:21rem; }
   B --&gt;|nrf52840 / rp2040 / rp2350| U[UF2 download + bootloader steps]
   B --&gt;|stm32 / nrf54l15| DL[Download only]
   C --&gt;|no| N[Unsupported message + downloads]
-  C --&gt;|yes| D[Flash: choose port]
-  D --&gt;|cancelled| A
-  D --&gt; E{Full install or Update}
-  E --&gt;|Full install| W[Erase warning]
+  C --&gt;|yes| E[Choose Full install or Update]
+  E --&gt; D[Flash: choose port]
+  D --&gt;|cancelled| E
+  D --&gt;|Full install| W[Erase warning]
   W --&gt;|confirm| F[Erase + write factory at 0x0]
-  E --&gt;|Update| G[Write app at manifest offset]
+  W --&gt;|cancel| E
+  D --&gt;|Update| G[Write app at manifest offset]
   F --&gt; H[Reset device]
   G --&gt; H
   F --&gt;|error| X[Error + retry + manual esptool command]
@@ -254,15 +255,15 @@ body.rv-open .layout { padding-right:21rem; }
 </li>
 <li>For an ESP32-family variant in Chrome or Edge over HTTPS, the panel shows Flash.
 </li>
-<li>The operator selects Flash and chooses the serial port.
-</li>
 <li>The operator chooses Full install or Update.
+</li>
+<li>The operator selects Flash and chooses the serial port.
 </li>
 <li>For a full install, the panel warns about the erase. The operator confirms.
 </li>
 <li>The page writes the artifact and shows progress.
 </li>
-<li>The page resets the device and shows "Done".
+<li>The page resets the device and shows the done text of the mode.
 </li>
 <li>If an error occurs, the panel shows the error, a Retry control, and the equivalent
 </li>
@@ -276,15 +277,18 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><td>Port picker</td><td>The browser's own dialog.</td></tr>
 <tr><td>Connecting</td><td>"Connecting. If this takes more than 10 seconds, hold BOOT and press RESET."</td></tr>
 <tr><td>Writing</td><td>Progress bar with percent.</td></tr>
-<tr><td>Done</td><td>"Done. The device restarts with your factory defaults."</td></tr>
+<tr><td>Done</td><td>Full install: "Done. The device restarts with your factory defaults." Update: "Done. The device restarts and keeps its saved settings."</td></tr>
 <tr><td>Error</td><td>Error text, Retry, manual command.</td></tr>
 <tr><td>Unsupported browser / not secure</td><td>Message and download links.</td></tr>
 <tr><td>UF2</td><td>Numbered steps, UF2 download control.</td></tr>
 </table></div>
 <h3 id="browser-flashing-behaviour-rules">Behaviour rules</h3>
 <ul>
-<li>Baud rate 921600, fallback to 115200 on a connect error.
+<li>The page connects at 921600 baud first. On a connect error, the page tries 115200 baud.
 </li>
+</ul>
+<p>When no ROM bootloader answers the sync, the page does not try 115200, because each attempt syncs at the ROM rate of 115200. The manual command uses 921600.</p>
+<ul>
 <li>esptool-js: https://github.com/espressif/esptool-js (0.7.1, 2026-11-02).
 </li>
 <li>Web Serial availability: https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API
