@@ -101,6 +101,8 @@ class BuildContext:
     source_dir: Path | None = None
     # The build queue sets this to put each build status change in the `builds` table.
     on_change: Callable[["BuildContext"], None] = field(default=lambda _ctx: None, repr=False)
+    # The row id of the fleet run that makes the build, for its `builds` row.
+    fleet_run_id: int | None = None
     mask: Callable[[str], str] = field(init=False, repr=False)
     config_hash: str = field(init=False)
 
@@ -148,6 +150,7 @@ class BuildContext:
             "error_message": self.error or None,
             "config_hash": self.config_hash,
             "firmware_version": self.firmware_version,
+            "fleet_run_id": self.fleet_run_id,
         }
 
     def status_event(self) -> str:
@@ -269,7 +272,8 @@ class BuildQueue:
 
     def __init__(self, settings: Settings):
         self.settings = settings
-        self._queue: asyncio.Queue[BuildContext] = asyncio.Queue(maxsize=settings.max_queue_size)
+        # The queue has no size limit, because `submit` raises `BuildQueueFull` with the message of the build route.
+        self._queue: asyncio.Queue[BuildContext] = asyncio.Queue()
         self._builds: dict[str, BuildContext] = {}
         self._workers: list[asyncio.Task] = []
         # Each record is a copy taken at the change, so a later change cannot alter what is written.
@@ -281,12 +285,21 @@ class BuildQueue:
     def get(self, build_id: str) -> BuildContext | None:
         return self._builds.get(build_id)
 
+    def is_full(self) -> bool:
+        """Return True when the build queue holds `max_queue_size` builds, so `submit` refuses the next one."""
+        return self._queue.qsize() >= self.settings.max_queue_size
+
     async def submit(
-        self, variant: DeviceVariant, config_content: str, firmware_version: str | None = None
+        self,
+        variant: DeviceVariant,
+        config_content: str,
+        firmware_version: str | None = None,
+        fleet_run_id: int | None = None,
     ) -> BuildContext:
         """Return a new build of `firmware_version`, after it is put in the build queue.
 
         When `firmware_version` is None, the build uses the newest installed stable firmware version.
+        A build of a fleet run counts toward `max_queue_size` the same as a single build.
 
         Raises:
         - `FirmwareVersionNotInstalled` when `firmware_version` has no ready firmware source.
@@ -301,13 +314,13 @@ class BuildQueue:
             raise FirmwareVersionNotInstalled(firmware_version)
         self._forget_old_builds()
         if source is not None and self.settings.cache_enabled and not build_cache.holds_secret(config_content):
-            cached = await self._cached_build(variant, config_content, source[0])
+            cached = await self._cached_build(variant, config_content, source[0], fleet_run_id)
             if cached is not None:
                 return cached
-        if self._queue.full():
+        if self.is_full():
             raise BuildQueueFull
         # A removal refuses a firmware version that a queued build uses, so the build holds its version from submit.
-        ctx = self._new_build(variant, config_content, source[0] if source else None)
+        ctx = self._new_build(variant, config_content, source[0] if source else None, fleet_run_id)
         self._builds[ctx.build_id] = ctx
         self._record(ctx)
         if source is not None:
@@ -316,7 +329,9 @@ class BuildQueue:
             ctx.set_status("failed", error=FIRMWARE_SOURCE_MISSING)
         return ctx
 
-    def _new_build(self, variant: DeviceVariant, config_content: str, firmware_version: str | None) -> BuildContext:
+    def _new_build(
+        self, variant: DeviceVariant, config_content: str, firmware_version: str | None, fleet_run_id: int | None
+    ) -> BuildContext:
         return BuildContext(
             generate_build_id(),
             variant,
@@ -324,10 +339,11 @@ class BuildQueue:
             self.settings,
             firmware_version=firmware_version,
             on_change=self._record,
+            fleet_run_id=fleet_run_id,
         )
 
     async def _cached_build(
-        self, variant: DeviceVariant, config_content: str, firmware_version: str
+        self, variant: DeviceVariant, config_content: str, firmware_version: str, fleet_run_id: int | None
     ) -> BuildContext | None:
         """Return a `complete` build with the artifacts of the cache entry of the config, or None on a cache miss.
 
@@ -337,7 +353,7 @@ class BuildQueue:
         entry_dir = await build_cache.find_entry(self.settings, key)
         if entry_dir is None:
             return None
-        ctx = self._new_build(variant, config_content, firmware_version)
+        ctx = self._new_build(variant, config_content, firmware_version, fleet_run_id)
         try:
             await asyncio.to_thread(_collect_artifacts, ctx, entry_dir)
         except OSError as e:

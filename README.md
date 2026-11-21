@@ -122,6 +122,7 @@ MTFWBuilder/
 │   │   ├── firmware.py             # /api/v1/firmware, installed and upstream firmware versions
 │   │   ├── variants.py             # /api/v1/variants, registry of a firmware version, device images
 │   │   ├── profiles.py             # /api/v1/profiles, saved configs, with encrypted secrets on opt-in
+│   │   ├── fleets.py               # /api/v1/fleets and /api/v1/fleet-runs, fleets and fleet runs
 │   │   ├── admin.py                # Login, firmware updates, cleanup
 │   │   ├── channel_share.py        # /api/v1/import/channel-url, import/cli-yaml, export/channel-url
 │   │   └── pages.py                # HTML page routes
@@ -133,6 +134,8 @@ MTFWBuilder/
 │       ├── firmware_catalog.py     # Upstream stable and alpha firmware versions
 │       ├── channel_share.py        # Channel URL decoder and encoder, CLI export YAML reader
 │       ├── profiles.py             # Profile records, secret removal on save
+│       ├── fleets.py               # Fleet records, fleet device rows, CSV import
+│       ├── fleet_runs.py           # One build per fleet device, Retry failed, the zip of a fleet run
 │       └── cleanup_service.py      # Build artifact and PSK cleanup
 ├── templates/                      # Jinja2 templates (htmx planned)
 ├── static/                         # CSS, JS
@@ -238,6 +241,48 @@ Key endpoints:
 - `DELETE /api/v1/profiles/{id}` — Delete the profile. Returns 204.
 - `GET /api/v1/profiles/{id}/export` — The profile as a JSON file with `name`, `config` and
   `must_reenter`, without secrets.
+- `GET /api/v1/fleets` — Every fleet in the order of creation, with its fleet devices, without admin keys.
+- `POST /api/v1/fleets` — Create a fleet from a profile with `{"name": ..., "profile_id": ...,
+  "firmware_version": null, "devices": [...]}`. A null `firmware_version` selects the default firmware
+  version when a fleet run starts. Returns 201 with the fleet. Returns 422 when the profile does not exist or
+  the fleet holds more than `MTFW_MAX_FLEET_SIZE` devices (default 50).
+- `GET /api/v1/fleets/{id}` — The fleet. Only an admin session gets the admin key of each fleet device.
+  `has_admin_key` tells if a fleet device has one.
+- `PUT /api/v1/fleets/{id}` — Change the `name`, the `profile_id`, the `firmware_version` or the `devices`
+  of the fleet. Returns the errors of `POST /api/v1/fleets`.
+- `DELETE /api/v1/fleets/{id}` — Delete the fleet with its fleet devices and fleet runs. Returns 204.
+- `PUT /api/v1/fleets/{id}/devices` — Replace every fleet device with `{"devices": [{...}, ...]}`, the rows
+  of the fleet device table. A row without an `admin_key` keeps the saved admin key of its label.
+- `POST /api/v1/fleets/{id}/devices/csv` — Add a fleet device for each line of `{"csv": "<text>"}` after
+  the header `label,variant,long_name,short_name,role,lat,lon,alt,admin_key`. The rows go after the saved
+  fleet devices.
+
+The two fleet device routes return 404 for an unknown fleet. Each returns 422 with every row error and
+then saves no row. A row error has `row`, `field` and `msg`. Row 1 is the first fleet device: the first
+table row, or the line after the CSV header. A duplicate label, a variant that is not in the firmware
+version of the fleet, and a router role are row errors. The page `/fleets/{id}` is the fleet editor.
+
+A save of the fleet devices keeps the id of each fleet device with a saved label. A fleet run then still
+finds the fleet device for Retry failed.
+
+- `POST /api/v1/fleets/{id}/runs` — Start a fleet run that makes one build per fleet device. The body
+  `{"secrets": {"<name>": "<value>"}}` holds each "must re-enter" secret of the profile once, for example
+  `channel_0[psk]`. The process holds the secrets in memory for the fleet run only. Returns 202 with
+  `{run_id, progress_url}`. Returns 422 before a build starts when a secret is missing, a fleet device is
+  not valid, the firmware version is not installed or the fleet holds no fleet device.
+- `GET /api/v1/fleet-runs/{id}` — The fleet run with `status` (`running`, `complete`, `partial` or
+  `failed`) and one entry per fleet device: `label`, `variant`, `build_id`, its build status and `error`.
+- `POST /api/v1/fleet-runs/{id}/retry` — Retry failed: a new build for each fleet device without a complete
+  build. Takes the body of a fleet run start. Returns 202, 409 while the fleet run runs or when it has no
+  failed fleet device, and 422 for a missing secret. After a restart, the body must give the secrets again.
+- `GET /api/v1/fleet-runs/{id}/download` — Download all: one zip with a folder per fleet device label and
+  `manifest.csv`. A folder holds the artifacts of a complete build. `manifest.csv` has one row per fleet
+  device with `label`, `folder`, `variant`, `firmware_version`, `build_id`, `status`, `artifact_names` and
+  `config_hash`, and no secret. Returns 409 while the fleet run runs.
+
+The fleet run routes return 404 for an unknown fleet or fleet run. Without an admin session, a fleet run
+asks for each stored secret of the profile too. The page `/fleets` lists the fleets and creates a fleet.
+The page `/fleet-runs/{id}` shows the build status of each fleet device, and it updates each second.
 
 Each operator of the instance uses each profile. The profile routes need no admin session, except to
 store, load or remove the stored secrets.

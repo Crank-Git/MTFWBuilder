@@ -7,6 +7,7 @@ the build service parses, and one `-D` flag per userPrefs key, as upstream does.
 
 Environment variables:
 - `FAKE_PIO_FAIL=1` makes the build fail with exit code 1 and no artifacts.
+- `FAKE_PIO_FAIL_MATCH=<text>` makes the build fail the same way when its userPrefs file holds the text.
 - `FAKE_PIO_SLEEP=<seconds>` holds the build after the first compile line.
 - `FAKE_PIO_PKG_FAIL=1` makes `pio pkg install` fail with exit code 1.
 - `FAKE_PIO_PKG_SLEEP=<seconds>` holds `pio pkg install` before it writes its marker file.
@@ -71,6 +72,13 @@ def userprefs_flags(firmware_dir: Path) -> list[str]:
         )
         flags.append(f"-D{key}={value}" if bare else f'-D{key}="{value}"')
     return flags
+
+
+def _userprefs_match(firmware_dir: Path) -> bool:
+    # A fleet run builds one config per fleet device, so a test fails one fleet device by a text of its config.
+    match = os.environ.get("FAKE_PIO_FAIL_MATCH")
+    prefs_path = firmware_dir / "userPrefs.jsonc"
+    return bool(match) and prefs_path.exists() and match in prefs_path.read_text()
 
 
 def fail(build_dir: str, start: float) -> int:
@@ -139,7 +147,7 @@ def main() -> int:
         out(flag)
     out(f"Compiling {build_dir}/src/main.cpp.o")
     time.sleep(float(os.environ.get("FAKE_PIO_SLEEP", "0")))
-    if os.environ.get("FAKE_PIO_FAIL") == "1":
+    if os.environ.get("FAKE_PIO_FAIL") == "1" or _userprefs_match(firmware_dir):
         return fail(build_dir, start)
 
     out(f"Linking {build_dir}/{progname}.elf")

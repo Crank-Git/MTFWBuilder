@@ -23,6 +23,7 @@ from mtfwbuilder.routers.channel_share import router as channel_share_router
 from mtfwbuilder.routers.config_generator import router as config_router
 from mtfwbuilder.routers.firmware import router as firmware_versions_router
 from mtfwbuilder.routers.firmware_builder import router as firmware_router
+from mtfwbuilder.routers.fleets import router as fleets_router
 from mtfwbuilder.routers.pages import router as pages_router
 from mtfwbuilder.routers.profiles import router as profiles_router
 from mtfwbuilder.routers.variants import router as variants_router
@@ -35,6 +36,7 @@ from mtfwbuilder.services.firmware_updater import (
     remove_install_staging,
     remove_unrecorded_sources,
 )
+from mtfwbuilder.services.fleet_runs import FleetRuns
 
 
 def setup_logging(log_level: str, log_json: bool) -> None:
@@ -93,6 +95,7 @@ async def lifespan(app: FastAPI):
     build_queue = BuildQueue(settings)
     build_queue.start()
     app.state.build_queue = build_queue
+    app.state.fleet_runs = FleetRuns(settings, build_queue)
     app.state.firmware_catalog = catalog
     app.state.firmware_installs = FirmwareInstalls(settings, build_queue, resolver=catalog.resolve)
     logger.info("Build queue started")
@@ -103,6 +106,8 @@ async def lifespan(app: FastAPI):
 
     cleanup_task.cancel()
     await asyncio.gather(cleanup_task, return_exceptions=True)
+    # A fleet run that waits for a build must stop before the build queue cancels that build.
+    await app.state.fleet_runs.stop()
     await build_queue.stop()
     logger.info("Shutting down MTFWBuilder")
 
@@ -134,6 +139,7 @@ def create_app() -> FastAPI:
     app.include_router(firmware_versions_router)
     app.include_router(variants_router)
     app.include_router(profiles_router)
+    app.include_router(fleets_router)
     app.include_router(admin_router)
     app.include_router(channel_share_router)
     app.include_router(pages_router)

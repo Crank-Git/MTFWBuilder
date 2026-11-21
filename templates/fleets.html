@@ -1,0 +1,59 @@
+{% extends "includes/base.html" %}
+
+{% block content %}
+<div class="config-section">
+    <h3 class="section-title"><i class="bi bi-diagram-3-fill text-success"></i>Fleets</h3>
+    <p class="text-muted">A fleet is a group of devices that share one profile. Open a fleet to add its fleet devices.</p>
+    {% if not fleets %}
+    <p class="text-muted mb-0" id="fleet-empty">No fleets yet.</p>
+    {% else %}
+    <ul class="list-group" id="fleet-list">
+        {% for fleet in fleets %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+            <a href="/fleets/{{ fleet.id }}" class="fw-semibold">{{ fleet.name }}</a>
+            <span class="small text-muted">{{ fleet.devices | length }} fleet devices</span>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+</div>
+
+<div class="config-section" id="create-fleet">
+    <h3 class="section-title"><i class="bi bi-plus-circle-fill text-success"></i>Create a fleet</h3>
+    {% if not profiles %}
+    <p class="text-muted mb-0">A fleet needs a profile. Save a profile on the build page first.</p>
+    {% else %}
+    <form id="create-fleet-form">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label" for="fleetName">Name</label>
+                <input type="text" class="form-control" id="fleetName" name="name" required maxlength="100">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label" for="fleetProfile">Profile</label>
+                <select class="form-select" id="fleetProfile" name="profile_id" required>
+                    {% for profile in profiles %}
+                    <option value="{{ profile.id }}">{{ profile.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label" for="fleetFirmwareVersion">Firmware version</label>
+                <select class="form-select" id="fleetFirmwareVersion" name="firmware_version">
+                    <option value="">The default firmware version</option>
+                    {% for source in firmware_sources %}
+                    <option value="{{ source.version }}">{{ source.version }} ({{ source.channel }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <ul id="create-fleet-errors" class="text-danger small mt-2 mb-0" role="alert"></ul>
+        <button type="submit" class="btn btn-success mt-2" id="createFleetBtn">Create fleet</button>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='js/fleets.js') }}"></script>
+{% endblock %}

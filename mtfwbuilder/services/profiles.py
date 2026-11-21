@@ -72,8 +72,11 @@ def split_secrets(config: ConfigRequest) -> tuple[dict[str, Any], dict[str, Any]
     return {name: value for name, value in fields.items() if name not in secrets}, secrets
 
 
-def _fernet(secret_key: str) -> Fernet:
-    """Return the Fernet cipher with the key that HKDF-SHA256 derives from `secret_key`."""
+def fernet(secret_key: str) -> Fernet:
+    """Return the Fernet cipher with the key that HKDF-SHA256 derives from `secret_key` (ADR 0007).
+
+    The fleet service also encrypts the admin key of a fleet device with this cipher.
+    """
     # `secret_key` is random text of high entropy, so HKDF needs no salt to give a uniform key.
     key = HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=_KEY_CONTEXT).derive(secret_key.encode())
     return Fernet(base64.urlsafe_b64encode(key))
@@ -86,7 +89,7 @@ def _profile(row: aiosqlite.Row, secret_key: str | None) -> dict[str, Any]:
     warning = None
     if secret_key is not None and record["secrets_ciphertext"]:
         try:
-            secrets = json.loads(_fernet(secret_key).decrypt(record["secrets_ciphertext"]))
+            secrets = json.loads(fernet(secret_key).decrypt(record["secrets_ciphertext"]))
         except InvalidToken:
             logger.warning("The stored secrets of profile %s do not decrypt with the current secret_key", record["id"])
             warning = UNREADABLE_SECRETS
@@ -113,7 +116,7 @@ def _columns(config: ConfigRequest, stores_secrets: bool, secret_key: str) -> di
         "must_reenter_json": json.dumps(sorted(secrets)),
         "stores_secrets": int(stores_secrets),
         "secrets_ciphertext": (
-            _fernet(secret_key).encrypt(json.dumps(secrets).encode()).decode("ascii") if stores_secrets else None
+            fernet(secret_key).encrypt(json.dumps(secrets).encode()).decode("ascii") if stores_secrets else None
         ),
     }
 

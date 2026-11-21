@@ -58,13 +58,14 @@ fleet runs).
 - FR-fleet-builds-13 — The project validates each fleet device. It shows every error
   with the row number before a fleet run starts.
 - FR-fleet-builds-14 — A fleet holds at most `MTFW_MAX_FLEET_SIZE` devices (default 50).
-- FR-fleet-builds-15 — A fleet run makes one build per fleet device. The build queue
-  limit of feature 06 does not count fleet run builds; the fleet run feeds them one at a
-  time.
+- FR-fleet-builds-15 — A fleet run makes one build per fleet device. The fleet run
+  feeds the builds to the build queue one at a time. Each build counts toward the build
+  queue limit of feature 06.
 - FR-fleet-builds-16 — The fleet run page shows one row per fleet device with its build
   status.
 - FR-fleet-builds-17 — A failed fleet device build does not stop the fleet run. The
-  fleet run ends `partial`.
+  fleet run ends `partial` when a fleet device has a complete build. The fleet run ends
+  `failed` when no fleet device has a complete build.
 - FR-fleet-builds-18 — "Retry failed" queues the failed fleet devices again.
 - FR-fleet-builds-19 — "Download all" returns one zip with a folder per fleet device
   label.
@@ -108,8 +109,12 @@ Mockup: [07-fleet](../mockups/07-fleet.html).
 | Screen | States |
 |---|---|
 | Profiles list | Empty ("No profiles yet. Save one from the build page."), populated, delete confirm. |
-| Fleet editor | Empty table, populated, CSV paste dialog, row errors. |
+| Fleet editor | Empty table, populated, CSV paste dialog, row errors, "Clear admin key" on a row with a saved admin key, CSV file that is not UTF-8. |
 | Fleet run | Queued, running (rows update live), complete, partial, failed. |
+
+The fleet editor does not list the past fleet runs of a fleet. The fleet run URL holds
+the fleet run id, and no page links to it after the fleet run page closes. The operator
+keeps the fleet run URL, the same as the URL of a single build.
 
 ## Behaviour rules
 
@@ -118,9 +123,32 @@ Mockup: [07-fleet](../mockups/07-fleet.html).
   `USERPREFS_FIXED_GPS*`, `USERPREFS_USE_ADMIN_KEY_0`.
 - A fleet run with a profile that has "must re-enter" secrets asks for them once, for
   the whole fleet run. The project holds them in memory for that fleet run only.
+- The project drops the held secrets of a fleet run in these cases:
+  - the fleet run ends `complete`.
+  - the fleet run stops because of an internal error.
+  - `build_max_age_seconds` passes after the fleet run ends.
+  - the operator deletes the fleet.
+- Retry failed uses the held secrets. A secret that the operator enters again replaces
+  the held secret.
+- Retry failed uses the profile of the fleet run, also after the fleet gets another
+  profile.
+- A fleet run of an admin session uses the stored secrets of the profile, so it needs the
+  CSRF token.
+- A fleet device id stays the same after a save. The fleet editor sends the id of each
+  saved row, so a renamed label keeps its fleet device. A row without the id of a saved
+  fleet device of the fleet gets the saved fleet device with the same label.
+- A label is unique in a fleet and holds at most 64 characters.
+- A fleet device position needs both `lat` and `lon`. One coordinate alone is a row
+  error.
+- When the profile has GPS off, a fleet device position writes only the
+  `USERPREFS_FIXED_GPS*` keys. The other GPS keys of the profile stay out.
+- A `manifest.csv` cell that starts with `=`, `+`, `-`, `@`, a tab or a carriage return
+  gets a `'` before it, so a spreadsheet does not run it as a formula.
+- A zip folder name is unique without regard to case. It has no trailing dot. A Windows
+  reserved name, for example `CON`, gets a `_` before it.
 - The per-device role accepts only the roles of FR-config-coverage-4. A row with
-  `ROUTER`, `ROUTER_LATE` or `LOST_AND_FOUND` is a row error: "Router roles cannot be a
-  factory default. Use Push config after flashing." The firmware would replace them
+  `ROUTER`, `ROUTER_LATE` or `LOST_AND_FOUND` is a row error: "Router roles cannot be set
+  as a factory default. Use Push config after flashing." The firmware would replace them
   with `CLIENT`.
 - Short name: at most 4 characters. Long name: at most 25 bytes (firmware 2.8 limit).
 - Lat −90 to 90, lon −180 to 180, alt −1000 to 10000 m.
@@ -138,18 +166,29 @@ New tables (see spec `Data model`): `profiles` (replaces the unused `config_prof
 | GET/POST | `/api/v1/profiles` | list / 201 |
 | GET/PUT/DELETE | `/api/v1/profiles/{id}` | profile / 200 / 204 |
 | GET/POST | `/api/v1/fleets` | list / 201 |
-| PUT | `/api/v1/fleets/{id}/devices` | 200; 422 with row errors |
-| POST | `/api/v1/fleets/{id}/runs` | 202 `{run_id, progress_url}` |
-| GET | `/api/v1/fleet-runs/{id}` | status per fleet device |
-| POST | `/api/v1/fleet-runs/{id}/retry` | 202 |
-| GET | `/api/v1/fleet-runs/{id}/download` | zip |
+| GET/PUT/DELETE | `/api/v1/fleets/{id}` | fleet / 200 / 204; 422 above `MTFW_MAX_FLEET_SIZE` devices |
+| PUT | `/api/v1/fleets/{id}/devices` | 200 with no admin key; 422 with row errors |
+| POST | `/api/v1/fleets/{id}/devices/csv` | 200 with no admin key; 422 with row errors, or one error above `MTFW_MAX_FLEET_SIZE` rows or 65536 characters |
+| DELETE | `/api/v1/fleets/{id}` | 204; 409 while a fleet run of the fleet runs |
+| POST | `/api/v1/fleets/{id}/runs` | 202 `{run_id, progress_url}` with the fleet run id; 403 for an admin session without the CSRF token; 409 while a fleet run of the fleet runs; 429 above the build rate limit; 503 when the build queue is full |
+| GET | `/api/v1/fleet-runs/{id}` | status per fleet device; 404 for a row id |
+| POST | `/api/v1/fleet-runs/{id}/retry` | 202; 409 while a fleet run of the fleet runs or with no failed fleet device; 403, 429 and 503 as for a start |
+| GET | `/api/v1/fleet-runs/{id}/download` | zip; 409 while the fleet run runs |
+| GET | `/fleets` | Fleets page |
+| GET | `/fleets/{id}` | Fleet editor page |
+| GET | `/fleet-runs/{id}` | Fleet run page; an htmx request gets the state only |
+
+In each `/fleet-runs/{id}` path, `{id}` is the fleet run id.
 
 ## Edge cases & failures
 
 - Two fleet devices with the same label: a row error.
 - A variant that is not in the chosen firmware version: a row error.
 - The server restarts during a fleet run: the fleet run shows `partial`, and Retry
-  failed continues it.
+  failed continues it. If every fleet device has a complete build, the fleet run shows
+  `complete`.
+- Single builds fill the build queue during a fleet run: the next build of the fleet run
+  waits until the build queue has space.
 
 ## Acceptance criteria
 

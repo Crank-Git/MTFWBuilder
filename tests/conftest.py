@@ -17,6 +17,7 @@ from mtfwbuilder.rate_limit import configure_rate_limits, limiter
 from mtfwbuilder.services.build_service import BuildQueue, DeviceVariant
 from mtfwbuilder.services.firmware_catalog import FirmwareCatalog
 from mtfwbuilder.services.firmware_updater import FirmwareInstalls
+from mtfwbuilder.services.fleet_runs import FleetRuns
 from mtfwbuilder.services.registry_generator import registry_entries
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -122,6 +123,7 @@ def app(settings):
     app.state.settings = settings
     configure_rate_limits(settings)
     app.state.build_queue = BuildQueue(settings)
+    app.state.fleet_runs = FleetRuns(settings, app.state.build_queue)
     app.state.firmware_catalog = FirmwareCatalog()
     app.state.firmware_installs = FirmwareInstalls(
         settings, app.state.build_queue, resolver=app.state.firmware_catalog.resolve
