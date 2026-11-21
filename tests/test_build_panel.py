@@ -234,9 +234,10 @@ async def test_build_update_returns_json_without_htmx(app, client, firmware_sour
 
 
 async def test_build_update_of_an_unknown_build_returns_404(client):
-    resp = await client.get(f"/api/v1/builds/{'0' * 32}", headers=HX)
+    resp = await client.get(f"/api/v1/builds/{'0' * 32}")
 
     assert resp.status_code == 404
+    assert resp.json() == {"detail": "Build not found"}
 
 
 # FR-frontend-htmx-9
