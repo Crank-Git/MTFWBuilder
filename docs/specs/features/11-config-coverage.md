@@ -2,8 +2,8 @@
 id: config-coverage
 feature: Config coverage
 epic: "Epic 7: Config coverage"
-status: planned
-issues: []
+status: issued
+issues: [44, 45, 46, 47, 48, 49, 50]
 mockups: [mockups/04-config-form.html]
 ---
 

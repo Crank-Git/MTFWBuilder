@@ -2,8 +2,8 @@
 id: firmware-versions
 feature: Firmware versions
 epic: "Epic 5: Firmware versions"
-status: planned
-issues: []
+status: issued
+issues: [33, 34, 35, 36, 37, 38]
 mockups: [mockups/02-firmware-sources.html]
 ---
 

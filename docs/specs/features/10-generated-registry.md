@@ -2,8 +2,8 @@
 id: generated-registry
 feature: Generated registry
 epic: "Epic 6: Generated registry"
-status: planned
-issues: []
+status: issued
+issues: [39, 40, 41, 42, 43]
 mockups: [mockups/03-device-picker.html]
 ---
 

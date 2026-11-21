@@ -474,6 +474,220 @@ Planned: a test fixture holds a small firmware source subset (a few variant
 
 **Open questions:** none block approval.
 
+## Issue map
+
+Written by `/spec-to-issues` on 2026-11-21.
+
+| Epic | Epic issue | Sub-issues |
+|---|---|---|
+| 0 Foundation | #4 | #5, #6, #7, #8, #9 |
+| 1 Correct userPrefs | #10 | #11, #12, #13, #14, #15 |
+| 2 Build pipeline repair | #16 | #17, #18, #19, #20, #21 |
+| 3 Frontend on htmx | #22 | #23, #24, #25, #26, #27 |
+| 4 Platform modernization | #28 | #29, #30, #31, #32 |
+| 5 Firmware versions | #33 | #34, #35, #36, #37, #38 |
+| 6 Generated registry | #39 | #40, #41, #42, #43 |
+| 7 Config coverage | #44 | #45, #46, #47, #48, #49, #50 |
+| 8 Channel share | #51 | #52, #53, #54, #55 |
+| 9 Browser flashing | #56 | #57, #58, #59 |
+| 10 Profiles and build cache | #60 | #61, #62, #63, #64 |
+| 11 Fleet runs | #65 | #66, #67, #68, #69 |
+| 12 Push config | #70 | #71, #72, #73, #74 |
+
+| Requirement | Issues |
+|---|---|
+| FR-foundation-1 | #5 |
+| FR-foundation-2 | #5 |
+| FR-foundation-3 | #5 |
+| FR-foundation-8 | #5 |
+| FR-foundation-4 | #6 |
+| FR-foundation-5 | #6 |
+| FR-foundation-6 | #7 |
+| FR-foundation-7 | #7 |
+| FR-foundation-9 | #8 |
+| FR-foundation-10 | #8 |
+| FR-foundation-11 | #9 |
+| FR-foundation-12 | #9 |
+| FR-foundation-13 | #9 |
+| FR-foundation-14 | #9 |
+| FR-userprefs-correctness-16 | #11 |
+| FR-userprefs-correctness-11 | #11 |
+| FR-userprefs-correctness-12 | #11 |
+| FR-userprefs-correctness-14 | #11 |
+| FR-userprefs-correctness-1 | #12 |
+| FR-userprefs-correctness-2 | #12 |
+| FR-userprefs-correctness-4 | #12 |
+| FR-userprefs-correctness-5 | #12 |
+| FR-userprefs-correctness-6 | #12 |
+| FR-userprefs-correctness-7 | #12 |
+| FR-userprefs-correctness-8 | #12 |
+| FR-userprefs-correctness-3 | #13 |
+| FR-userprefs-correctness-9 | #13 |
+| FR-userprefs-correctness-13 | #13 |
+| FR-userprefs-correctness-10 | #14 |
+| FR-userprefs-correctness-15 | #15 |
+| FR-build-pipeline-repair-19 | #17 |
+| FR-build-pipeline-repair-20 | #17 |
+| FR-build-pipeline-repair-21 | #17 |
+| FR-build-pipeline-repair-1 | #18 |
+| FR-build-pipeline-repair-2 | #18 |
+| FR-build-pipeline-repair-3 | #18 |
+| FR-build-pipeline-repair-4 | #18 |
+| FR-build-pipeline-repair-5 | #18 |
+| FR-build-pipeline-repair-6 | #18 |
+| FR-build-pipeline-repair-7 | #18 |
+| FR-build-pipeline-repair-9 | #18 |
+| FR-build-pipeline-repair-8 | #19 |
+| FR-build-pipeline-repair-17 | #19 |
+| FR-build-pipeline-repair-18 | #19 |
+| FR-build-pipeline-repair-10 | #20 |
+| FR-build-pipeline-repair-11 | #20 |
+| FR-build-pipeline-repair-12 | #20 |
+| FR-build-pipeline-repair-13 | #20 |
+| FR-build-pipeline-repair-14 | #21 |
+| FR-build-pipeline-repair-15 | #21 |
+| FR-build-pipeline-repair-16 | #21 |
+| FR-frontend-htmx-15 | #23 |
+| FR-frontend-htmx-16 | #23 |
+| FR-frontend-htmx-17 | #23 |
+| FR-frontend-htmx-19 | #23 |
+| FR-frontend-htmx-1 | #24 |
+| FR-frontend-htmx-2 | #24 |
+| FR-frontend-htmx-3 | #24 |
+| FR-frontend-htmx-4 | #24 |
+| FR-frontend-htmx-5 | #24 |
+| FR-frontend-htmx-6 | #24 |
+| FR-frontend-htmx-18 | #24 |
+| FR-frontend-htmx-7 | #25 |
+| FR-frontend-htmx-8 | #25 |
+| FR-frontend-htmx-9 | #25 |
+| FR-frontend-htmx-10 | #25 |
+| FR-frontend-htmx-20 | #25 |
+| FR-frontend-htmx-11 | #26 |
+| FR-frontend-htmx-12 | #26 |
+| FR-frontend-htmx-13 | #26 |
+| FR-frontend-htmx-14 | #26 |
+| FR-platform-modernization-1 | #29 |
+| FR-platform-modernization-2 | #29 |
+| FR-platform-modernization-3 | #29 |
+| FR-platform-modernization-4 | #30 |
+| FR-platform-modernization-5 | #30 |
+| FR-platform-modernization-6 | #30 |
+| FR-platform-modernization-7 | #30 |
+| FR-platform-modernization-8 | #30 |
+| FR-platform-modernization-9 | #31 |
+| FR-platform-modernization-10 | #31 |
+| FR-platform-modernization-11 | #31 |
+| FR-platform-modernization-12 | #31 |
+| FR-platform-modernization-13 | #31 |
+| FR-platform-modernization-14 | #32 |
+| FR-platform-modernization-15 | #32 |
+| FR-firmware-versions-4 | #34 |
+| FR-firmware-versions-9 | #34 |
+| FR-firmware-versions-1 | #35 |
+| FR-firmware-versions-2 | #35 |
+| FR-firmware-versions-3 | #36 |
+| FR-firmware-versions-5 | #36 |
+| FR-firmware-versions-6 | #36 |
+| FR-firmware-versions-7 | #36 |
+| FR-firmware-versions-8 | #36 |
+| FR-firmware-versions-10 | #37 |
+| FR-firmware-versions-11 | #37 |
+| FR-firmware-versions-12 | #37 |
+| FR-firmware-versions-13 | #38 |
+| FR-generated-registry-1 | #40 |
+| FR-generated-registry-2 | #40 |
+| FR-generated-registry-3 | #40 |
+| FR-generated-registry-4 | #40 |
+| FR-generated-registry-5 | #40 |
+| FR-generated-registry-6 | #40 |
+| FR-generated-registry-7 | #40 |
+| FR-generated-registry-14 | #40 |
+| FR-generated-registry-13 | #41 |
+| FR-generated-registry-15 | #41 |
+| FR-generated-registry-8 | #42 |
+| FR-generated-registry-9 | #42 |
+| FR-generated-registry-10 | #42 |
+| FR-generated-registry-11 | #42 |
+| FR-generated-registry-12 | #42 |
+| FR-generated-registry-16 | #43 |
+| FR-config-coverage-1 | #45 |
+| FR-config-coverage-2 | #45 |
+| FR-config-coverage-3 | #45 |
+| FR-config-coverage-4 | #45 |
+| FR-config-coverage-4a | #45 |
+| FR-config-coverage-16 | #46 |
+| FR-config-coverage-5 | #47 |
+| FR-config-coverage-6 | #47 |
+| FR-config-coverage-7 | #47 |
+| FR-config-coverage-10 | #47 |
+| FR-config-coverage-8 | #48 |
+| FR-config-coverage-9 | #48 |
+| FR-config-coverage-11 | #48 |
+| FR-config-coverage-12 | #48 |
+| FR-config-coverage-14 | #48 |
+| FR-config-coverage-13 | #49 |
+| FR-config-coverage-15 | #50 |
+| FR-config-coverage-17 | #50 |
+| FR-config-coverage-18 | #50 |
+| FR-channel-share-1 | #52 |
+| FR-channel-share-2 | #52 |
+| FR-channel-share-3 | #52 |
+| FR-channel-share-12 | #52 |
+| FR-channel-share-4 | #53 |
+| FR-channel-share-5 | #53 |
+| FR-channel-share-6 | #53 |
+| FR-channel-share-11 | #53 |
+| FR-channel-share-9 | #54 |
+| FR-channel-share-10 | #54 |
+| FR-channel-share-7 | #55 |
+| FR-channel-share-8 | #55 |
+| FR-browser-flashing-1 | #57 |
+| FR-browser-flashing-2 | #57 |
+| FR-browser-flashing-11 | #57 |
+| FR-browser-flashing-12 | #57 |
+| FR-browser-flashing-13 | #57 |
+| FR-browser-flashing-3 | #58 |
+| FR-browser-flashing-4 | #58 |
+| FR-browser-flashing-5 | #58 |
+| FR-browser-flashing-6 | #58 |
+| FR-browser-flashing-7 | #58 |
+| FR-browser-flashing-8 | #58 |
+| FR-browser-flashing-9 | #58 |
+| FR-browser-flashing-10 | #59 |
+| FR-fleet-builds-1 | #61, #63 |
+| FR-fleet-builds-2 | #61 |
+| FR-fleet-builds-4 | #61, #63 |
+| FR-fleet-builds-3 | #62 |
+| FR-fleet-builds-5 | #64 |
+| FR-fleet-builds-6 | #64 |
+| FR-fleet-builds-7 | #64 |
+| FR-fleet-builds-8 | #64 |
+| FR-fleet-builds-9 | #64 |
+| FR-fleet-builds-10 | #66 |
+| FR-fleet-builds-11 | #66 |
+| FR-fleet-builds-14 | #66 |
+| FR-fleet-builds-12 | #67 |
+| FR-fleet-builds-13 | #67 |
+| FR-fleet-builds-15 | #68 |
+| FR-fleet-builds-17 | #68 |
+| FR-fleet-builds-18 | #68 |
+| FR-fleet-builds-16 | #69 |
+| FR-fleet-builds-19 | #69 |
+| FR-fleet-builds-20 | #69 |
+| FR-push-config-1 | #71 |
+| FR-push-config-2 | #72 |
+| FR-push-config-3 | #72 |
+| FR-push-config-11 | #72 |
+| FR-push-config-4 | #73 |
+| FR-push-config-5 | #73 |
+| FR-push-config-6 | #73 |
+| FR-push-config-7 | #74 |
+| FR-push-config-8 | #74 |
+| FR-push-config-9 | #74 |
+| FR-push-config-10 | #74 |
+| FR-push-config-12 | #74 |
+
 ## Changelog
 
 - 2026-11-21 — Draft written by `/project-inherit` from a full repository survey, two
@@ -482,3 +696,4 @@ Planned: a test fixture holds a small firmware source subset (a few variant
   key name (`USERPREFS_USE_ADMIN_KEY_<n>` holds the key), router roles rejected as
   factory defaults, an interim registry id fix in Epic 2, and the `.gitignore`
   `firmware/` pattern.
+- 2026-11-21 — `/spec-to-issues`: 13 epics (#4–#70) and 58 sub-issues created. See `## Issue map`.
