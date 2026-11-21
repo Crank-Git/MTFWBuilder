@@ -187,6 +187,7 @@ def no_github(monkeypatch):
 
 
 @pytest.mark.usefixtures("no_github")
+@pytest.mark.usefixtures("fake_pio")
 async def test_startup_imports_an_old_firmware_source_from_base_dir_into_a_tag_directory_of_the_data_dir(dirs):
     base_dir, data_dir = dirs
     _old_firmware_with_secrets(base_dir / "firmware")

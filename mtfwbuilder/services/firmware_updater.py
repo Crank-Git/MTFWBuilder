@@ -28,6 +28,7 @@ from mtfwbuilder.database import (
 )
 from mtfwbuilder.models import InstallStatus
 from mtfwbuilder.services.build_service import BuildQueue
+from mtfwbuilder.services.registry_generator import RegistryFailed, generate_registry
 
 logger = logging.getLogger("mtfwbuilder.firmware_updater")
 
@@ -217,7 +218,9 @@ class FirmwareInstalls:
 
     async def _removable(self, version: str) -> dict:
         database_path = self.settings.database_path
-        record = await find_firmware_source(database_path, version)
+        # A firmware source with the status `registry failed` is not ready, and the admin removes it to reinstall it.
+        records = await list_firmware_sources(database_path)
+        record = next((record for record in records if record["version"] == version), None)
         if record is None:
             raise KeyError(version)
         default = await find_firmware_source(database_path)
@@ -239,6 +242,7 @@ class FirmwareInstalls:
         source_dir = firmware_dir / install.version
         staging = None
         moved = False
+        recorded = False
         try:
             firmware_dir.mkdir(parents=True, exist_ok=True)
             # The staging directory is in `firmware_dir`, so the move into `<tag>/` is one rename on one file system.
@@ -250,14 +254,19 @@ class FirmwareInstalls:
             zip_path.unlink()
             install.set_status("installing packages")
             await self._pio_pkg_install(tree)
+            registry, registry_error = await asyncio.to_thread(_generate_registry, tree, install.version)
             # A build reads the firmware source under this lock, so it never sees a half-written record.
             async with self.build_queue.firmware_lock.exclusive():
                 if source_dir.exists():
                     raise InstallFailed(f"{source_dir} exists")
                 tree.rename(source_dir)
                 moved = True
-                record = await asyncio.to_thread(_source_record, source_dir, install.channel, datetime.now(UTC))
-                await asyncio.to_thread(record_firmware_source, self.settings.database_path, record)
+                status = "ready" if registry_error is None else "registry failed"
+                record = await asyncio.to_thread(_source_record, source_dir, install.channel, datetime.now(UTC), status)
+                await asyncio.to_thread(record_firmware_source, self.settings.database_path, record, registry)
+                recorded = True
+            if registry_error is not None:
+                raise InstallFailed(f"The registry of {install.version} failed: {registry_error}")
             install.set_status("ready")
             logger.info(f"Installed firmware version {install.version} in {source_dir}")
         except (InstallFailed, OSError, zipfile.BadZipFile, requests.RequestException, sqlite3.Error) as e:
@@ -266,8 +275,8 @@ class FirmwareInstalls:
         finally:
             if staging is not None:
                 shutil.rmtree(staging, ignore_errors=True)
-            # Only a ready install has a record, so a directory without a record would never be used or removed.
-            if moved and install.status != "ready":
+            # A directory without a record would never be used or removed.
+            if moved and not recorded:
                 shutil.rmtree(source_dir, ignore_errors=True)
 
     async def _pio_pkg_install(self, tree: Path) -> None:
@@ -408,12 +417,23 @@ def import_old_firmware_source(settings: Settings, resolver: Callable[[str], str
     except ValueError:
         # `get_firmware_version` gives `Unknown` when the version file has no `Updated:` line.
         installed_at = datetime.now(UTC)
-    record_firmware_source(settings.database_path, _source_record(source_dir, channel, installed_at))
+    registry, registry_error = _generate_registry(source_dir, version)
+    status = "ready" if registry_error is None else "registry failed"
+    record_firmware_source(settings.database_path, _source_record(source_dir, channel, installed_at, status), registry)
     logger.info(f"Imported the old firmware source as {source_dir}")
     return version
 
 
-def _source_record(source_dir: Path, channel: str, installed_at: datetime) -> dict:
+def _generate_registry(source_dir: Path, version: str) -> tuple[list[dict], str | None]:
+    """Return the registry entries of `version` and None, or no entries and the error when the generation fails."""
+    try:
+        return generate_registry(source_dir), None
+    except RegistryFailed as e:
+        logger.error(f"The registry of {version} failed: {e}")
+        return [], str(e)
+
+
+def _source_record(source_dir: Path, channel: str, installed_at: datetime, status: str) -> dict:
     return {
         "version": source_dir.name,
         "channel": channel,
@@ -423,5 +443,5 @@ def _source_record(source_dir: Path, channel: str, installed_at: datetime) -> di
         "size_bytes": sum(
             os.lstat(os.path.join(root, name)).st_size for root, _dirs, files in os.walk(source_dir) for name in files
         ),
-        "status": "ready",
+        "status": status,
     }

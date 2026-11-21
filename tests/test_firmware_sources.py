@@ -18,6 +18,9 @@ ALPHA = "v2.8.2.d5f1619"
 OLD_STABLE = "v2.7.15.567b8ea"
 CONFIG = json.dumps({"owner_long_name": "TestNode"})
 
+# The startup import runs `pio project config`, so no test here reaches a real PlatformIO.
+pytestmark = pytest.mark.usefixtures("fake_pio")
+
 
 @pytest.fixture
 async def client(app):
