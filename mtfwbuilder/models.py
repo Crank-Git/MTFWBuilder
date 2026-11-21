@@ -1,6 +1,7 @@
 """Pydantic models for request/response validation."""
 
 import re
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
@@ -234,3 +235,13 @@ class FilePreviewResponse(BaseModel):
     checks: dict | None = None
     filename: str | None = None
     error: str | None = None
+
+
+class FirmwareSource(BaseModel):
+    """One installed firmware version, as `GET /api/v1/firmware` lists it."""
+
+    version: str
+    channel: Literal["stable", "alpha", "pinned"]
+    installed_at: datetime
+    size_bytes: int
+    status: str

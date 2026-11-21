@@ -24,13 +24,6 @@ ENDED = {"complete", "failed", "cancelled"}
 
 
 @pytest.fixture
-def firmware_source(settings):
-    """Return the firmware source directory, after it is created."""
-    settings.firmware_dir.mkdir(parents=True)
-    return settings.firmware_dir
-
-
-@pytest.fixture
 async def database(settings):
     """Return the database path, after the tables are created."""
     await init_db(settings)
@@ -104,7 +97,7 @@ async def test_init_db_adds_config_hash_and_firmware_version_to_an_old_builds_ta
 
 @pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
 async def test_build_record_has_the_end_status_and_no_log_and_no_config(app, database, settings):
-    ctx = app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
+    ctx = await app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
     await _wait_for(ctx, ENDED)
 
     row = await _wait_for_row(database, ctx.build_id, ENDED)
@@ -120,7 +113,7 @@ async def test_build_record_has_the_end_status_and_no_log_and_no_config(app, dat
 @pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
 async def test_build_record_shows_compiling_while_pio_runs(app, database, monkeypatch):
     monkeypatch.setenv("FAKE_PIO_SLEEP", "1")
-    ctx = app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
+    ctx = await app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
     await _wait_for(ctx, {"compiling"})
 
     row = await _wait_for_row(database, ctx.build_id, {"compiling"})
@@ -132,7 +125,7 @@ async def test_build_record_shows_compiling_while_pio_runs(app, database, monkey
 @pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
 async def test_failed_build_record_holds_the_error(app, database, monkeypatch):
     monkeypatch.setenv("FAKE_PIO_FAIL", "1")
-    ctx = app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
+    ctx = await app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
     await _wait_for(ctx, ENDED)
 
     row = await _wait_for_row(database, ctx.build_id, ENDED)
@@ -246,7 +239,7 @@ def _sign_in(client, settings):
 async def test_firmware_update_waits_until_no_build_runs(app, client, settings, monkeypatch):
     monkeypatch.setenv("FAKE_PIO_SLEEP", "1")
     statuses_at_update = []
-    ctx = app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
+    ctx = await app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
     monkeypatch.setattr(admin, "update_firmware", lambda _settings: statuses_at_update.append(ctx.status) or True)
     await _wait_for(ctx, {"compiling"})
     _sign_in(client, settings)
@@ -272,7 +265,7 @@ async def test_no_build_starts_while_a_firmware_update_runs(app, client, setting
     update = asyncio.create_task(client.post("/api/v1/update-firmware"))
     await asyncio.to_thread(started.wait, 5)
 
-    ctx = app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
+    ctx = await app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
     await asyncio.sleep(0.3)
     status_during_update = ctx.status
     release.set()

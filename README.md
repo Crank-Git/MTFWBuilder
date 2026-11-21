@@ -92,12 +92,13 @@ MTFWBuilder/
 │   ├── main.py                     # App factory, lifespan, middleware
 │   ├── config.py                   # Settings (pydantic-settings, env vars)
 │   ├── auth.py                     # Bcrypt + signed cookie sessions
-│   ├── database.py                 # SQLite (build history, config profiles)
+│   ├── database.py                 # SQLite (build history, config profiles, firmware sources)
 │   ├── models.py                   # Pydantic request/response validation
 │   ├── rate_limit.py               # slowapi rate limiting
 │   ├── routers/
 │   │   ├── config_generator.py     # /api/v1/generate, preview, download
 │   │   ├── firmware_builder.py     # /api/v1/build-firmware, SSE progress
+│   │   ├── firmware.py             # /api/v1/firmware, installed firmware versions
 │   │   ├── admin.py                # Login, firmware updates, cleanup
 │   │   └── pages.py                # HTML page routes
 │   └── services/
@@ -109,7 +110,7 @@ MTFWBuilder/
 ├── devices/variants.yaml           # 62 device variants (single source of truth)
 ├── templates/                      # Jinja2 + htmx templates
 ├── static/                         # CSS, JS
-├── tests/                          # 106 pytest tests
+├── tests/                          # pytest suite
 └── pyproject.toml                  # Modern Python packaging
 ```
 
@@ -140,6 +141,8 @@ Key endpoints:
 - `GET /api/v1/builds/{id}/artifacts/{name}` — Download one artifact from the artifact list
 - `GET /api/v1/download-firmware/{id}` — Redirects (308) to the factory or primary artifact, for one release
 - `GET /api/v1/system-info` — Firmware version and status
+- `GET /api/v1/firmware` — Installed firmware versions, the newest first: `version`, `channel`
+  (`stable`, `alpha` or `pinned`), `installed_at`, `size_bytes`, `status`
 
 The three config routes validate the body with `ConfigRequest`. An invalid body returns
 422 with field errors, for example `channel_0.psk`.

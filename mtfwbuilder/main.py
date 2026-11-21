@@ -18,11 +18,13 @@ from mtfwbuilder.database import fail_unended_builds, init_db
 from mtfwbuilder.rate_limit import limiter
 from mtfwbuilder.routers.admin import router as admin_router
 from mtfwbuilder.routers.config_generator import router as config_router
+from mtfwbuilder.routers.firmware import router as firmware_versions_router
 from mtfwbuilder.routers.firmware_builder import router as firmware_router
 from mtfwbuilder.routers.pages import router as pages_router
 from mtfwbuilder.services.build_service import BuildQueue
 from mtfwbuilder.services.cleanup_service import cleanup_every_interval, scrub_after_restart
 from mtfwbuilder.services.device_registry import DeviceRegistry
+from mtfwbuilder.services.firmware_updater import import_old_firmware_source
 
 
 def setup_logging(log_level: str, log_json: bool) -> None:
@@ -72,7 +74,12 @@ async def lifespan(app: FastAPI):
         failed = await fail_unended_builds(db, "Server restarted")
     if failed:
         logger.warning(f"Marked {failed} builds failed after a restart")
-    scrub_after_restart(settings.firmware_dir)
+    await asyncio.to_thread(import_old_firmware_source, settings)
+    # Each firmware source is a directory `<firmware_dir>/<tag>/`, and any of them can hold the secrets of a build.
+    if settings.firmware_dir.is_dir():
+        for source_dir in settings.firmware_dir.iterdir():
+            if source_dir.is_dir():
+                scrub_after_restart(source_dir)
 
     # Load device registry
     registry = DeviceRegistry(settings.devices_file)
@@ -116,6 +123,7 @@ def create_app() -> FastAPI:
     # Routers
     app.include_router(config_router)
     app.include_router(firmware_router)
+    app.include_router(firmware_versions_router)
     app.include_router(admin_router)
     app.include_router(pages_router)
 
