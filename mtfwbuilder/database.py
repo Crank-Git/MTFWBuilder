@@ -1,6 +1,7 @@
 """SQLite database initialization and access (raw SQL, no ORM)."""
 
 import sqlite3
+from collections.abc import Sequence
 from contextlib import closing
 from pathlib import Path
 
@@ -41,6 +42,24 @@ CREATE TABLE IF NOT EXISTS firmware_sources (
     status TEXT
 );
 
+CREATE TABLE IF NOT EXISTS variants (
+    version TEXT NOT NULL,
+    env TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    manufacturer TEXT NOT NULL,
+    architecture TEXT NOT NULL,
+    support_level TEXT NOT NULL,
+    hw_model INTEGER,
+    hw_model_slug TEXT,
+    image TEXT,
+    requires_dfu INTEGER NOT NULL,
+    partition_scheme TEXT,
+    has_mui INTEGER NOT NULL,
+    has_ink_hud INTEGER NOT NULL,
+    actively_supported INTEGER NOT NULL,
+    PRIMARY KEY (version, env)
+);
+
 CREATE INDEX IF NOT EXISTS idx_builds_status ON builds(status);
 CREATE INDEX IF NOT EXISTS idx_builds_created ON builds(created_at);
 """
@@ -71,6 +90,16 @@ ON CONFLICT(id) DO UPDATE SET
 SAVE_FIRMWARE_SOURCE = """
 INSERT OR REPLACE INTO firmware_sources (version, channel, path, installed_at, size_bytes, status)
 VALUES (:version, :channel, :path, :installed_at, :size_bytes, :status)
+"""
+
+SAVE_VARIANT = """
+INSERT INTO variants (
+    version, env, display_name, manufacturer, architecture, support_level, hw_model, hw_model_slug, image,
+    requires_dfu, partition_scheme, has_mui, has_ink_hud, actively_supported
+) VALUES (
+    :version, :env, :display_name, :manufacturer, :architecture, :support_level, :hw_model, :hw_model_slug, :image,
+    :requires_dfu, :partition_scheme, :has_mui, :has_ink_hud, :actively_supported
+)
 """
 
 FIND_FIRMWARE_SOURCE = (
@@ -140,13 +169,17 @@ async def get_recent_builds(db: aiosqlite.Connection, limit: int = 20) -> list[d
     return [dict(row) for row in rows]
 
 
-def record_firmware_source(database_path: Path, record: dict) -> None:
-    """Insert the firmware source record, or replace the record with the same firmware version.
+def record_firmware_source(database_path: Path, record: dict, registry: Sequence[dict] = ()) -> None:
+    """Insert the firmware source record and its registry, or replace those of the same firmware version.
 
-    `record` holds one value for each named parameter of `SAVE_FIRMWARE_SOURCE`. The firmware updater runs in a
-    worker thread, so this write uses the `sqlite3` module and no event loop.
+    `record` holds one value for each named parameter of `SAVE_FIRMWARE_SOURCE`. Each `registry` entry holds one
+    value for each named parameter of `SAVE_VARIANT` except `version`. The firmware updater runs in a worker
+    thread, so this write uses the `sqlite3` module and no event loop.
     """
+    # One transaction writes both, so a build never sees a ready firmware source without its registry.
     with closing(sqlite3.connect(database_path)) as db, db:
+        db.execute("DELETE FROM variants WHERE version = ?", (record["version"],))
+        db.executemany(SAVE_VARIANT, [{**entry, "version": record["version"]} for entry in registry])
         db.execute(SAVE_FIRMWARE_SOURCE, record)
 
 
@@ -164,8 +197,9 @@ async def find_firmware_source(database_path: Path, version: str | None = None) 
 
 
 async def delete_firmware_source(database_path: Path, version: str) -> None:
-    """Delete the firmware source record of `version`."""
+    """Delete the firmware source record of `version` and its registry."""
     async with aiosqlite.connect(database_path) as db:
+        await db.execute("DELETE FROM variants WHERE version = ?", (version,))
         await db.execute("DELETE FROM firmware_sources WHERE version = ?", (version,))
         await db.commit()
 

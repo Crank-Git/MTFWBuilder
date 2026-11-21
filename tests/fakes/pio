@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Act as `pio run -e <env>` and `pio pkg install` for the tests, so the tests run without PlatformIO.
+"""Act as `pio run -e <env>`, `pio pkg install` and `pio project config` for the tests, so the tests run without PlatformIO.
 
 The fake writes the artifact names that upstream `bin/platformio-pre.py` and
 `bin/platformio-custom.py` give at firmware `v2.7.26.54e0d8d`. It prints the lines that
@@ -10,6 +10,10 @@ Environment variables:
 - `FAKE_PIO_SLEEP=<seconds>` holds the build after the first compile line.
 - `FAKE_PIO_PKG_FAIL=1` makes `pio pkg install` fail with exit code 1.
 - `FAKE_PIO_PKG_SLEEP=<seconds>` holds `pio pkg install` before it writes its marker file.
+- `FAKE_PIO_CONFIG_FAIL=1` makes `pio project config --json-output` fail with exit code 1.
+
+`pio project config --json-output` prints `.fake-pio-config.json` of its working directory. When that file is absent,
+it prints `tests/fixtures/firmware/project_config.json`, the output of the real `pio` for the firmware fixture.
 
 `pio pkg install` writes `.pio/libdeps/fake/installed` in its working directory, so a test can see where it ran.
 
@@ -26,7 +30,9 @@ import time
 from pathlib import Path
 
 VERSION = "2.7.26.54e0d8d"
-ENVS_FILE = Path(__file__).resolve().parent.parent / "fixtures" / "firmware" / "envs.json"
+FIXTURE_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "firmware"
+ENVS_FILE = FIXTURE_DIR / "envs.json"
+PROJECT_CONFIG_FILE = FIXTURE_DIR / "project_config.json"
 
 # The suffixes after `firmware-<env>-<version>`, by architecture folder.
 ESP32_SUFFIXES = [".bin", ".factory.bin", ".mt.json"]
@@ -91,9 +97,21 @@ def pkg_install() -> int:
     return 0
 
 
+def project_config() -> int:
+    """Act as `pio project config --json-output` in the project directory: the working directory."""
+    if os.environ.get("FAKE_PIO_CONFIG_FAIL") == "1":
+        out("Error: FAKE_PIO_CONFIG_FAIL is set")
+        return 1
+    override = Path(".fake-pio-config.json")
+    sys.stdout.write((override if override.is_file() else PROJECT_CONFIG_FILE).read_text())
+    return 0
+
+
 def main() -> int:
     if sys.argv[1:] == ["pkg", "install"]:
         return pkg_install()
+    if sys.argv[1:] == ["project", "config", "--json-output"]:
+        return project_config()
     parser = argparse.ArgumentParser(prog="pio")
     parser.add_argument("command", choices=["run"])
     parser.add_argument("-e", "--environment", required=True)
