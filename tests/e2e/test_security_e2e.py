@@ -13,21 +13,36 @@ MANAGED_MODE_MESSAGE = "Managed mode needs an admin key, or the device cannot be
 def test_managed_mode_notice_shows_only_while_managed_mode_is_on(page: Page, live_server: str):
     page.goto(f"{live_server}/")
     open_tab(page, "security")
-    notice = page.locator("#managedModeNotice")
+    notice = page.locator("#managedModeNotice .managed-mode-notice")
     expect(notice).to_be_hidden()
 
-    page.check("#securityIsManaged")
+    page.select_option("#securityIsManaged", "true")
     expect(notice).to_be_visible()
     expect(notice).to_contain_text("Managed mode is on.")
 
-    page.uncheck("#securityIsManaged")
+    page.select_option("#securityIsManaged", "false")
     expect(notice).to_be_hidden()
+
+
+def test_managed_mode_live_region_stays_displayed_while_its_notice_shows_and_hides(page: Page, live_server: str):
+    page.goto(f"{live_server}/")
+    open_tab(page, "security")
+    region = page.locator("#managedModeNotice")
+    displays = []
+
+    for value in ("", "true", ""):
+        page.select_option("#securityIsManaged", value)
+        displays.append(region.evaluate("element => getComputedStyle(element).display"))
+
+    expect(region).to_have_attribute("role", "status")
+    expect(page.locator("#securityIsManaged")).to_have_attribute("aria-describedby", "managedModeNotice")
+    assert "none" not in displays
 
 
 def test_preview_with_managed_mode_and_no_admin_key_shows_the_message_under_managed_mode(page: Page, live_server: str):
     page.goto(f"{live_server}/")
     open_tab(page, "security")
-    page.check("#securityIsManaged")
+    page.select_option("#securityIsManaged", "true")
 
     page.click("#previewBtn")
 

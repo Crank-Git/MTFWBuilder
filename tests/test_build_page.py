@@ -11,6 +11,8 @@ from urllib.parse import quote
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from mtfwbuilder.models import ConfigRequest
+from mtfwbuilder.services.jsonc_generator import VERSION_GATED_KEYS, generate_jsonc
 from tests.conftest import REPO_ROOT
 
 HX = {"HX-Request": "true"}
@@ -235,6 +237,46 @@ async def test_download_of_flat_form_fields_returns_the_userprefs_file(client):
     parsed = json.loads(resp.text)
     assert parsed["USERPREFS_CONFIG_OWNER_LONG_NAME"] == "FormNode"
     assert parsed["USERPREFS_CHANNEL_0_NAME"] == "Primary"
+
+
+# Each toggle of these keys has a firmware default, so the form writes its key only after a choice of On or Off.
+FIRMWARE_DEFAULT_TOGGLES = {
+    "security_is_managed": "USERPREFS_CONFIG_SECURITY_IS_MANAGED",
+    "event_block_position": "USERPREFS_BLOCK_POSITION_ON_EVENT_CHANNEL",
+    "telemetry_environment_enabled": "USERPREFS_CONFIG_ENVIRONMENT_MEASUREMENT_ENABLED",
+    "telemetry_environment_screen_enabled": "USERPREFS_CONFIG_ENV_SCREEN_SCREEN_ENABLED",
+    "telemetry_air_quality_enabled": "USERPREFS_CONFIG_AQ_MEASUREMENT_ENABLED",
+    "telemetry_air_quality_screen_enabled": "USERPREFS_CONFIG_AQ_SCREEN_ENABLED",
+}
+
+
+@pytest.mark.asyncio
+async def test_default_form_writes_no_key_of_a_toggle_with_a_firmware_default(client):
+    _, parser = await _page(client)
+    config = ConfigRequest.model_validate(dict(_default_form_body(parser)))
+
+    written = json.loads(generate_jsonc(config.generator_input(), firmware_keys=VERSION_GATED_KEYS))
+
+    assert set(FIRMWARE_DEFAULT_TOGGLES.values()) & set(written) == set()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("name", sorted(FIRMWARE_DEFAULT_TOGGLES))
+async def test_toggle_with_a_firmware_default_offers_firmware_default_on_and_off(client, name):
+    _, parser = await _page(client)
+    index = next(i for i, (tag, attrs) in enumerate(parser.elements) if attrs.get("name") == name)
+    options = [attrs.get("value") for _, attrs in parser.elements[index + 1 : index + 4]]
+
+    assert [tag for tag, attrs in parser.elements if attrs.get("name") == name] == ["select"]
+    assert options == ["", "true", "false"]
+
+
+@pytest.mark.asyncio
+async def test_managed_mode_control_names_the_managed_mode_notice_as_its_description(client):
+    _, parser = await _page(client)
+
+    assert parser.by_id("securityIsManaged")["aria-describedby"] == "managedModeNotice"
+    assert parser.by_id("managedModeNotice")["role"] == "status"
 
 
 @pytest.mark.asyncio

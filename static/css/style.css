@@ -586,6 +586,6 @@ body {
     display: none;
 }
 
-#securitySection:has(#securityIsManaged:checked) .managed-mode-notice {
+#securitySection:has(#securityIsManaged option[value="true"]:checked) .managed-mode-notice {
     display: block;
 }

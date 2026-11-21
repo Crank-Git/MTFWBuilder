@@ -57,6 +57,18 @@ def test_tab_count_goes_up_by_one_for_a_field_that_gets_a_value(page: Page, live
     expect(page.locator("#config-tab-device .tab-count")).to_have_text(str(before + 1))
 
 
+def test_tab_count_counts_a_toggle_only_after_a_choice_of_on_or_off(page: Page, live_server: str):
+    page.goto(f"{live_server}/")
+    before = count(page, "telemetry")
+
+    open_tab(page, "telemetry")
+    page.select_option("#telemetryEnvironmentEnabled", "false")
+    expect(page.locator("#config-tab-telemetry .tab-count")).to_have_text(str(before + 1))
+
+    page.select_option("#telemetryEnvironmentEnabled", "")
+    expect(page.locator("#config-tab-telemetry .tab-count")).to_have_text(str(before))
+
+
 def test_channel_tab_count_follows_the_number_of_channels(page: Page, live_server: str):
     page.goto(f"{live_server}/")
     open_tab(page, "channels")
@@ -82,7 +94,7 @@ def test_time_zone_control_shows_the_posix_string_of_america_new_york(page: Page
 def test_a_field_error_opens_its_tab_focuses_the_field_and_marks_the_tab(page: Page, live_server: str):
     page.goto(f"{live_server}/")
     open_tab(page, "security")
-    page.check("#securityIsManaged")
+    page.select_option("#securityIsManaged", "true")
     open_tab(page, "device")
 
     page.click("#previewBtn")

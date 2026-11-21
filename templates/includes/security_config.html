@@ -34,13 +34,17 @@
             <div class="form-text text-muted">The policy that the device applies to packets from other nodes. <code class="small">USERPREFS_CONFIG_SECURITY_PACKET_SIGNATURE_POLICY</code></div>
         </fieldset>
         <fieldset class="col-md-6" data-userprefs-key="USERPREFS_CONFIG_SECURITY_IS_MANAGED"{{ key_attrs("USERPREFS_CONFIG_SECURITY_IS_MANAGED") }}>
-            <div class="form-check form-switch mt-4">
-                <input type="hidden" name="security_is_managed" value="false">
-                <input class="form-check-input" type="checkbox" id="securityIsManaged" name="security_is_managed" value="true">
-                <label class="form-check-label" for="securityIsManaged">Managed Mode</label>
-            </div>
+            <label for="securityIsManaged" class="form-label">Managed Mode</label>
+            <select class="form-select" id="securityIsManaged" name="security_is_managed" aria-describedby="managedModeNotice">
+                <option value="" selected>Firmware default</option>
+                <option value="true">On</option>
+                <option value="false">Off</option>
+            </select>
             <div id="error-security_is_managed" class="field-error invalid-feedback d-block"></div>
-            <div class="alert alert-warning mt-2 managed-mode-notice" id="managedModeNotice" role="status">Managed mode is on. The device rejects local config changes. Only admin key 0–2 holders can change it remotely. Without an admin key, nobody can.</div>
+            {# The live region stays in the page, and only its content shows or hides, so a screen reader reads each change. #}
+            <div id="managedModeNotice" role="status">
+                <div class="alert alert-warning mt-2 managed-mode-notice">Managed mode is on. The device rejects local config changes. Only admin key 0–2 holders can change it remotely. Without an admin key, nobody can.</div>
+            </div>
             <div class="form-text text-muted">Managed mode needs at least one admin key. <code class="small">USERPREFS_CONFIG_SECURITY_IS_MANAGED</code></div>
         </fieldset>
     </div>
