@@ -280,6 +280,7 @@ async def test_htmx_update_failure_returns_an_html_fragment_with_the_error(clien
     resp = await client.post("/api/v1/update-firmware", data={"csrf_token": token}, headers={"HX-Request": "true"})
 
     assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/html")
     assert "Firmware update failed. Check logs for details." in resp.text
 
 
