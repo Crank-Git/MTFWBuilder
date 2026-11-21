@@ -2,7 +2,7 @@
 id: browser-flashing
 feature: Browser flashing
 epic: "Epic 9: Browser flashing"
-status: issued
+status: built
 issues: [56, 57, 58, 59]
 mockups: [mockups/06-flash.html]
 ---
