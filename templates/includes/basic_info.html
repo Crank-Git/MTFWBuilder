@@ -28,4 +28,17 @@
             <div id="error-bluetooth_fixed_pin" class="field-error invalid-feedback d-block"></div>
         </div>
     </div>
-</div> 
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <label for="deviceRole" class="form-label">Device Role</label>
+            <select class="form-select" id="deviceRole" name="device_role" aria-describedby="deviceRoleHelp">
+                <option value="">Firmware default (Client)</option>
+                {% for value, label in role_options %}
+                <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+            <div id="error-device_role" class="field-error invalid-feedback d-block"></div>
+            <div id="deviceRoleHelp" class="form-text text-muted">{{ router_role_message }}</div>
+        </div>
+    </div>
+</div>

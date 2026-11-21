@@ -10,32 +10,18 @@
             <div class="col-md-6">
                 <label for="loraRegion" class="form-label">LoRa Region</label>
                 <select class="form-select" id="loraRegion" name="lora_region">
-                    <option value="meshtastic_Config_LoRaConfig_RegionCode_US" selected>US</option>
-                    <option value="meshtastic_Config_LoRaConfig_RegionCode_EU_433">EU 433</option>
-                    <option value="meshtastic_Config_LoRaConfig_RegionCode_EU_868">EU 868</option>
-                    <option value="meshtastic_Config_LoRaConfig_RegionCode_CN">CN</option>
-                    <option value="meshtastic_Config_LoRaConfig_RegionCode_JP">JP</option>
-                    <option value="meshtastic_Config_LoRaConfig_RegionCode_ANZ">ANZ</option>
-                    <option value="meshtastic_Config_LoRaConfig_RegionCode_KR">KR</option>
-                    <option value="meshtastic_Config_LoRaConfig_RegionCode_TW">TW</option>
-                    <option value="meshtastic_Config_LoRaConfig_RegionCode_RU">RU</option>
-                    <option value="meshtastic_Config_LoRaConfig_RegionCode_IN">IN</option>
-                    <option value="meshtastic_Config_LoRaConfig_RegionCode_NZ_865">NZ 865</option>
-                    <option value="meshtastic_Config_LoRaConfig_RegionCode_TH">TH</option>
-                    <option value="meshtastic_Config_LoRaConfig_RegionCode_LORA_24">LORA 24</option>
+                    {% for value, label in region_options %}
+                    <option value="{{ value }}"{% if value == "meshtastic_Config_LoRaConfig_RegionCode_US" %} selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
                 </select>
                 <div id="error-lora_region" class="field-error invalid-feedback d-block"></div>
             </div>
             <div class="col-md-6">
                 <label for="loraModemPreset" class="form-label">Modem Preset</label>
                 <select class="form-select" id="loraModemPreset" name="lora_modem_preset">
-                    <option value="meshtastic_Config_LoRaConfig_ModemPreset_LONG_FAST" selected>Long Range & Fast</option>
-                    <option value="meshtastic_Config_LoRaConfig_ModemPreset_LONG_SLOW">Long Range & Slow</option>
-                    <option value="meshtastic_Config_LoRaConfig_ModemPreset_VERY_LONG_SLOW">Very Long Range & Slow</option>
-                    <option value="meshtastic_Config_LoRaConfig_ModemPreset_MEDIUM_SLOW">Medium Range & Slow</option>
-                    <option value="meshtastic_Config_LoRaConfig_ModemPreset_MEDIUM_FAST">Medium Range & Fast</option>
-                    <option value="meshtastic_Config_LoRaConfig_ModemPreset_SHORT_SLOW">Short Range & Slow</option>
-                    <option value="meshtastic_Config_LoRaConfig_ModemPreset_SHORT_FAST">Short Range & Fast</option>
+                    {% for value, label in modem_preset_options %}
+                    <option value="{{ value }}"{% if value == "meshtastic_Config_LoRaConfig_ModemPreset_LONG_FAST" %} selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
                 </select>
                 <div id="error-lora_modem_preset" class="field-error invalid-feedback d-block"></div>
             </div>
