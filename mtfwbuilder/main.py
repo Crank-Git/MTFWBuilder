@@ -19,6 +19,7 @@ from mtfwbuilder.htmx import validation_error_response
 from mtfwbuilder.rate_limit import configure_rate_limits, limiter
 from mtfwbuilder.routers.admin import rate_limit_response
 from mtfwbuilder.routers.admin import router as admin_router
+from mtfwbuilder.routers.channel_share import router as channel_share_router
 from mtfwbuilder.routers.config_generator import router as config_router
 from mtfwbuilder.routers.firmware import router as firmware_versions_router
 from mtfwbuilder.routers.firmware_builder import router as firmware_router
@@ -132,6 +133,7 @@ def create_app() -> FastAPI:
     app.include_router(firmware_versions_router)
     app.include_router(variants_router)
     app.include_router(admin_router)
+    app.include_router(channel_share_router)
     app.include_router(pages_router)
 
     @app.get("/healthz")
