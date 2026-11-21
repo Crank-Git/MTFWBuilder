@@ -30,8 +30,9 @@ def _floor(name: str) -> tuple[int, ...]:
     raise AssertionError(f"{name} has no >= floor in [project].dependencies")
 
 
-def test_requires_python_is_313_or_later():
-    assert _pyproject()["project"]["requires-python"] == ">=3.13"
+def test_requires_python_is_313_or_later_and_below_315():
+    # The `meshtastic` package 2.7.11 declares `Requires-Python: >=3.9,<3.15`, so uv cannot lock for 3.15.
+    assert _pyproject()["project"]["requires-python"] == ">=3.13,<3.15"
 
 
 @pytest.mark.parametrize(("name", "minimum"), FLOORS.items())
