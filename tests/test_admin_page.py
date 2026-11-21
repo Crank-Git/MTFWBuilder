@@ -232,6 +232,7 @@ async def test_dashboard_lists_the_recent_builds_from_the_builds_table(client, s
                 "error_message": None,
                 "config_hash": None,
                 "firmware_version": "v2.7.26.54e0d8d",
+                "fleet_run_id": None,
             },
         )
     sign_in_admin(client, settings)
