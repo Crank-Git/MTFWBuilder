@@ -7,14 +7,14 @@ name = "mtfwbuilder"
 version = "2.0.0"
 description = "Meshtastic firmware configuration generator and builder"
 readme = "README.md"
-license = {text = "MIT"}
+license = "GPL-3.0-or-later"
 requires-python = ">=3.10"
 authors = [{ name = "Crank-Git" }]
 keywords = ["meshtastic", "firmware", "configuration", "platformio"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Framework :: FastAPI",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Programming Language :: Python :: 3",
     "Topic :: Software Development :: Embedded Systems",
 ]

@@ -223,7 +223,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed contribution guidelines.
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) in the repository.
+GPL-3.0-or-later. See [LICENSE](LICENSE) in the repository.
 
 ## Acknowledgments
 
