@@ -891,6 +891,8 @@ body.rv-open .layout { padding-right:21rem; }
 </li>
 <li>2026-11-21 — Epic 3 shipped (#124). Milestone M1 (Works again) is complete. Additions accepted at the batch gate: <code>GET /api/v1/builds/{id}</code>, <code>config_source=form</code>, and <code>?log_from=</code> on the progress stream. CSRF covers sign-in and sign-out too. Not built from the Screens table: the build queue position and the elapsed time.
 </li>
+<li>2026-11-21 — Epic 5 shipped (#132). PM decisions: the default firmware version falls back to the newest installed version of any release channel when no stable one is installed; <code>require_csrf</code> accepts the <code>X-CSRF-Token</code> header; <code>GET /api/v1/firmware/available</code> has no CSRF (read-only); the startup cleanup may remove a half-imported old firmware source after a crash (it is downloadable again).
+</li>
 </ul><nav class="pager">
 <span></span>
 <a href="html/page-inherit-reconciliation.html">Inherit reconciliation and research &rarr;</a>
