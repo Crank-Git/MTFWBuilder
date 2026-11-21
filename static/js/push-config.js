@@ -572,6 +572,28 @@ function channelMessage(read, slot, context) {
 }
 
 /**
+ * Return the `Config` or `ModuleConfig` section `key` of the device read as a message of the section schema.
+ *
+ * `create` in core keeps a value that is already a message of the schema. A plain object loses `$unknown`, which
+ * holds the device fields that core 2.6.7 does not know, and the device then resets them. The profile sets only
+ * scalar and list fields in these sections, so the copy holds no nested plain object.
+ *
+ * Parameters:
+ * - `found`: the section of the device read, or undefined when the device sent no such section.
+ * - `root`: `config` or `moduleConfig`.
+ * - `key`: the case of the section, for example `rangeTest`.
+ * - `context`: `{protobuf, tzTable}`, as for `diffSections`.
+ */
+function configMessage(found, root, key, context) {
+  if (found === undefined) {
+    return {};
+  }
+  const schema = root === 'config' ? context.protobuf.Config.ConfigSchema
+    : context.protobuf.ModuleConfig.ModuleConfigSchema;
+  return { ...structuredClone(found), $typeName: schema.field[key].message.typeName };
+}
+
+/**
  * Return the admin call for one section of the diff: `{method, args}`, where `method` is the MeshDevice method.
  *
  * The device replaces the whole section, so the message holds the device values with the profile values on top.
@@ -588,6 +610,8 @@ export function sectionMessage(read, config, section, context) {
   let value;
   if (root === 'channels') {
     value = channelMessage(read, Number(key), context);
+  } else if (root === 'config' || root === 'moduleConfig') {
+    value = configMessage(read[root][key], root, key, context);
   } else {
     value = plain(key === undefined ? read[root] : read[root][key]) ?? {};
   }
