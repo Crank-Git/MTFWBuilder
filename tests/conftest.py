@@ -23,6 +23,15 @@ SECRET_KEY = "test-secret-key"
 _ADMIN_PASSWORD_HASH = _hash_password(ADMIN_PASSWORD)
 
 
+def pytest_collection_modifyitems(items):
+    """Move the `e2e` tests to the end of the run.
+
+    The Playwright sync API keeps its event loop running until the session ends.
+    An async test after the first `e2e` test then fails with "Runner.run() cannot be called from a running event loop".
+    """
+    items.sort(key=lambda item: item.get_closest_marker("e2e") is not None)
+
+
 @pytest.fixture
 def variants_path():
     """Path to the real variants.yaml file."""
@@ -43,7 +52,7 @@ def fake_pio(monkeypatch):
 
 @pytest.fixture
 def temp_dir():
-    """Temporary directory for test artifacts."""
+    """Return a temporary directory that the test can write artifacts into."""
     with tempfile.TemporaryDirectory() as d:
         yield Path(d)
 
