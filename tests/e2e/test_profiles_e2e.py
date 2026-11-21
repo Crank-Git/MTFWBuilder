@@ -151,3 +151,33 @@ def test_load_shows_the_warning_of_the_profile_response(page: Page, live_server:
 
     expect(page.locator("#profile-status")).to_contain_text(warning)
     expect(page.locator("#reenter-channel0PSK")).to_be_visible()
+
+
+def test_load_warns_about_saved_fields_that_the_form_does_not_have(page: Page, live_server: str):
+    _remove_every_profile(page, live_server)
+    profile = _save_profile(page, live_server, "Old form")
+    config = {**profile["config"], "retired_field": "1", "firmware_version": "v0.0.1.0000000"}
+
+    # The route answers as for a profile that an older form saved.
+    def answer(route):
+        route.fulfill(json={**profile, "config": config, "must_reenter": ["channel_0[psk]", "old_secret"]})
+
+    page.route(f"**/api/v1/profiles/{profile['id']}", answer)
+    page.goto(f"{live_server}/?profile={profile['id']}")
+
+    status = page.locator("#profile-status .alert-warning")
+    expect(status).to_have_count(1)
+    expect(status).to_contain_text("The form has no field for: retired_field, old_secret.")
+    expect(status).to_contain_text("The firmware version v0.0.1.0000000 is not installed.")
+    expect(page.locator("#ownerLongName")).to_have_value("Ridge Node")
+
+
+def test_load_of_a_profile_that_matches_the_form_shows_no_field_warning(page: Page, live_server: str):
+    _remove_every_profile(page, live_server)
+    profile = _save_profile(page, live_server, "Current form")
+
+    page.goto(f"{live_server}/?profile={profile['id']}")
+
+    expect(page.locator("#profile-status")).to_contain_text("Loaded the profile Current form.")
+    expect(page.locator("#profile-status")).not_to_contain_text("The form has no field for")
+    expect(page.locator("#profile-status")).not_to_contain_text("is not installed")

@@ -3,6 +3,7 @@
 import aiosqlite
 import pytest
 from httpx import ASGITransport, AsyncClient
+from pydantic import BaseModel
 
 from mtfwbuilder.auth import CSRF_COOKIE, SESSION_COOKIE, create_session_token, csrf_token
 from mtfwbuilder.models import ProfileRequest
@@ -85,12 +86,31 @@ async def test_profiles_page_shows_the_notice_only_for_a_profile_that_stores_sec
     stored = await _save(client, "Stored")
     await _save(client, "Plain")
     async with aiosqlite.connect(settings.database_path) as db:
-        await db.execute("UPDATE profiles SET stores_secrets = 1 WHERE id = ?", (stored["id"],))
+        await db.execute(
+            "UPDATE profiles SET stores_secrets = 1, secrets_ciphertext = 'token' WHERE id = ?", (stored["id"],)
+        )
         await db.commit()
 
     text = (await client.get("/profiles")).text
 
     assert text.count(STORES_SECRETS_NOTICE) == 1
+
+
+async def test_profiles_page_shows_no_notice_for_a_profile_without_stored_secrets(client, settings):
+    stored = await _save(client, "Stored")
+    async with aiosqlite.connect(settings.database_path) as db:
+        await db.execute("UPDATE profiles SET stores_secrets = 1 WHERE id = ?", (stored["id"],))
+        await db.commit()
+
+    text = (await client.get("/profiles")).text
+
+    assert STORES_SECRETS_NOTICE not in text
+
+
+async def test_profiles_page_says_a_profile_that_stores_secrets_needs_no_reentry(client):
+    text = (await client.get("/profiles")).text
+
+    assert "You re-enter each secret after a load, unless the profile stores secrets." in text
 
 
 async def test_profiles_page_for_htmx_returns_the_profile_list_only(client):
@@ -138,8 +158,9 @@ async def test_build_page_profile_controls_are_outside_the_config_form(client):
 
 
 async def test_build_page_without_stored_secret_support_omits_the_store_secrets_option(client, settings, monkeypatch):
-    class WithoutStoredSecrets(ProfileRequest):
-        pass
+    # A subclass of `ProfileRequest` inherits `stores_secrets`, so the stand-in is a model without the field.
+    class WithoutStoredSecrets(BaseModel):
+        name: str
 
     monkeypatch.setattr(pages, "ProfileRequest", WithoutStoredSecrets)
     sign_in_admin(client, settings)
