@@ -1,5 +1,5 @@
 <div class="alert alert-danger mb-0" role="alert">
-    <p class="mb-1">The config has errors. Correct the marked fields, then select Preview again.</p>
+    <p class="mb-1">The config has errors. Correct the fields marked below.</p>
     <ul class="mb-0">
         {% for error in errors %}
         <li>{% if error.field %}<code>{{ error.field }}</code>: {% endif %}{{ error.message }}</li>

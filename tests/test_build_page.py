@@ -274,6 +274,40 @@ async def test_unchecked_mqtt_encryption_box_writes_false_to_the_userprefs_file(
 # PSK help text (Epic 1 batch-review finding)
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("url", ["/api/v1/preview", "/api/v1/build-firmware"])
+async def test_htmx_422_message_fits_a_preview_and_a_build(client, url):
+    form = {"variant": "heltec-v3", "config_source": "form", "channels_to_write": "1", "channel_0[psk]": "abc"}
+    resp = await client.post(url, data=form, headers=HX)
+    assert resp.status_code == 422
+    assert "The config has errors. Correct the fields marked below." in resp.text
+    assert "Preview again" not in resp.text
+
+
+@pytest.mark.asyncio
+async def test_every_label_of_the_build_page_names_a_form_control(client):
+    _, parser = await _page(client)
+    tags = {attrs["id"]: tag for tag, attrs in parser.elements if "id" in attrs}
+    targets = {attrs["for"]: tags.get(attrs["for"]) for tag, attrs in parser.elements if tag == "label"}
+    assert {name: tag for name, tag in targets.items() if tag not in ("input", "select", "textarea")} == {}
+
+
+@pytest.mark.asyncio
+async def test_preview_region_takes_its_name_from_the_preview_heading(client):
+    _, parser = await _page(client)
+    region = parser.by_id("preview-container")
+    heading = next(tag for tag, attrs in parser.elements if attrs.get("id") == region["aria-labelledby"])
+    assert re.fullmatch(r"h[1-6]", heading)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("channel", [0, 1, 2])
+async def test_psk_placeholder_of_each_channel_is_a_32_byte_base64_key(client, channel):
+    _, parser = await _page(client)
+    placeholder = parser.by_id(f"channel{channel}PSK")["placeholder"]
+    assert len(base64.b64decode(placeholder, validate=True)) == 32
+
+
 def test_psk_help_text_names_base64_or_hex_and_the_valid_lengths():
     text = (REPO_ROOT / "templates" / "includes" / "channel_config.html").read_text()
     assert "C-style hex" not in text
