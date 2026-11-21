@@ -9,27 +9,7 @@ from mtfwbuilder.auth import (
     validate_session_token,
     verify_password,
 )
-from mtfwbuilder.config import Settings, _hash_password, load_settings
-from mtfwbuilder.main import create_app
-
-
-def _make_client_app():
-    """Create app with manually initialized state (no lifespan).
-
-    Note: create_app() already mounts /static and sets templates.
-    We just need to set the state that the lifespan would provide.
-    """
-    app = create_app()
-    from mtfwbuilder.services.device_registry import DeviceRegistry
-    from mtfwbuilder.services.build_service import init_build_system
-
-    settings = load_settings()
-    app.state.settings = settings
-    app.state.device_registry = DeviceRegistry(settings.devices_file)
-    init_build_system(settings)
-    app.state.active_builds = {}
-
-    return app, settings
+from mtfwbuilder.config import Settings, _hash_password
 
 
 class TestPasswordHashing:
@@ -92,19 +72,17 @@ class TestAdminRoutes:
     """Tests for admin login/logout and protected routes."""
 
     @pytest.fixture
-    async def client(self):
-        app, settings = _make_client_app()
+    async def client(self, app):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as c:
             yield c
 
     @pytest.fixture
-    async def authed_client(self):
-        app, settings = _make_client_app()
+    async def authed_client(self, app, admin_password):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as c:
-            # Login with default password
-            resp = await c.post("/admin/login", data={"admin_key": "meshtastic"})
+            # Login with the fixture password
+            resp = await c.post("/admin/login", data={"admin_key": admin_password})
             assert resp.status_code == 303
             # Extract session cookie
             cookie = resp.cookies.get(SESSION_COOKIE)
@@ -113,11 +91,10 @@ class TestAdminRoutes:
             yield c
 
     @pytest.mark.asyncio
-    async def test_login_valid_password(self):
-        app, settings = _make_client_app()
+    async def test_login_valid_password(self, app, admin_password):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as c:
-            resp = await c.post("/admin/login", data={"admin_key": "meshtastic"})
+            resp = await c.post("/admin/login", data={"admin_key": admin_password})
             assert resp.status_code == 303
             assert SESSION_COOKIE in resp.cookies
 
@@ -144,12 +121,11 @@ class TestAdminRoutes:
         assert data["success"] is True
 
     @pytest.mark.asyncio
-    async def test_logout_clears_session(self):
-        app, settings = _make_client_app()
+    async def test_logout_clears_session(self, app, admin_password):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as c:
             # Login
-            resp = await c.post("/admin/login", data={"admin_key": "meshtastic"})
+            resp = await c.post("/admin/login", data={"admin_key": admin_password})
             assert SESSION_COOKIE in resp.cookies
 
             # Logout

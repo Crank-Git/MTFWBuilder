@@ -12,7 +12,7 @@ Settings read `config.yaml` first, then `MTFW_<FIELD>` environment variables
 | `MTFW_LOG_LEVEL` | Log level | built |
 | `MTFW_LOG_JSON` | JSON log format | built |
 | `MTFW_DEBUG` | Debug mode | built |
-| `MTFW_BASE_DIR` | Project root | built |
+| `MTFW_BASE_DIR` | Project root. Holds `config.yaml` and `config.json`. | built |
 | `MTFW_FIRMWARE_DIR` | Firmware source directory | built |
 | `MTFW_TEMP_DIR` | Build directories | built |
 | `MTFW_DATABASE_PATH` | SQLite file | built |
