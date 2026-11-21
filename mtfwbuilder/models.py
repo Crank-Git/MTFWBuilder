@@ -16,24 +16,6 @@ _HEX = re.compile(r"(?:[0-9a-fA-F]{2})+")
 _BYTE_LIST = re.compile(r"\{\s*(0x[0-9a-fA-F]{1,2}(?:\s*,\s*0x[0-9a-fA-F]{1,2})*)?\s*\}")
 
 
-def _psk_length(psk: str) -> int:
-    """Return the length in bytes of a PSK in hex, `{ 0x.. }` or base64 form.
-
-    Raises ValueError when the PSK is in none of the three forms.
-    """
-    if not psk:
-        return 0
-    if _HEX.fullmatch(psk):
-        return len(psk) // 2
-    byte_list = _BYTE_LIST.fullmatch(psk)
-    if byte_list:
-        return len(byte_list[1].split(",")) if byte_list[1] else 0
-    try:
-        return len(base64.b64decode(psk, validate=True))
-    except binascii.Error:
-        raise ValueError("the PSK is not hex, base64 or a { 0x.. } byte list") from None
-
-
 class _UserPrefsFields(BaseModel):
     """Base model that rejects a string value with `//` in any field."""
 
@@ -58,7 +40,21 @@ class ChannelConfig(_UserPrefsFields):
     @field_validator("psk")
     @classmethod
     def _check_psk_length(cls, value: str | None) -> str | None:
-        if value is not None and _psk_length(value.strip()) not in PSK_LENGTHS:
+        """Accept a PSK in hex, `{ 0x.. }` or base64 form that is 0, 1, 16 or 32 bytes."""
+        psk = (value or "").strip()
+        byte_list = _BYTE_LIST.fullmatch(psk)
+        if not psk:
+            length = 0
+        elif _HEX.fullmatch(psk):
+            length = len(psk) // 2
+        elif byte_list:
+            length = len(byte_list[1].split(",")) if byte_list[1] else 0
+        else:
+            try:
+                length = len(base64.b64decode(psk, validate=True))
+            except binascii.Error:
+                raise ValueError("the PSK is not hex, base64 or a { 0x.. } byte list") from None
+        if length not in PSK_LENGTHS:
             raise ValueError("the PSK is not 0, 1, 16 or 32 bytes")
         return value
 
