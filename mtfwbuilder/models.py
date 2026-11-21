@@ -63,7 +63,6 @@ class ConfigRequest(_UserPrefsFields):
     """Request body for generating a userPrefs.jsonc configuration."""
 
     # Basic device info
-    device_name: str | None = None
     owner_short_name: str | None = None
     owner_long_name: str | None = None
     tz_string: str | None = None
