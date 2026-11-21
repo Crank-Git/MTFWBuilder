@@ -12,6 +12,7 @@ from mtfwbuilder.database import find_firmware_source, init_db, record_firmware_
 from mtfwbuilder.main import lifespan
 from mtfwbuilder.services.firmware_catalog import CatalogUnavailable, FirmwareCatalog
 from mtfwbuilder.services.firmware_updater import import_old_firmware_source, remove_unrecorded_sources
+from tests.conftest import FIXTURE_REGISTRY
 
 STABLE = "v2.7.26.54e0d8d"
 ALPHA = "v2.8.2.d5f1619"
@@ -287,7 +288,7 @@ async def test_startup_scrubs_each_firmware_source(app, settings):
 @pytest.mark.usefixtures("fake_pio")
 async def test_build_runs_in_the_tag_directory_and_records_its_firmware_version(app, client, settings):
     await init_db(settings)
-    record_firmware_source(settings.database_path, _record(settings, STABLE))
+    record_firmware_source(settings.database_path, _record(settings, STABLE), FIXTURE_REGISTRY)
     app.state.build_queue.start()
 
     resp = await client.post(

@@ -103,6 +103,8 @@ async def get_variants(
         groups.setdefault(entry.manufacturer, []).append(entry)
     context = {
         "source": source,
+        # A firmware source imported before feature 10 is ready and has no registry rows, so it cannot list a variant.
+        "registry_failed": source is not None and not registry,
         "q": q,
         "arch": arch or [],
         "architectures": sorted({entry["architecture"] for entry in registry}),

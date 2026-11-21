@@ -15,7 +15,7 @@ from mtfwbuilder.htmx import fragment_or_json, is_htmx
 from mtfwbuilder.models import Artifact, ConfigRequest, FirmwareSource
 from mtfwbuilder.rate_limit import build_rate_limit, limiter
 from mtfwbuilder.services import build_service
-from mtfwbuilder.services.device_registry import DeviceVariant
+from mtfwbuilder.services.build_service import DeviceVariant
 from mtfwbuilder.services.jsonc_generator import generate_jsonc
 
 logger = logging.getLogger("mtfwbuilder.firmware_routes")
@@ -83,29 +83,29 @@ async def start_build(request: Request) -> Response:
 async def _registry_variant(request: Request, variant_id: str, firmware_version: str | None) -> DeviceVariant:
     """Return the variant `variant_id` from the registry of the firmware version of the build.
 
-    `firmware_version` None selects the default firmware version. A firmware version without registry entries
-    was installed before feature 10, so the YAML registry is its registry. Raises a 422 field error for
-    `firmware_version` when it is not installed, and for `variant` when its registry does not hold the variant.
+    `firmware_version` None selects the default firmware version. Raises a 422 field error:
+
+    - for `firmware_version` when it is not installed.
+    - for `variant` when the registry of the firmware version does not hold the variant. A firmware version
+      without registry rows holds no variant.
     """
     database_path = request.app.state.settings.database_path
     source = await find_firmware_source(database_path, firmware_version)
-    if source is None and firmware_version is not None:
-        raise _field_error("firmware_version", f"firmware version {firmware_version} is not installed")
-    entries = await list_variants(database_path, source["version"]) if source else []
-    if entries:
-        entry = next((e for e in entries if e["env"] == variant_id), None)
-        if entry is None:
-            raise _field_error("variant", f"Variant not in {source['version']}")
-        return DeviceVariant(
-            id=entry["env"],
-            name=entry["display_name"],
-            manufacturer=entry["manufacturer"],
-            architecture=entry["architecture"],
-        )
-    registry = request.app.state.device_registry
-    if not registry.exists(variant_id):
-        raise _field_error("variant", f"Unknown device variant: {variant_id}")
-    return registry.get(variant_id)
+    if source is None:
+        if firmware_version is not None:
+            raise _field_error("firmware_version", f"firmware version {firmware_version} is not installed")
+        # With no firmware version installed, the build fails at submit and shows the admin link, so it never compiles.
+        return DeviceVariant(id=variant_id, name=variant_id, manufacturer="Other", architecture="")
+    entries = await list_variants(database_path, source["version"])
+    entry = next((e for e in entries if e["env"] == variant_id), None)
+    if entry is None:
+        raise _field_error("variant", f"Variant not in {source['version']}")
+    return DeviceVariant(
+        id=entry["env"],
+        name=entry["display_name"],
+        manufacturer=entry["manufacturer"],
+        architecture=entry["architecture"],
+    )
 
 
 def progress_url(build_id: str) -> str:

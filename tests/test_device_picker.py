@@ -206,6 +206,17 @@ async def test_picker_of_a_firmware_version_with_registry_failed_says_an_admin_m
     assert parser.text == f"The device list for {FIRMWARE_VERSION} failed to load. An admin must reinstall it."
 
 
+async def test_picker_of_a_ready_firmware_version_without_a_registry_says_an_admin_must_reinstall_it(
+    app, client, settings
+):
+    # A firmware source imported before feature 10 is ready and has no registry rows.
+    _install(settings, FIRMWARE_VERSION, [])
+
+    _, parser = await _fragment(client, version=FIRMWARE_VERSION)
+
+    assert parser.text == f"The device list for {FIRMWARE_VERSION} failed to load. An admin must reinstall it."
+
+
 async def test_variants_without_htmx_stay_json(client, stable_source):
     resp = await client.get("/api/v1/variants", params={"q": "heltec v4"})
 
