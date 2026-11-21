@@ -73,18 +73,20 @@ def test_full_beacon_form_writes_each_upstream_mesh_beacon_key():
     assert keys == UPSTREAM_KEYS
 
 
-def test_generator_never_writes_the_legacy_split_key():
-    form = full_beacon_form() | {"mesh_beacon_legacy_split": "true"}
-    assert "USERPREFS_MESH_BEACON_LEGACY_SPLIT" not in generated(form)
+def test_generator_writes_the_beacon_keys_but_never_the_legacy_split_key():
+    result = generated(full_beacon_form() | {"mesh_beacon_legacy_split": "true"})
+    assert "USERPREFS_MESH_BEACON_LISTEN_ENABLED" in result
+    assert "USERPREFS_MESH_BEACON_LEGACY_SPLIT" not in result
 
 
 def test_every_mesh_beacon_key_is_version_gated():
     assert UPSTREAM_KEYS <= VERSION_GATED_KEYS
 
 
-def test_v2_7_26_output_has_no_mesh_beacon_key():
-    result = json.loads(generate_jsonc(ConfigRequest(**full_beacon_form()).generator_input()))
-    assert not [key for key in result if key.startswith("USERPREFS_MESH_BEACON_")]
+def test_v2_7_26_output_leaves_out_the_mesh_beacon_keys_that_newer_firmware_gets():
+    form = ConfigRequest(**full_beacon_form()).generator_input()
+    assert set(json.loads(generate_jsonc(form, firmware_keys=VERSION_GATED_KEYS))) & UPSTREAM_KEYS
+    assert not set(json.loads(generate_jsonc(form))) & UPSTREAM_KEYS
 
 
 def test_empty_mesh_beacon_fields_write_no_key():
