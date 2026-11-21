@@ -1,4 +1,4 @@
-"""Build artifact cleanup, and the scrub of the firmware source after a build."""
+"""Build artifact cleanup, build cache cleanup, and the scrub of the firmware source after a build."""
 
 from __future__ import annotations
 
@@ -6,10 +6,13 @@ import asyncio
 import logging
 import re
 import shutil
+import sqlite3
 import time
 from collections.abc import Callable, Collection
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from mtfwbuilder.services.build_cache import remove_expired_entries, remove_orphan_folders
 
 if TYPE_CHECKING:
     # config.py imports this module to scrub an old firmware source at startup.
@@ -48,10 +51,33 @@ def cleanup_old_builds(settings: Settings, keep: Collection[str] = ()) -> int:
 
 
 async def cleanup_every_interval(settings: Settings, unended_build_ids: Callable[[], Collection[str]]) -> None:
-    """Remove the old build directories now, then again each `cleanup_interval_seconds`, until cancelled."""
+    """Remove the old build directories and the old build cache data now, then each `cleanup_interval_seconds`.
+
+    The task runs until it is cancelled. An error in one cleanup goes to the log, and the next cleanup runs.
+    """
     while True:
-        cleanup_old_builds(settings, keep=unended_build_ids())
+        try:
+            cleanup_old_builds(settings, keep=unended_build_ids())
+            await remove_expired_entries(settings)
+            await remove_orphan_folders(settings)
+        except (OSError, sqlite3.Error) as e:
+            # The error text names a path or a table, never a config value, so it holds no secret.
+            logger.error(f"The cleanup failed and runs again in {settings.cleanup_interval_seconds} seconds: {e!r}")
         await asyncio.sleep(settings.cleanup_interval_seconds)
+
+
+def scrub_sources_after_restart(firmware_dir: Path) -> None:
+    """Run `scrub_after_restart` on each firmware source under `firmware_dir`.
+
+    Each firmware source is `<firmware_dir>/<tag>/`. When the startup import cannot move an old firmware source,
+    the old firmware source is `<firmware_dir>` itself. Raises `OSError` when a delete fails.
+    """
+    if (firmware_dir / "platformio.ini").is_file():
+        scrub_after_restart(firmware_dir)
+    elif firmware_dir.is_dir():
+        for source_dir in firmware_dir.iterdir():
+            if source_dir.is_dir():
+                scrub_after_restart(source_dir)
 
 
 def scrub_after_restart(firmware_dir: Path) -> None:

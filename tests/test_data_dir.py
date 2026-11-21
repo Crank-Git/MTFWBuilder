@@ -1,11 +1,15 @@
 """Tests for the data directory that holds all state (FR-platform-modernization-6)."""
 
 import os
+from pathlib import Path
 
 import pytest
 import yaml
 
 from mtfwbuilder.config import DataDirError, Settings, load_settings
+from mtfwbuilder.database import find_firmware_source
+from mtfwbuilder.main import create_app, lifespan
+from mtfwbuilder.services.firmware_catalog import CatalogUnavailable, FirmwareCatalog
 from mtfwbuilder.services.firmware_updater import get_firmware_version
 from tests.conftest import SECRET_KEY
 
@@ -166,3 +170,50 @@ def test_startup_scrubs_and_keeps_old_firmware_when_data_dir_has_one(dirs, caplo
     _assert_scrubbed(base_dir / "firmware")
     assert new_ini.read_text() == "[new]\n"
     assert f"Scrubbed the old firmware source {base_dir / 'firmware'}" in caplog.text
+
+
+# Epic 5 and Epic 4 together: the startup moves an old firmware source into the data directory, then imports it.
+
+
+@pytest.fixture
+def no_github(monkeypatch):
+    # The import asks the firmware catalog for the newest stable tag, and a test does not reach the network.
+    def unreachable(_self, _channel):
+        raise CatalogUnavailable("no network in tests")
+
+    monkeypatch.setattr(FirmwareCatalog, "resolve", unreachable)
+
+
+@pytest.mark.usefixtures("no_github")
+@pytest.mark.usefixtures("fake_pio")
+async def test_startup_imports_an_old_firmware_source_from_base_dir_into_a_tag_directory_of_the_data_dir(dirs):
+    base_dir, data_dir = dirs
+    _old_firmware_with_secrets(base_dir / "firmware")
+    _old_firmware_with_secrets(base_dir / "firmware" / ".worker-1")
+    (base_dir / "firmware_version.txt").write_text("Version: v2.7.26.54e0d8d\nUpdated: now\n")
+
+    async with lifespan(create_app()):
+        pass
+
+    source_dir = data_dir / "firmware" / "v2.7.26.54e0d8d"
+    record = await find_firmware_source(data_dir / "mtfwbuilder.db")
+    assert (record["version"], Path(record["path"])) == ("v2.7.26.54e0d8d", source_dir)
+    assert (source_dir / "platformio.ini").exists()
+    _assert_scrubbed(source_dir)
+    _assert_scrubbed(source_dir / ".worker-1")
+    assert not (base_dir / "firmware").exists()
+
+
+@pytest.mark.usefixtures("no_github")
+async def test_startup_imports_no_old_firmware_source_when_firmware_dir_is_set(dirs, tmp_path, monkeypatch):
+    base_dir, data_dir = dirs
+    monkeypatch.setenv("MTFW_FIRMWARE_DIR", str(tmp_path / "elsewhere"))
+    platformio_ini = _old_firmware_with_secrets(base_dir / "firmware")
+    (base_dir / "firmware_version.txt").write_text("Version: v2.7.26.54e0d8d\nUpdated: now\n")
+
+    async with lifespan(create_app()):
+        pass
+
+    assert await find_firmware_source(data_dir / "mtfwbuilder.db") is None
+    assert platformio_ini.exists()
+    _assert_scrubbed(base_dir / "firmware")

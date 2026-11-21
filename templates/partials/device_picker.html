@@ -1,0 +1,20 @@
+{# The list reloads from the registry of the chosen firmware version, so each filter change asks the server again. #}
+<input type="hidden" id="variant" name="variant" value="">
+<div id="device-picker" class="mt-3"
+     hx-get="/api/v1/variants" hx-target="#device-results" hx-sync="this:replace"
+     hx-include="#device-search, #device-experimental, #device-results"
+     hx-trigger="load, input changed delay:250ms from:#device-search, change from:#device-experimental, change from:#firmware_version, change from:#device-results, picker:clear">
+    <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" id="device-experimental" name="experimental" value="true">
+        <label class="form-check-label" for="device-experimental">Show experimental (support level <code>extra</code>)</label>
+    </div>
+    <div id="device-results">
+        <div id="device-loading" class="placeholder-glow" aria-busy="true">
+            <span class="visually-hidden">The device list loads.</span>
+            <span class="placeholder col-12 mb-2"></span>
+            <span class="placeholder col-12 mb-2"></span>
+            <span class="placeholder col-12"></span>
+        </div>
+    </div>
+    <div id="error-variant" class="field-error invalid-feedback d-block"></div>
+</div>

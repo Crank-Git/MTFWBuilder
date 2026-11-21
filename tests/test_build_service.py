@@ -9,10 +9,11 @@ from httpx import ASGITransport, AsyncClient
 from mtfwbuilder.config import Settings
 from mtfwbuilder.services.build_service import (
     BuildContext,
+    DeviceVariant,
     _parse_progress,
 )
 from mtfwbuilder.services.cleanup_service import cleanup_old_builds
-from mtfwbuilder.services.device_registry import DeviceVariant
+from tests.conftest import FIRMWARE_VERSION
 
 
 class TestProgressParsing:
@@ -33,6 +34,24 @@ class TestProgressParsing:
     def test_unrelated_line_returns_none(self):
         assert _parse_progress("Installing ESP32 platform") is None
         assert _parse_progress("") is None
+
+
+@pytest.mark.parametrize(
+    ("architecture", "firmware_format"),
+    [
+        ("esp32", "bin"),
+        ("esp32s3", "bin"),
+        ("nrf52840", "uf2"),
+        ("rp2040", "uf2"),
+        ("rp2350", "uf2"),
+        ("nrf54l15", "zip"),
+        ("stm32", "bin"),
+    ],
+)
+def test_firmware_format_follows_the_flash_method_of_the_architecture(architecture, firmware_format):
+    variant = DeviceVariant(id="env", name="Env", manufacturer="Other", architecture=architecture)
+
+    assert variant.firmware_format == firmware_format
 
 
 class TestBuildContext:
@@ -98,13 +117,14 @@ class TestFirmwareRoutes:
             yield c
 
     @pytest.mark.asyncio
+    @pytest.mark.usefixtures("firmware_source")
     async def test_build_unknown_variant(self, client):
         resp = await client.post(
             "/api/v1/build-firmware",
             data={"variant": "nonexistent-xyz", "config_source": "current", "config_json": "{}"},
         )
-        assert resp.status_code == 400
-        assert "Unknown device variant" in resp.json()["detail"]
+        assert resp.status_code == 422
+        assert resp.json()["detail"][0]["msg"] == f"Variant not in {FIRMWARE_VERSION}"
 
     @pytest.mark.asyncio
     async def test_build_no_variant(self, client):

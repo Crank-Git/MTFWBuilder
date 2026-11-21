@@ -17,16 +17,9 @@ from mtfwbuilder.services.build_service import (
     generate_build_id,
     progress_events,
 )
-from mtfwbuilder.services.device_registry import DeviceRegistry
+from tests.conftest import fixture_variant
 
 CONFIG = json.dumps({"owner_long_name": "TestNode"})
-
-
-@pytest.fixture
-def firmware_source(settings):
-    """Return the firmware source directory, after it is created."""
-    settings.firmware_dir.mkdir(parents=True)
-    return settings.firmware_dir
 
 
 @pytest.fixture
@@ -160,7 +153,7 @@ async def test_progress_stream_with_a_negative_log_from_returns_422(app, client)
 async def test_closed_progress_stream_does_not_cancel_the_build(app, monkeypatch):
     monkeypatch.setenv("FAKE_PIO_SLEEP", "0.5")
     build_queue = app.state.build_queue
-    ctx = build_queue.submit(app.state.device_registry.get("heltec-v3"), "{}")
+    ctx = await build_queue.submit(fixture_variant("heltec-v3"), "{}")
     stream = progress_events(ctx)
     first = await anext(stream)
     build_queue.start()
@@ -178,7 +171,7 @@ async def test_closed_progress_stream_does_not_cancel_the_build(app, monkeypatch
 async def test_failed_pio_reports_one_failed_event_with_the_error_message(app, monkeypatch):
     monkeypatch.setenv("FAKE_PIO_FAIL", "1")
     build_queue = app.state.build_queue
-    ctx = build_queue.submit(app.state.device_registry.get("heltec-v3"), "{}")
+    ctx = await build_queue.submit(fixture_variant("heltec-v3"), "{}")
     collector = asyncio.create_task(_collect(ctx))
     await asyncio.sleep(0)
     build_queue.start()
@@ -215,14 +208,14 @@ async def test_sixth_queued_build_returns_503_with_build_queue_size_5(app, clien
     assert resp.status_code == 503
 
 
-def test_submit_raises_when_the_build_queue_is_full(settings, firmware_source):
-    variant = DeviceRegistry(settings.devices_file).get("pico")
+async def test_submit_raises_when_the_build_queue_is_full(settings, firmware_source):
+    variant = fixture_variant("pico")
     build_queue = BuildQueue(settings)
     for _ in range(settings.max_queue_size):
-        build_queue.submit(variant, "{}")
+        await build_queue.submit(variant, "{}")
 
     with pytest.raises(BuildQueueFull):
-        build_queue.submit(variant, "{}")
+        await build_queue.submit(variant, "{}")
 
 
 async def test_build_id_is_32_hex_characters(client, firmware_source):

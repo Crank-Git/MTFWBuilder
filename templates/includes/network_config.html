@@ -7,7 +7,7 @@
     </div>
     <div id="networkConfig" style="display: none;">
         <div class="row mb-3">
-            <div class="col-md-6">
+            <fieldset class="col-md-6" data-userprefs-key="USERPREFS_NETWORK_ENABLED_PROTOCOLS"{{ key_attrs("USERPREFS_NETWORK_ENABLED_PROTOCOLS") }}>
                 <label for="networkProtocols" class="form-label">Enabled Protocols</label>
                 <select class="form-select" id="networkProtocols" name="network_protocols">
                     <option value="1" selected>UDP</option>
@@ -15,74 +15,91 @@
                     <option value="3">UDP & TCP</option>
                 </select>
                 <div id="error-network_protocols" class="field-error invalid-feedback d-block"></div>
-            </div>
+                <div class="form-text text-muted">The protocols that the device uses on the network. <code class="small">USERPREFS_NETWORK_ENABLED_PROTOCOLS</code></div>
+            </fieldset>
             <div class="col-md-6">
-                <div class="form-check form-switch mt-4">
+                <fieldset class="form-check form-switch mt-4" data-userprefs-key="USERPREFS_NETWORK_WIFI_ENABLED"{{ key_attrs("USERPREFS_NETWORK_WIFI_ENABLED") }}>
                     <input type="hidden" name="wifi_enabled" value="false">
                     <input class="form-check-input" type="checkbox" id="wifiEnabled" name="wifi_enabled" value="true">
                     <label class="form-check-label" for="wifiEnabled">Enable WiFi</label>
-                </div>
+                    <div class="form-text text-muted">The device connects to the WiFi network below. <code class="small">USERPREFS_NETWORK_WIFI_ENABLED</code></div>
+                </fieldset>
+                <fieldset class="form-check form-switch mt-2" data-userprefs-key="USERPREFS_NETWORK_IPV6_ENABLED"{{ key_attrs("USERPREFS_NETWORK_IPV6_ENABLED") }}>
+                    <input type="hidden" name="network_ipv6_enabled" value="false">
+                    <input class="form-check-input" type="checkbox" id="networkIpv6Enabled" name="network_ipv6_enabled" value="true">
+                    <label class="form-check-label" for="networkIpv6Enabled">Enable IPv6</label>
+                    <div class="form-text text-muted">The device also uses IPv6 on the network. <code class="small">USERPREFS_NETWORK_IPV6_ENABLED</code></div>
+                </fieldset>
             </div>
         </div>
         <div class="row mb-3">
-            <div class="col-md-6">
+            <fieldset class="col-md-6" data-userprefs-key="USERPREFS_NETWORK_WIFI_SSID"{{ key_attrs("USERPREFS_NETWORK_WIFI_SSID") }}>
                 <label for="wifiSsid" class="form-label">WiFi SSID</label>
                 <input type="text" class="form-control" id="wifiSsid" name="wifi_ssid" placeholder="Your WiFi network name">
                 <div id="error-wifi_ssid" class="field-error invalid-feedback d-block"></div>
-            </div>
-            <div class="col-md-6">
+                <div class="form-text text-muted">The name of the WiFi network. <code class="small">USERPREFS_NETWORK_WIFI_SSID</code></div>
+            </fieldset>
+            <fieldset class="col-md-6" data-userprefs-key="USERPREFS_NETWORK_WIFI_PSK"{{ key_attrs("USERPREFS_NETWORK_WIFI_PSK") }}>
                 <label for="wifiPsk" class="form-label">WiFi Password</label>
                 <input type="password" class="form-control" id="wifiPsk" name="wifi_psk" placeholder="Your WiFi password">
                 <div id="error-wifi_psk" class="field-error invalid-feedback d-block"></div>
-            </div>
+                <div class="form-text text-muted">The password of the WiFi network. <code class="small">USERPREFS_NETWORK_WIFI_PSK</code></div>
+            </fieldset>
         </div>
         
         <h4 class="mt-4 mb-3">MQTT Configuration</h4>
-        <div class="form-check form-switch mb-3">
+        <fieldset class="form-check form-switch mb-3" data-userprefs-key="USERPREFS_MQTT_ENABLED"{{ key_attrs("USERPREFS_MQTT_ENABLED") }}>
             <input type="hidden" name="mqtt_enabled" value="false">
             <input class="form-check-input" type="checkbox" id="mqttEnabled" name="mqtt_enabled" value="true">
             <label class="form-check-label" for="mqttEnabled">Enable MQTT</label>
-        </div>
+            <div class="form-text text-muted">The device connects to the MQTT server below. <code class="small">USERPREFS_MQTT_ENABLED</code></div>
+        </fieldset>
         <div id="mqttConfig" style="display: none;">
             <div class="row mb-3">
-                <div class="col-md-6">
+                <fieldset class="col-md-6" data-userprefs-key="USERPREFS_MQTT_ADDRESS"{{ key_attrs("USERPREFS_MQTT_ADDRESS") }}>
                     <label for="mqttAddress" class="form-label">MQTT Server</label>
                     <input type="text" class="form-control" id="mqttAddress" name="mqtt_address" placeholder="mqtt.meshtastic.org">
                     <div id="error-mqtt_address" class="field-error invalid-feedback d-block"></div>
-                </div>
-                <div class="col-md-6">
+                    <div class="form-text text-muted">The host name or IP address of the MQTT server. <code class="small">USERPREFS_MQTT_ADDRESS</code></div>
+                </fieldset>
+                <fieldset class="col-md-6" data-userprefs-key="USERPREFS_MQTT_ROOT_TOPIC"{{ key_attrs("USERPREFS_MQTT_ROOT_TOPIC") }}>
                     <label for="mqttRootTopic" class="form-label">MQTT Root Topic</label>
                     <input type="text" class="form-control" id="mqttRootTopic" name="mqtt_root_topic" placeholder="event/REPLACEME">
                     <div id="error-mqtt_root_topic" class="field-error invalid-feedback d-block"></div>
-                </div>
+                    <div class="form-text text-muted">The first part of the topic of each MQTT message. <code class="small">USERPREFS_MQTT_ROOT_TOPIC</code></div>
+                </fieldset>
             </div>
             <div class="row mb-3">
-                <div class="col-md-6">
+                <fieldset class="col-md-6" data-userprefs-key="USERPREFS_MQTT_USERNAME"{{ key_attrs("USERPREFS_MQTT_USERNAME") }}>
                     <label for="mqttUsername" class="form-label">MQTT Username</label>
                     <input type="text" class="form-control" id="mqttUsername" name="mqtt_username" placeholder="meshdev">
                     <div id="error-mqtt_username" class="field-error invalid-feedback d-block"></div>
-                </div>
-                <div class="col-md-6">
+                    <div class="form-text text-muted">The user name for the MQTT server. <code class="small">USERPREFS_MQTT_USERNAME</code></div>
+                </fieldset>
+                <fieldset class="col-md-6" data-userprefs-key="USERPREFS_MQTT_PASSWORD"{{ key_attrs("USERPREFS_MQTT_PASSWORD") }}>
                     <label for="mqttPassword" class="form-label">MQTT Password</label>
                     <input type="password" class="form-control" id="mqttPassword" name="mqtt_password" placeholder="Password">
                     <div id="error-mqtt_password" class="field-error invalid-feedback d-block"></div>
-                </div>
+                    <div class="form-text text-muted">The password for the MQTT server. <code class="small">USERPREFS_MQTT_PASSWORD</code></div>
+                </fieldset>
             </div>
             <div class="row">
-                <div class="col-md-6">
+                <fieldset class="col-md-6" data-userprefs-key="USERPREFS_MQTT_ENCRYPTION_ENABLED"{{ key_attrs("USERPREFS_MQTT_ENCRYPTION_ENABLED") }}>
                     <div class="form-check form-switch">
                         <input type="hidden" name="mqtt_encryption_enabled" value="false">
                         <input class="form-check-input" type="checkbox" id="mqttEncryptionEnabled" name="mqtt_encryption_enabled" value="true" checked>
                         <label class="form-check-label" for="mqttEncryptionEnabled">Enable MQTT Encryption</label>
                     </div>
-                </div>
-                <div class="col-md-6">
+                    <div class="form-text text-muted">The device sends packets to MQTT encrypted with the channel PSK. <code class="small">USERPREFS_MQTT_ENCRYPTION_ENABLED</code></div>
+                </fieldset>
+                <fieldset class="col-md-6" data-userprefs-key="USERPREFS_MQTT_TLS_ENABLED"{{ key_attrs("USERPREFS_MQTT_TLS_ENABLED") }}>
                     <div class="form-check form-switch">
                         <input type="hidden" name="mqtt_tls_enabled" value="false">
                         <input class="form-check-input" type="checkbox" id="mqttTlsEnabled" name="mqtt_tls_enabled" value="true">
                         <label class="form-check-label" for="mqttTlsEnabled">Enable MQTT TLS</label>
                     </div>
-                </div>
+                    <div class="form-text text-muted">The device connects to the MQTT server with TLS. <code class="small">USERPREFS_MQTT_TLS_ENABLED</code></div>
+                </fieldset>
             </div>
         </div>
     </div>

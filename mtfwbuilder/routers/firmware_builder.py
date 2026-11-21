@@ -10,12 +10,14 @@ from fastapi.responses import FileResponse, RedirectResponse, Response
 from pydantic import ValidationError
 from sse_starlette.sse import EventSourceResponse
 
+from mtfwbuilder.database import find_firmware_source, list_firmware_sources, list_variants
 from mtfwbuilder.htmx import fragment_or_json, is_htmx
-from mtfwbuilder.models import Artifact, ConfigRequest
+from mtfwbuilder.models import Artifact, ConfigRequest, FirmwareSource
 from mtfwbuilder.rate_limit import build_rate_limit, limiter
+from mtfwbuilder.routers.config_generator import field_error, generate_for_version, key_scan
 from mtfwbuilder.services import build_service
-from mtfwbuilder.services.firmware_updater import get_firmware_version
-from mtfwbuilder.services.jsonc_generator import generate_jsonc
+from mtfwbuilder.services.build_service import DeviceVariant
+from mtfwbuilder.services.userprefs_keys import KeyScan
 
 logger = logging.getLogger("mtfwbuilder.firmware_routes")
 
@@ -24,6 +26,8 @@ router = APIRouter(prefix="/api/v1", tags=["firmware"])
 # The same 64 KB limit as the preview-userprefs route.
 MAX_UPLOAD_SIZE = 65536
 QUEUE_FULL_NOTICE = "The build queue is full. Try again in a few minutes."
+# The JSON detail of a 503 from a build route that the build queue refuses.
+QUEUE_FULL_DETAIL = "Build queue is full. Try again later."
 # The steps of a build before its ended build status, in build order.
 RUN_STEPS = ("queued", "compiling", "linking", "packaging")
 
@@ -40,34 +44,74 @@ async def start_build(request: Request) -> Response:
     - `current`: one field `config_json` that holds the config as JSON.
     - `upload` (the default): one field `userPrefs` that holds a userPrefs file.
 
-    Returns 400 for a bad form, 422 with field errors for an invalid config, and 503 when the
-    build queue is full. The route validates the config before the build goes in the build queue.
+    The optional field `firmware_version` names an installed firmware version. Without it, the build uses the
+    newest installed stable firmware version.
+
+    Returns:
+    - 400 for a bad form.
+    - 422 with field errors in these cases:
+      - an invalid config.
+      - a firmware version that is not installed.
+      - a variant that is not in the registry of the firmware version.
+      - a field that the firmware version does not read.
+    - 503 when the build queue is full.
+
+    The route validates the config before the build goes in the build queue.
     """
-    registry = request.app.state.device_registry
     form = await request.form()
 
     variant_id = form.get("variant")
     if not variant_id:
         raise HTTPException(status_code=400, detail="No device variant selected")
-    if not registry.exists(variant_id):
-        raise HTTPException(status_code=400, detail=f"Unknown device variant: {variant_id}")
-    variant = registry.get(variant_id)
-    config_content = await _config_content(form)
+    # An empty field asks for the default firmware version, the same as no field.
+    firmware_version = form.get("firmware_version") or None
+    variant = await _registry_variant(request, variant_id, firmware_version)
+    config_content = await _config_content(form, await key_scan(request, firmware_version))
 
     try:
-        ctx = request.app.state.build_queue.submit(variant, config_content)
+        ctx = await request.app.state.build_queue.submit(variant, config_content, firmware_version)
+    except build_service.FirmwareVersionNotInstalled as e:
+        raise _field_error("firmware_version", f"firmware version {firmware_version} is not installed") from e
     except build_service.BuildQueueFull as e:
         if is_htmx(request):
             return request.app.state.templates.TemplateResponse(
                 request, "partials/build_notice.html", {"notice": QUEUE_FULL_NOTICE}, status_code=503
             )
-        raise HTTPException(status_code=503, detail="Build queue is full. Try again later.") from e
+        raise HTTPException(status_code=503, detail=QUEUE_FULL_DETAIL) from e
 
     data = {"build_id": ctx.build_id, "progress_url": progress_url(ctx.build_id)}
     response = fragment_or_json(request, "partials/build_panel.html", panel_context(ctx), data, status_code=202)
     # The page URL holds the build id, so a reload of the page shows the same build.
     response.headers["HX-Push-Url"] = f"/?build={ctx.build_id}"
     return response
+
+
+async def _registry_variant(request: Request, variant_id: str, firmware_version: str | None) -> DeviceVariant:
+    """Return the variant `variant_id` from the registry of the firmware version of the build.
+
+    `firmware_version` None selects the default firmware version. Raises a 422 field error:
+
+    - for `firmware_version` when it is not installed.
+    - for `variant` when the registry of the firmware version does not hold the variant. A firmware version
+      without registry rows holds no variant.
+    """
+    database_path = request.app.state.settings.database_path
+    source = await find_firmware_source(database_path, firmware_version)
+    if source is None:
+        if firmware_version is not None:
+            raise _field_error("firmware_version", f"firmware version {firmware_version} is not installed")
+        # With no firmware version installed, the build fails at submit and shows the admin link, so it never compiles.
+        return DeviceVariant(id=variant_id, name=variant_id, manufacturer="Other", architecture="")
+    entries = await list_variants(database_path, source["version"])
+    entry = next((e for e in entries if e["env"] == variant_id), None)
+    if entry is None:
+        raise _field_error("variant", f"Variant not in {source['version']}")
+    return DeviceVariant(
+        id=entry["env"],
+        name=entry["display_name"],
+        manufacturer=entry["manufacturer"],
+        architecture=entry["architecture"],
+    )
 
 
 def progress_url(build_id: str) -> str:
@@ -102,21 +146,24 @@ def panel_context(ctx: build_service.BuildContext) -> dict:
     }
 
 
-async def _config_content(form) -> str:
-    """Return the userPrefs file of the build form, from the source that `config_source` names."""
+async def _config_content(form, scan: KeyScan | None) -> str:
+    """Return the userPrefs file of the build form, from the source that `config_source` names.
+
+    `scan` is the key scan of the firmware version of the build.
+    """
     source = form.get("config_source", "upload")
     if source == "form":
-        fields = {k: v for k, v in form.items() if k not in ("variant", "config_source")}
-        return _validated(lambda: ConfigRequest.model_validate(fields))
+        fields = {k: v for k, v in form.items() if k not in ("variant", "config_source", "firmware_version")}
+        return _validated(lambda: ConfigRequest.model_validate(fields), scan)
     if source == "current":
-        return _config_from_json(form.get("config_json"))
+        return _config_from_json(form.get("config_json"), scan)
     return await _config_from_upload(form.get("userPrefs"))
 
 
-def _validated(parse) -> str:
-    """Return the userPrefs file of the config that `parse` returns.
+def _validated(parse, scan: KeyScan | None) -> str:
+    """Return the userPrefs file of the config that `parse` returns, for the firmware version of `scan`.
 
-    Raises a 422 field error when `ConfigRequest` rejects the config.
+    Raises a 422 field error when `ConfigRequest` or the firmware version rejects the config.
     """
     try:
         config = parse()
@@ -124,17 +171,17 @@ def _validated(parse) -> str:
         # The same field locations as the download route, so the form puts each error next to its field.
         errors = [{**error, "loc": ("body", *error["loc"])} for error in e.errors(include_url=False)]
         raise RequestValidationError(errors) from e
-    return generate_jsonc(config.generator_input())
+    return generate_for_version(config, scan)
 
 
-def _config_from_json(config_json: str | None) -> str:
+def _config_from_json(config_json: str | None, scan: KeyScan | None) -> str:
     """Return the userPrefs file that the generator makes from the config JSON of the form.
 
     Raises HTTP 400 when the form holds no config, and a 422 field error when `ConfigRequest` rejects it.
     """
     if not config_json:
         raise HTTPException(status_code=400, detail="No configuration data provided")
-    return _validated(lambda: ConfigRequest.model_validate_json(config_json))
+    return _validated(lambda: ConfigRequest.model_validate_json(config_json), scan)
 
 
 async def _config_from_upload(upload) -> str:
@@ -155,19 +202,19 @@ async def _config_from_upload(upload) -> str:
         try:
             content = raw.decode("utf-8")
         except UnicodeDecodeError as e:
-            raise _upload_error("the file is not UTF-8 text") from e
+            raise _field_error("userPrefs", "the file is not UTF-8 text") from e
     for number, line in enumerate(content.splitlines(), start=1):
         before, double_slash, _ = line.partition("//")
         # The upstream parser cuts each line at the first //, so a // after an odd count of quotes cuts a value.
         if double_slash and before.replace('\\"', "").count('"') % 2:
-            raise _upload_error(f"line {number}: a value contains //, which the firmware build reads as a comment")
+            raise _field_error(
+                "userPrefs", f"line {number}: a value contains //, which the firmware build reads as a comment"
+            )
     return content
 
 
-def _upload_error(message: str) -> RequestValidationError:
-    return RequestValidationError(
-        [{"type": "value_error", "loc": ("body", "userPrefs"), "msg": message, "input": None}]
-    )
+def _field_error(name: str, message: str) -> RequestValidationError:
+    return RequestValidationError([field_error((name,), message)])
 
 
 @router.get("/build-progress/{build_id}")
@@ -260,7 +307,17 @@ def _get_build(request: Request, build_id: str) -> build_service.BuildContext:
 
 @router.get("/system-info")
 async def system_info(request: Request):
-    """Get firmware version and system status."""
-    settings = request.app.state.settings
-    info = get_firmware_version(settings)
-    return {"success": True, **info}
+    """Return the default firmware version, its install date, and each installed firmware version.
+
+    The default firmware version is the one that a build without `firmware_version` uses. Without a firmware
+    source, `version` is `Not installed` and `last_updated` is `Never`.
+    """
+    database_path = request.app.state.settings.database_path
+    default = await find_firmware_source(database_path)
+    sources = await list_firmware_sources(database_path)
+    return {
+        "success": True,
+        "version": default["version"] if default else "Not installed",
+        "last_updated": default["installed_at"] if default else "Never",
+        "firmware_versions": [FirmwareSource(**source) for source in sources],
+    }

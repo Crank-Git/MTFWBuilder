@@ -2,7 +2,7 @@
 id: device-registry
 feature: Device registry
 epic: —
-status: built
+status: retired
 issues: []
 mockups: []
 ---
@@ -11,6 +11,8 @@ mockups: []
 
 The registry is the list of variants the firmware builder page offers. Today it is a
 hand-kept YAML file. This file describes the code at commit `bd15bb1`.
+
+**Retired.** Epic 6 (#145) deleted `devices/variants.yaml` and its loader. The registry now comes from the firmware source; see `10-generated-registry.md`.
 
 ## User stories
 

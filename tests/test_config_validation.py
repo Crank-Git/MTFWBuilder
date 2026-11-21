@@ -223,3 +223,35 @@ async def test_digit_button_pin_and_event_mode_reach_the_userprefs_file(client):
     parsed = json.loads(resp.json()["content"])
     assert parsed["USERPREFS_BUTTON_PIN"] == "36"
     assert parsed["USERPREFS_EVENT_MODE"] == "1"
+
+
+# A 422 body holds no submitted value, so a rejected secret does not go back to the client.
+
+REJECTED_PSK = "cd" * 15
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("route", CONFIG_ROUTES)
+@pytest.mark.parametrize("headers", [{}, {"HX-Request": "true"}])
+async def test_422_of_a_config_route_does_not_contain_the_rejected_psk(client, route, headers):
+    resp = await client.post(route, data={"channels_to_write": "1", "channel_0[psk]": REJECTED_PSK}, headers=headers)
+
+    assert resp.status_code == 422
+    assert REJECTED_PSK not in resp.text
+
+
+@pytest.mark.asyncio
+async def test_422_of_the_build_route_does_not_contain_the_rejected_psk(client):
+    form = {"variant": "heltec-v3", "config_source": "form", "channels_to_write": "1", "channel_0[psk]": REJECTED_PSK}
+
+    resp = await client.post("/api/v1/build-firmware", data=form)
+
+    assert resp.status_code == 422
+    assert REJECTED_PSK not in resp.text
+
+
+@pytest.mark.asyncio
+async def test_each_422_field_error_holds_only_the_location_the_message_and_the_type(client):
+    resp = await client.post("/api/v1/preview", json={"channels_to_write": "1", "channel_0[psk]": REJECTED_PSK})
+
+    assert [set(error) for error in resp.json()["detail"]] == [{"loc", "msg", "type"}]

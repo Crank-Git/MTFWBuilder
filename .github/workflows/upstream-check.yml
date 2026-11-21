@@ -1,6 +1,7 @@
-# Upstream firmware changes without notice. This check runs the contract tests against
-# upstream `develop`, so a change shows before it reaches a stable firmware version.
-# A failure means a fixture refresh: see .claude/skills/refresh-fixtures/SKILL.md.
+# Upstream firmware changes without notice. This check runs the registry check and the contract
+# tests against upstream `develop`, so a change shows before it reaches a stable firmware version.
+# A contract test failure means a fixture refresh: see .claude/skills/refresh-fixtures/SKILL.md.
+# A registry check failure means an upstream change to the variant metadata. The step log names it.
 name: Upstream check
 
 on:
@@ -14,7 +15,7 @@ permissions:
 
 jobs:
   contract:
-    name: Contract tests against upstream develop
+    name: Registry check and contract tests against upstream develop
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -31,9 +32,17 @@ jobs:
         run: |
           echo "Upstream develop commit: \`$(git -C "$RUNNER_TEMP/firmware" rev-parse HEAD)\`" >> "$GITHUB_STEP_SUMMARY"
 
+      # uv.lock pins PlatformIO Core 6.2.0, so `uv sync` installs the `pio` that the registry step runs.
+      - name: Record the PlatformIO version
+        run: uv run pio --version >> "$GITHUB_STEP_SUMMARY"
+
+      # The tests read a recorded `pio project config` output, so only this step sees an upstream metadata change.
+      - name: Check the generated registry
+        run: uv run python scripts/check_registry.py "$RUNNER_TEMP/firmware"
+
       # The contract tests read tests/fixtures/firmware/, so the clone replaces it in this checkout only.
       - name: Replace the firmware fixture with the clone
         run: uv run python -m tests.upstream_fixture "$RUNNER_TEMP/firmware"
 
       - name: Contract tests
-        run: uv run pytest -q -k "contract or registry"
+        run: uv run pytest -q -k contract

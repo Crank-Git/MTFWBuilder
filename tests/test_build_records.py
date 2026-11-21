@@ -1,11 +1,8 @@
 """Tests for the build records, the cleanup task, the update lock and startup recovery (feature 06)."""
 
 import asyncio
-import hashlib
-import hmac
 import json
 import os
-import threading
 import time
 
 import aiosqlite
@@ -14,20 +11,13 @@ from httpx import ASGITransport, AsyncClient
 
 from mtfwbuilder.database import init_db
 from mtfwbuilder.main import lifespan
-from mtfwbuilder.routers import admin
+from mtfwbuilder.services.build_cache import config_hash
 from mtfwbuilder.services.cleanup_service import cleanup_old_builds
-from tests.conftest import sign_in_admin
+from tests.conftest import FIRMWARE_VERSION, fixture_variant
 
 PSK = "deadbeef" * 8
 CONFIG = json.dumps({"device_name": "TestNode", "channel_0_psk": PSK})
 ENDED = {"complete", "failed", "cancelled"}
-
-
-@pytest.fixture
-def firmware_source(settings):
-    """Return the firmware source directory, after it is created."""
-    settings.firmware_dir.mkdir(parents=True)
-    return settings.firmware_dir
 
 
 @pytest.fixture
@@ -104,7 +94,7 @@ async def test_init_db_adds_config_hash_and_firmware_version_to_an_old_builds_ta
 
 @pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
 async def test_build_record_has_the_end_status_and_no_log_and_no_config(app, database, settings):
-    ctx = app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
+    ctx = await app.state.build_queue.submit(fixture_variant("heltec-v3"), CONFIG)
     await _wait_for(ctx, ENDED)
 
     row = await _wait_for_row(database, ctx.build_id, ENDED)
@@ -113,14 +103,14 @@ async def test_build_record_has_the_end_status_and_no_log_and_no_config(app, dat
     assert row["variant"] == "heltec-v3"
     assert row["build_log"] is None
     assert row["completed_at"] is not None
-    assert row["config_hash"] == hmac.new(settings.secret_key.encode(), CONFIG.encode(), hashlib.sha256).hexdigest()
+    assert row["config_hash"] == config_hash(settings.secret_key, FIRMWARE_VERSION, "heltec-v3", CONFIG)
     assert not any(PSK in str(value) or CONFIG in str(value) for value in row.values())
 
 
 @pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
 async def test_build_record_shows_compiling_while_pio_runs(app, database, monkeypatch):
     monkeypatch.setenv("FAKE_PIO_SLEEP", "1")
-    ctx = app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
+    ctx = await app.state.build_queue.submit(fixture_variant("heltec-v3"), CONFIG)
     await _wait_for(ctx, {"compiling"})
 
     row = await _wait_for_row(database, ctx.build_id, {"compiling"})
@@ -132,7 +122,7 @@ async def test_build_record_shows_compiling_while_pio_runs(app, database, monkey
 @pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
 async def test_failed_build_record_holds_the_error(app, database, monkeypatch):
     monkeypatch.setenv("FAKE_PIO_FAIL", "1")
-    ctx = app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
+    ctx = await app.state.build_queue.submit(fixture_variant("heltec-v3"), CONFIG)
     await _wait_for(ctx, ENDED)
 
     row = await _wait_for_row(database, ctx.build_id, ENDED)
@@ -234,79 +224,3 @@ async def test_cleanup_task_runs_every_cleanup_interval(settings_env, monkeypatc
         while old.exists():
             assert time.monotonic() < deadline, "the cleanup task did not remove the old artifact directory"
             await asyncio.sleep(0.05)
-
-
-# FR-build-pipeline-repair-16
-
-
-def _sign_in(client, settings):
-    client.token = sign_in_admin(client, settings)
-
-
-@pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
-async def test_firmware_update_waits_until_no_build_runs(app, client, settings, monkeypatch):
-    monkeypatch.setenv("FAKE_PIO_SLEEP", "1")
-    statuses_at_update = []
-    ctx = app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
-    monkeypatch.setattr(admin, "update_firmware", lambda _settings: statuses_at_update.append(ctx.status) or True)
-    await _wait_for(ctx, {"compiling"})
-    _sign_in(client, settings)
-
-    resp = await client.post("/api/v1/update-firmware", data={"csrf_token": client.token})
-
-    assert resp.json()["success"] is True
-    assert statuses_at_update == ["complete"]
-
-
-@pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
-async def test_no_build_starts_while_a_firmware_update_runs(app, client, settings, monkeypatch):
-    release = threading.Event()
-    started = threading.Event()
-
-    def slow_update(_settings):
-        started.set()
-        release.wait(5)
-        return True
-
-    monkeypatch.setattr(admin, "update_firmware", slow_update)
-    _sign_in(client, settings)
-    update = asyncio.create_task(client.post("/api/v1/update-firmware", data={"csrf_token": client.token}))
-    await asyncio.to_thread(started.wait, 5)
-
-    ctx = app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
-    await asyncio.sleep(0.3)
-    status_during_update = ctx.status
-    release.set()
-    await update
-    await _wait_for(ctx, ENDED)
-
-    assert status_during_update == "queued"
-    assert ctx.status == "complete", ctx.error
-
-
-@pytest.mark.usefixtures("firmware_source")
-async def test_cancelled_update_request_keeps_the_lock_until_the_update_thread_ends(app, client, settings, monkeypatch):
-    release = threading.Event()
-    started = threading.Event()
-
-    def slow_update(_settings):
-        started.set()
-        release.wait(5)
-        return True
-
-    monkeypatch.setattr(admin, "update_firmware", slow_update)
-    _sign_in(client, settings)
-    lock = app.state.build_queue.firmware_lock
-    update = asyncio.create_task(client.post("/api/v1/update-firmware", data={"csrf_token": client.token}))
-    await asyncio.to_thread(started.wait, 5)
-
-    update.cancel()
-    await asyncio.gather(update, return_exceptions=True)
-    locked_after_cancel = lock.locked()
-    release.set()
-    deadline = time.monotonic() + 5
-    while lock.locked():
-        assert time.monotonic() < deadline, "the lock stayed held after the update thread ended"
-        await asyncio.sleep(0.02)
-
-    assert locked_after_cancel is True

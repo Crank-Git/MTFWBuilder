@@ -164,7 +164,7 @@ body.rv-open .layout { padding-right:21rem; }
 <p class="meta">— &nbsp; <span class="badge">built</span></p>
 <h3 id="admin-purpose">Purpose</h3>
 <p>The admin area lets an admin download the firmware source from GitHub and remove old builds. This file describes the code at commit <code>bd15bb1</code>.</p>
-<p><strong>Changed since this record.</strong> Epic 2 (#102) added the periodic cleanup task and a lock between the firmware update and builds. Epic 3 (#22) added the sign-in form and the dashboard. Every admin POST now needs the form field <code>csrf_token</code>, or it returns 403. The session cookie sets <code>Secure</code> only on <code>https</code>.</p>
+<p><strong>Changed since this record.</strong> Epic 5 (#132) changed <code>/api/v1/update-firmware</code>: it installs the newest non-revoked stable firmware version into <code>&lt;firmware_dir&gt;/&lt;tag&gt;/</code> through the firmware catalog. Epic 2 (#102) added the periodic cleanup task and a lock between the firmware update and builds. Epic 3 (#22) added the sign-in form and the dashboard. Every admin POST now needs the form field <code>csrf_token</code>, or it returns 403. The session cookie sets <code>Secure</code> only on <code>https</code>.</p>
 <h3 id="admin-user-stories">User stories</h3>
 <ul>
 <li>As an admin, I want to download the latest firmware source, so that builds use

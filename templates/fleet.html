@@ -1,0 +1,116 @@
+{% extends "includes/base.html" %}
+
+{% macro device_row(device) %}
+{# The row sends its fleet device id, so a renamed label keeps the same fleet device. #}
+<tr class="fleet-row" data-device-id="{{ device.id or '' }}">
+    <td class="row-number text-muted"></td>
+    <td><input type="text" class="form-control form-control-sm" name="label" value="{{ device.label }}" aria-label="Label" required></td>
+    <td><input type="text" class="form-control form-control-sm" name="variant" value="{{ device.variant or '' }}" list="fleet-variants" aria-label="Variant"></td>
+    <td><input type="text" class="form-control form-control-sm" name="long_name" value="{{ device.long_name or '' }}" aria-label="Long name"></td>
+    <td><input type="text" class="form-control form-control-sm" name="short_name" value="{{ device.short_name or '' }}" maxlength="4" aria-label="Short name"></td>
+    <td>
+        <select class="form-select form-select-sm" name="role" aria-label="Role">
+            <option value="">Profile role</option>
+            {% for value, label in role_options %}
+            <option value="{{ value }}"{% if value == device.role %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </td>
+    <td><input type="number" step="any" class="form-control form-control-sm" name="lat" value="{{ device.lat if device.lat is not none else '' }}" aria-label="Fixed latitude"></td>
+    <td><input type="number" step="any" class="form-control form-control-sm" name="lon" value="{{ device.lon if device.lon is not none else '' }}" aria-label="Fixed longitude"></td>
+    <td><input type="number" step="1" class="form-control form-control-sm" name="alt" value="{{ device.alt if device.alt is not none else '' }}" aria-label="Fixed altitude"></td>
+    {# The page never holds an admin key, so an empty field keeps the saved admin key. #}
+    <td>
+        <input type="password" class="form-control form-control-sm" name="admin_key" autocomplete="off" aria-label="Admin key"{% if device.has_admin_key %} placeholder="Saved"{% endif %}>
+        {% if device.has_admin_key %}
+        <label class="form-check small mb-0 clear-admin-key">
+            <input type="checkbox" class="form-check-input" name="clear_admin_key">
+            <span class="form-check-label">Clear admin key</span>
+        </label>
+        {% endif %}
+    </td>
+    <td><button type="button" class="btn btn-sm btn-outline-danger" data-remove-row aria-label="Remove row">Remove</button></td>
+</tr>
+<tr class="fleet-row-errors" hidden>
+    <td></td>
+    <td colspan="10"><ul class="row-errors text-danger small mb-0" role="alert"></ul></td>
+</tr>
+{% endmacro %}
+
+{% block content %}
+<div class="config-section" id="fleet" data-fleet-id="{{ fleet.id }}">
+    <h3 class="section-title"><i class="bi bi-diagram-3-fill text-success"></i>Fleet: {{ fleet.name }}</h3>
+    <p class="text-muted">
+        Profile: {{ profile_name or "none" }}.
+        Firmware version: {{ firmware_version or "the default firmware version" }}.
+    </p>
+    <div id="fleet-status" role="status" aria-live="polite"></div>
+    <form id="fleet-devices-form">
+        <div class="table-responsive">
+            <table class="table table-sm align-middle" id="fleet-devices">
+                <thead>
+                    <tr>
+                        <th scope="col">Row</th>
+                        <th scope="col">Label</th>
+                        <th scope="col">Variant</th>
+                        <th scope="col">Long name</th>
+                        <th scope="col">Short name</th>
+                        <th scope="col">Role</th>
+                        <th scope="col">Latitude</th>
+                        <th scope="col">Longitude</th>
+                        <th scope="col">Altitude (m)</th>
+                        <th scope="col">Admin key</th>
+                        <th scope="col"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for device in fleet.devices %}{{ device_row(device) }}{% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="text-muted small" id="fleet-empty"{% if fleet.devices %} hidden{% endif %}>No fleet devices yet. Add a row or import CSV.</p>
+        <p class="form-text text-muted">{{ router_role_message }}</p>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-secondary" id="addRowBtn"><i class="bi bi-plus-lg me-1"></i>Add device</button>
+            <button type="submit" class="btn btn-success" id="saveDevicesBtn">Save fleet devices</button>
+        </div>
+    </form>
+    {# The template row has the Clear admin key control, and the script removes it from a row without a saved admin key. #}
+    <template id="fleet-row-template">{{ device_row({"label": "", "has_admin_key": True}) }}</template>
+    <datalist id="fleet-variants">
+        {% for env in variants %}<option value="{{ env }}"></option>{% endfor %}
+    </datalist>
+</div>
+
+<div class="config-section" id="fleet-run-start">
+    <h3 class="section-title"><i class="bi bi-play-circle-fill text-success"></i>Start a fleet run</h3>
+    <p class="text-muted">A fleet run makes one build for each saved fleet device. Save the table first.</p>
+    {% if must_reenter %}
+    {# The server holds these secrets in memory for this fleet run only, and the page stores them nowhere. #}
+    <p class="text-muted">The profile does not store these secrets. Enter each one once for the whole fleet run.</p>
+    {% for name in must_reenter %}
+    <label class="form-label" for="secret-{{ loop.index }}">{{ name }}</label>
+    <input type="password" class="form-control mb-2" id="secret-{{ loop.index }}" data-secret="{{ name }}" autocomplete="off">
+    {% endfor %}
+    {% endif %}
+    <ul id="run-errors" class="text-danger small mb-2" role="alert"></ul>
+    <button type="button" class="btn btn-success" id="startRunBtn"{% if run_csrf_token %} data-csrf-token="{{ run_csrf_token }}"{% endif %}>Start fleet run ({{ fleet.devices | length }} builds)</button>
+</div>
+
+<div class="config-section" id="fleet-csv">
+    <h3 class="section-title"><i class="bi bi-filetype-csv text-success"></i>Import fleet devices as CSV</h3>
+    <p class="text-muted">The first line is the header <code>{{ csv_header }}</code>. The line after the header is row 1. The import adds the rows after the saved fleet devices.</p>
+    <label class="form-label" for="csvText">CSV</label>
+    <textarea class="form-control font-monospace" id="csvText" rows="6" spellcheck="false">{{ csv_header }}
+</textarea>
+    <label class="form-label mt-2" for="csvFile">Or read a CSV file</label>
+    <input type="file" class="form-control" id="csvFile" accept=".csv,text/csv">
+    <ul id="csv-errors" class="text-danger small mt-2 mb-0" role="alert"></ul>
+    <button type="button" class="btn btn-success mt-2" id="importCsvBtn">Import rows</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='js/fleet.js') }}"></script>
+<script src="{{ url_for('static', path='js/fleet_run.js') }}"></script>
+{% endblock %}

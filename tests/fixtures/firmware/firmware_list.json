@@ -1,0 +1,166 @@
+{
+  "releases": {
+    "stable": [
+      {
+        "id": "v2.7.26.54e0d8d",
+        "title": "Meshtastic Firmware 2.7.26.54e0d8d Beta",
+        "page_url": "https://github.com/meshtastic/firmware/releases/tag/v2.7.26.54e0d8d",
+        "zip_url": "https://github.com/meshtastic/firmware/releases/download/v2.7.26.54e0d8d/firmware-2.7.26.54e0d8d.json"
+      },
+      {
+        "id": "v2.7.15.567b8ea",
+        "title": "Meshtastic Firmware 2.7.15.567b8ea Beta",
+        "page_url": "https://github.com/meshtastic/firmware/releases/tag/v2.7.15.567b8ea",
+        "zip_url": "https://github.com/meshtastic/firmware/releases/download/v2.7.15.567b8ea/firmware-esp32-2.7.15.567b8ea.zip"
+      }
+    ],
+    "alpha": [
+      {
+        "id": "v2.8.2.d5f1619",
+        "title": "Meshtastic Firmware 2.8.2.d5f1619 Alpha",
+        "page_url": "https://github.com/meshtastic/firmware/releases/tag/v2.8.2.d5f1619",
+        "zip_url": "https://github.com/meshtastic/firmware/releases/download/v2.8.2.d5f1619/firmware-2.8.2.d5f1619.json"
+      },
+      {
+        "id": "v2.8.1.8e6a88d",
+        "title": "Meshtastic Firmware 2.8.1.8e6a88d Alpha",
+        "page_url": "https://github.com/meshtastic/firmware/releases/tag/v2.8.1.8e6a88d",
+        "zip_url": "https://github.com/meshtastic/firmware/releases/download/v2.8.1.8e6a88d/firmware-2.8.1.8e6a88d.json"
+      },
+      {
+        "id": "v2.7.25.104df5f",
+        "title": "Meshtastic Firmware 2.7.25.104df5f Alpha",
+        "page_url": "https://github.com/meshtastic/firmware/releases/tag/v2.7.25.104df5f",
+        "zip_url": "https://github.com/meshtastic/firmware/releases/download/v2.7.25.104df5f/firmware-2.7.25.104df5f.json"
+      },
+      {
+        "id": "v2.7.24.472b14c",
+        "title": "Meshtastic Firmware 2.7.24.472b14c Alpha",
+        "page_url": "https://github.com/meshtastic/firmware/releases/tag/v2.7.24.472b14c",
+        "zip_url": "https://github.com/meshtastic/firmware/releases/download/v2.7.24.472b14c/firmware-2.7.24.472b14c.json"
+      },
+      {
+        "id": "v2.7.23.b246bcd",
+        "title": "Meshtastic Firmware 2.7.23.b246bcd Alpha",
+        "page_url": "https://github.com/meshtastic/firmware/releases/tag/v2.7.23.b246bcd",
+        "zip_url": "https://github.com/meshtastic/firmware/releases/download/v2.7.23.b246bcd/firmware-2.7.23.b246bcd.json"
+      },
+      {
+        "id": "v2.7.22.96dd647",
+        "title": "Meshtastic Firmware 2.7.22.96dd647 Alpha",
+        "page_url": "https://github.com/meshtastic/firmware/releases/tag/v2.7.22.96dd647",
+        "zip_url": "https://github.com/meshtastic/firmware/releases/download/v2.7.22.96dd647/firmware-2.7.22.96dd647.json"
+      },
+      {
+        "id": "v2.7.21.1370b23",
+        "title": "Meshtastic Firmware 2.7.21.1370b23 Alpha",
+        "page_url": "https://github.com/meshtastic/firmware/releases/tag/v2.7.21.1370b23",
+        "zip_url": "https://github.com/meshtastic/firmware/releases/download/v2.7.21.1370b23/firmware-2.7.21.1370b23.json"
+      },
+      {
+        "id": "v2.7.20.6658ec2",
+        "title": "Meshtastic Firmware 2.7.20.6658ec2 Alpha",
+        "page_url": "https://github.com/meshtastic/firmware/releases/tag/v2.7.20.6658ec2",
+        "zip_url": "https://github.com/meshtastic/firmware/releases/download/v2.7.20.6658ec2/firmware-2.7.20.6658ec2.json"
+      },
+      {
+        "id": "v2.7.19.bb3d6d5",
+        "title": "Meshtastic Firmware 2.7.19.bb3d6d5 Alpha",
+        "page_url": "https://github.com/meshtastic/firmware/releases/tag/v2.7.19.bb3d6d5",
+        "zip_url": "https://github.com/meshtastic/firmware/releases/download/v2.7.19.bb3d6d5/firmware-2.7.19.bb3d6d5.json"
+      },
+      {
+        "id": "v2.7.18.fb3bf78",
+        "title": "Meshtastic Firmware 2.7.18.fb3bf78 Alpha",
+        "page_url": "https://github.com/meshtastic/firmware/releases/tag/v2.7.18.fb3bf78",
+        "zip_url": "https://github.com/meshtastic/firmware/releases/download/v2.7.18.fb3bf78/firmware-2.7.18.fb3bf78.json"
+      },
+      {
+        "id": "v2.7.17.9058cce",
+        "title": "Meshtastic Firmware 2.7.17.9058cce Alpha",
+        "page_url": "https://github.com/meshtastic/firmware/releases/tag/v2.7.17.9058cce",
+        "zip_url": "https://github.com/meshtastic/firmware/releases/download/v2.7.17.9058cce/firmware-2.7.17.9058cce.json"
+      },
+      {
+        "id": "v2.7.16.a597230",
+        "title": "Meshtastic Firmware 2.7.16.a597230 Alpha",
+        "page_url": "https://github.com/meshtastic/firmware/releases/tag/v2.7.16.a597230",
+        "zip_url": "https://github.com/meshtastic/firmware/releases/download/v2.7.16.a597230/firmware-esp32-2.7.16.a597230.zip"
+      },
+      {
+        "id": "v2.7.14.e959000",
+        "title": "Meshtastic Firmware 2.7.14.e959000 Alpha",
+        "page_url": "https://github.com/meshtastic/firmware/releases/tag/v2.7.14.e959000",
+        "zip_url": "https://github.com/meshtastic/firmware/releases/download/v2.7.14.e959000/firmware-esp32-2.7.14.e959000.zip"
+      },
+      {
+        "id": "v2.7.13.597fa0b",
+        "title": "Meshtastic Firmware 2.7.13.597fa0b Alpha",
+        "page_url": "https://github.com/meshtastic/firmware/releases/tag/v2.7.13.597fa0b",
+        "zip_url": "https://github.com/meshtastic/firmware/releases/download/v2.7.13.597fa0b/firmware-esp32-2.7.13.597fa0b.zip"
+      },
+      {
+        "id": "v2.7.11.ee68575",
+        "title": "Meshtastic Firmware 2.7.11.ee68575 Alpha",
+        "page_url": "https://github.com/meshtastic/firmware/releases/tag/v2.7.11.ee68575",
+        "zip_url": "https://github.com/meshtastic/firmware/releases/download/v2.7.11.ee68575/firmware-esp32-2.7.11.ee68575.zip"
+      },
+      {
+        "id": "v2.7.10.94d4bdf",
+        "title": "Meshtastic Firmware 2.7.10.94d4bdf Alpha",
+        "page_url": "https://github.com/meshtastic/firmware/releases/tag/v2.7.10.94d4bdf",
+        "zip_url": "https://github.com/meshtastic/firmware/releases/download/v2.7.10.94d4bdf/firmware-esp32-2.7.10.94d4bdf.zip"
+      },
+      {
+        "id": "v2.7.9.70724be",
+        "title": "Meshtastic Firmware 2.7.9.70724be Alpha",
+        "page_url": "https://github.com/meshtastic/firmware/releases/tag/v2.7.9.70724be",
+        "zip_url": "https://github.com/meshtastic/firmware/releases/download/v2.7.9.70724be/firmware-esp32-2.7.9.70724be.zip"
+      },
+      {
+        "id": "v2.7.7.5ae4ff9",
+        "title": "Meshtastic Firmware 2.7.7.5ae4ff9 Alpha",
+        "page_url": "https://github.com/meshtastic/firmware/releases/tag/v2.7.7.5ae4ff9",
+        "zip_url": "https://github.com/meshtastic/firmware/releases/download/v2.7.7.5ae4ff9/firmware-esp32-2.7.7.5ae4ff9.zip"
+      },
+      {
+        "id": "v2.7.6.834c3c5",
+        "title": "Meshtastic Firmware 2.7.6.834c3c5 Alpha",
+        "page_url": "https://github.com/meshtastic/firmware/releases/tag/v2.7.6.834c3c5",
+        "zip_url": "https://github.com/meshtastic/firmware/releases/download/v2.7.6.834c3c5/firmware-esp32-2.7.6.834c3c5.zip"
+      },
+      {
+        "id": "v2.7.5.ddd1499",
+        "title": "Meshtastic Firmware 2.7.5.ddd1499 Alpha",
+        "page_url": "https://github.com/meshtastic/firmware/releases/tag/v2.7.5.ddd1499",
+        "zip_url": "https://github.com/meshtastic/firmware/releases/download/v2.7.5.ddd1499/firmware-esp32-2.7.5.ddd1499.zip"
+      },
+      {
+        "id": "v2.7.4.c1f4f79",
+        "title": "Meshtastic Firmware 2.7.4.c1f4f79 Alpha",
+        "page_url": "https://github.com/meshtastic/firmware/releases/tag/v2.7.4.c1f4f79",
+        "zip_url": "https://github.com/meshtastic/firmware/releases/download/v2.7.4.c1f4f79/firmware-esp32-2.7.4.c1f4f79.zip"
+      },
+      {
+        "id": "v2.7.3.cf574c7",
+        "title": "Meshtastic Firmware 2.7.3.cf574c7 Alpha",
+        "page_url": "https://github.com/meshtastic/firmware/releases/tag/v2.7.3.cf574c7",
+        "zip_url": "https://github.com/meshtastic/firmware/releases/download/v2.7.3.cf574c7/firmware-esp32-2.7.3.cf574c7.zip"
+      }
+    ]
+  },
+  "pullRequests": [
+    {
+      "id": "12440",
+      "title": "fix(L2) : control GNSS rail through PCA9535",
+      "page_url": "https://github.com/meshtastic/firmware/pull/12440",
+      "zip_url": "https://discord.com/invite/meshtastic"
+    },
+    {
+      "id": "12438",
+      "title": "InkHUD: show battery icon by default on Heltec Mesh Pocket",
+      "page_url": "https://github.com/meshtastic/firmware/pull/12438",
+      "zip_url": "https://membrowse.com/public/meshtastic/firmware?commit_sha=6bd9e67098236b6a652ba9e66c76f6d6d0fdd598"
+    }
+  ]
+}

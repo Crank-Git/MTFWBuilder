@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Act as `pio run -e <env>` for the tests, so the tests run without PlatformIO.
+"""Act as `pio run -e <env>`, `pio pkg install` and `pio project config` for the tests, so the tests run without PlatformIO.
 
 The fake writes the artifact names that upstream `bin/platformio-pre.py` and
 `bin/platformio-custom.py` give at firmware `v2.7.26.54e0d8d`. It prints the lines that
@@ -7,7 +7,19 @@ the build service parses, and one `-D` flag per userPrefs key, as upstream does.
 
 Environment variables:
 - `FAKE_PIO_FAIL=1` makes the build fail with exit code 1 and no artifacts.
+- `FAKE_PIO_FAIL_MATCH=<text>` makes the build fail the same way when its userPrefs file holds the text.
 - `FAKE_PIO_SLEEP=<seconds>` holds the build after the first compile line.
+- `FAKE_PIO_PKG_FAIL=1` makes `pio pkg install` fail with exit code 1.
+- `FAKE_PIO_PKG_SLEEP=<seconds>` holds `pio pkg install` before it writes its marker file.
+- `FAKE_PIO_CONFIG_FAIL=1` makes `pio project config --json-output` fail with exit code 1.
+
+`pio project config --json-output` prints `.fake-pio-config.json` of its working directory. When that file is absent,
+it prints `tests/fixtures/firmware/project_config.json`, the output of the real `pio` for the firmware fixture.
+
+`pio pkg install` writes `.pio/libdeps/fake/installed` in its working directory, so a test can see where it ran.
+
+Upstream reads the firmware version from `version.properties` and git in the working directory. The fake reads it
+from `.fake-pio-version` there, and uses `VERSION` when that file is absent.
 """
 
 import argparse
@@ -19,7 +31,9 @@ import time
 from pathlib import Path
 
 VERSION = "2.7.26.54e0d8d"
-ENVS_FILE = Path(__file__).resolve().parent.parent / "fixtures" / "firmware" / "envs.json"
+FIXTURE_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "firmware"
+ENVS_FILE = FIXTURE_DIR / "envs.json"
+PROJECT_CONFIG_FILE = FIXTURE_DIR / "project_config.json"
 
 # The suffixes after `firmware-<env>-<version>`, by architecture folder.
 ESP32_SUFFIXES = [".bin", ".factory.bin", ".mt.json"]
@@ -60,6 +74,13 @@ def userprefs_flags(firmware_dir: Path) -> list[str]:
     return flags
 
 
+def _userprefs_match(firmware_dir: Path) -> bool:
+    # A fleet run builds one config per fleet device, so a test fails one fleet device by a text of its config.
+    match = os.environ.get("FAKE_PIO_FAIL_MATCH")
+    prefs_path = firmware_dir / "userPrefs.jsonc"
+    return bool(match) and prefs_path.exists() and match in prefs_path.read_text()
+
+
 def fail(build_dir: str, start: float) -> int:
     out(f"{build_dir}/src/main.cpp:1:1: error: FAKE_PIO_FAIL is set")
     out(f"*** [{build_dir}/src/main.cpp.o] Error 1")
@@ -67,7 +88,38 @@ def fail(build_dir: str, start: float) -> int:
     return 1
 
 
+def pkg_install() -> int:
+    """Act as `pio pkg install` in the project directory: the working directory."""
+    if not Path("platformio.ini").is_file():
+        out("Error: Not a PlatformIO project. `platformio.ini` file has not been found")
+        return 1
+    out("Resolving fake dependencies...")
+    time.sleep(float(os.environ.get("FAKE_PIO_PKG_SLEEP", "0")))
+    if os.environ.get("FAKE_PIO_PKG_FAIL") == "1":
+        out("Error: FAKE_PIO_PKG_FAIL is set")
+        return 1
+    marker = Path(".pio/libdeps/fake/installed")
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text("fake\n")
+    out("Already up-to-date.")
+    return 0
+
+
+def project_config() -> int:
+    """Act as `pio project config --json-output` in the project directory: the working directory."""
+    if os.environ.get("FAKE_PIO_CONFIG_FAIL") == "1":
+        out("Error: FAKE_PIO_CONFIG_FAIL is set")
+        return 1
+    override = Path(".fake-pio-config.json")
+    sys.stdout.write((override if override.is_file() else PROJECT_CONFIG_FILE).read_text())
+    return 0
+
+
 def main() -> int:
+    if sys.argv[1:] == ["pkg", "install"]:
+        return pkg_install()
+    if sys.argv[1:] == ["project", "config", "--json-output"]:
+        return project_config()
     parser = argparse.ArgumentParser(prog="pio")
     parser.add_argument("command", choices=["run"])
     parser.add_argument("-e", "--environment", required=True)
@@ -83,17 +135,19 @@ def main() -> int:
         return 1
 
     firmware_dir = Path.cwd()
-    progname = f"firmware-{env_name}-{VERSION}"
+    version_file = firmware_dir / ".fake-pio-version"
+    version = version_file.read_text().strip() if version_file.is_file() else VERSION
+    progname = f"firmware-{env_name}-{version}"
     build_dir = f".pio/build/{env_name}"
     out(f"Processing {env_name} (fake pio)")
     out(f"PROGNAME: {progname}")
-    out(f"Using meshtastic platformio-custom.py, firmware version {VERSION} on {env_name}")
+    out(f"Using meshtastic platformio-custom.py, firmware version {version} on {env_name}")
     out("Using flags:")
-    for flag in [f"-DAPP_VERSION={VERSION}", f"-DAPP_ENV={env_name}", *userprefs_flags(firmware_dir)]:
+    for flag in [f"-DAPP_VERSION={version}", f"-DAPP_ENV={env_name}", *userprefs_flags(firmware_dir)]:
         out(flag)
     out(f"Compiling {build_dir}/src/main.cpp.o")
     time.sleep(float(os.environ.get("FAKE_PIO_SLEEP", "0")))
-    if os.environ.get("FAKE_PIO_FAIL") == "1":
+    if os.environ.get("FAKE_PIO_FAIL") == "1" or _userprefs_match(firmware_dir):
         return fail(build_dir, start)
 
     out(f"Linking {build_dir}/{progname}.elf")
@@ -103,7 +157,7 @@ def main() -> int:
     output.mkdir(parents=True, exist_ok=True)
     names = [progname + suffix for suffix in SUFFIXES[envs[env_name]]]
     if envs[env_name].startswith("esp32"):
-        names.append(f"littlefs-{env_name}-{VERSION}.bin")
+        names.append(f"littlefs-{env_name}-{version}.bin")
     for name in names:
         (output / name).write_bytes(b"fake " + name.encode())
     out(f"========== [SUCCESS] Took {time.monotonic() - start:.2f} seconds ==========")

@@ -101,6 +101,10 @@ the header of `userPrefs.jsonc` in `meshtastic/firmware` `develop@fe89ac1`.
 | config | noun | The set of setting values that an operator enters for a device. | configuration, settings file, preferences |
 | userPrefs file | noun | The `userPrefs.jsonc` file the project writes from a config. The firmware build reads it. | prefs, jsonc |
 | userPrefs key | noun | One `USERPREFS_*` name in the userPrefs file. | define, flag, macro |
+| admin key | noun | The public key of a device that may change this device's config remotely. The firmware holds three. | admin password |
+| managed mode | noun | A device state in which the device rejects local config changes. Only an admin key holder changes the config. | locked mode |
+| mesh beacon | noun | A broadcast that a device sends on a schedule, with a message and an offered channel, modem preset and region. | advert, announcement |
+| frequency slot | noun | The 1-based number of one LoRa frequency in a region, the same number as `channel_num` in the LoRa config. | frequency index, slot number |
 | factory default | noun | A value the firmware applies on first boot and on factory reset only. Every userPrefs key is a factory default. | baked setting, locked setting |
 | firmware source | noun | One extracted copy of the `meshtastic/firmware` source tree at one firmware version. | firmware tree, repo copy |
 | firmware version | noun | One upstream release tag, for example `v2.7.26.54e0d8d`. | release, tag (alone) |
@@ -110,6 +114,7 @@ the header of `userPrefs.jsonc` in `meshtastic/firmware` `develop@fe89ac1`.
 | PSK | noun | The pre-shared key that encrypts a channel. | password, key (alone) |
 | secret | noun | Any config value that gives access: a PSK, a WiFi password, an MQTT password, an admin key. | credential, sensitive data |
 | channel URL | noun | A `https://meshtastic.org/e/#…` URL that encodes a ChannelSet protobuf. | share link, QR link |
+| proto default | noun | The value of a protobuf field that a message does not set: false, 0, empty, or the enum value 0. `MessageToDict` leaves it out. | zero value, unset value |
 | build | noun | One compile of one variant with one userPrefs file. A build has a build id and a status. | job, compile run |
 | build id | noun | The identifier of one build. | job id, token |
 | build status | noun | One of: `queued`, `compiling`, `linking`, `packaging`, `complete`, `failed`, `cancelled`. | state, phase |
@@ -118,12 +123,16 @@ the header of `userPrefs.jsonc` in `meshtastic/firmware` `develop@fe89ac1`.
 | build worker | noun | The process slot that runs one build at a time. | runner, executor |
 | data directory | noun | The one directory that holds all state: firmware sources, artifacts, the database and `config.yaml`. `MTFW_DATA_DIR` sets it. | state dir, volume (alone) |
 | build cache | noun | Stored artifacts, keyed by a hash of firmware version, variant and userPrefs file. | artifact store |
+| config hash | noun | The HMAC-SHA-256 of a build, keyed with `secret_key`. It covers the app version, the firmware version, the variant and the userPrefs file with its keys sorted. | build hash, fingerprint |
+| cache entry | noun | The artifacts of one config hash in the build cache: one directory and one `cache_entries` row. | cached build, cache item |
 | progress stream | noun | The Server-Sent Events (SSE) stream that sends build status and log lines to the page. | event feed, socket |
 | scrub | verb | To delete every file that holds a secret, after a build ends. | sanitize, wipe, clean |
 | flash | verb | To write an artifact to a device. | burn, install, upload |
+| flash method | noun | The way an operator flashes the artifact of an architecture: Web Serial, UF2, DFU zip or download only. | flash mode, upload method |
 | profile | noun | A saved config with a name, stored by the project. | template, preset (alone) |
 | fleet | noun | A named group of devices that share one profile and differ in per-device fields. | batch, group |
 | fleet run | noun | One request that makes one build for each device in a fleet. | bulk build |
+| fleet run id | noun | The random public identifier of one fleet run. The fleet run URL holds it. | run number |
 | push config | verb | To send a config to a connected device over Web Serial or Web Bluetooth, without a build. | provision, sync |
 | modem preset | noun | A Meshtastic LoRa modem preset, for example `LONG_FAST`. | preset (alone), speed |
 | region | noun | A Meshtastic LoRa region code, for example `US`. | country, band |
@@ -161,6 +170,10 @@ the header of `userPrefs.jsonc` in `meshtastic/firmware` `develop@fe89ac1`.
 - Accounts for operators. The admin password is the only sign-in.
 - The userPrefs keys `USERPREFS_UI_TEST_LOG`, `USERPREFS_FIRMWARE_EDITION` and
   `USERPREFS_MESH_BEACON_LEGACY_SPLIT`. They are for upstream testing and vendor editions.
+- The userPrefs key `USERPREFS_SIMRADIO_EMULATE_COLLISIONS`. Only a native build reads
+  it, and native Linux variants are a non-goal.
+- The userPrefs key `USERPREFS_HAS_SPLASH`. It removes the boot icon, and no userPrefs
+  key supplies a new icon.
 
 ## Users & personas
 
@@ -246,6 +259,8 @@ the database is not used (see `features/02-firmware-builder.md`).
 | Runtime | Python 3.13 (Docker and CI; CI also tests 3.14) | `meshtastic` python requires `<3.15`. |
 | Deploy | Docker Compose, self-hosted. No hosted instance. | Interview answer: not deployed. |
 | Protobuf decode | `meshtastic` python package (GPL-3.0) | Decodes channel URLs and CLI YAML. Allowed by the GPL-3.0 relicense (ADR 0004). |
+| QR code | segno (BSD-3-Clause) | Writes the SVG QR code of an exported channel URL. Pure Python, no image library. |
+| QR decode in tests | zxing-cpp (Apache-2.0), dev dependency only | The tests decode the exported QR code. The app does not load it. |
 
 ## Data model
 
@@ -268,10 +283,9 @@ startup. No code reads or writes them.
 | Entity | Fields | Notes |
 |---|---|---|
 | `builds` | `id` TEXT PK, `variant`, `architecture`, `firmware_format` TEXT NOT NULL, `status` TEXT NOT NULL default `queued`, `firmware_path`, `build_log`, `error_message` TEXT, `created_at` default now, `completed_at` | Unused. Builds live in memory (`app.state.active_builds`). |
-| `config_profiles` | `id` INTEGER PK, `name` TEXT NOT NULL, `config_json` TEXT NOT NULL, `created_at`, `updated_at` | Unused. `name` is not unique. |
+| `config_profiles` | `id` INTEGER PK, `name` TEXT NOT NULL, `config_json` TEXT NOT NULL, `created_at`, `updated_at` | Unused. `name` is not unique. Since Epic 10 (#61), `init_db` drops it, and the `profiles` table replaces it. |
 
-The registry is a YAML file today (`devices/variants.yaml`, 150 entries, fields `id`,
-`name`, `manufacturer`, `architecture`, `pio_platform`).
+The registry was a YAML file at the inherit (`devices/variants.yaml`, 150 entries). Since Epic 6 (#145) it is the `variants` table, generated per firmware version.
 
 **Planned.** Each planned feature file states its own fields and migration.
 
@@ -280,11 +294,12 @@ The registry is a YAML file today (`devices/variants.yaml`, 150 entries, fields 
 | FIRMWARE_SOURCE | firmware-versions | `version` PK, `channel` (stable/alpha/pinned), `path`, `installed_at`, `status` | installing → ready → removed |
 | VARIANT | generated-registry | `env` + `version` PK, `display_name`, `manufacturer`, `architecture`, `support_level`, `hw_model`, `image`, `requires_dfu` | regenerated when a firmware source becomes ready |
 | BUILD | build-pipeline-repair | `id` (random, 128-bit), `version`, `variant`, `status`, `config_hash`, `created_at`, `completed_at`, `error_message`, `fleet_run_id` | queued → compiling → linking → packaging → complete / failed / cancelled → expired |
-| CACHE_ENTRY | fleet-builds | `config_hash` PK, `artifact_paths`, `created_at`, `last_used_at` | created on complete, removed by TTL |
-| PROFILE | fleet-builds | `id`, `name` UNIQUE, `config_json` without secrets, `created_at`, `updated_at` | created → updated → deleted |
-| FLEET | fleet-builds | `id`, `name`, `profile_id` | created → deleted |
-| FLEET_DEVICE | fleet-builds | `id`, `fleet_id`, `label`, `variant`, `long_name`, `short_name`, `role`, `fixed_lat`, `fixed_lon`, `fixed_alt`, `admin_key` | created → deleted |
-| FLEET_RUN | fleet-builds | `id`, `fleet_id`, `version`, `status`, `created_at` | queued → running → complete / partial / failed |
+| CACHE_ENTRY | fleet-builds | `config_hash` PK, `firmware_version`, `variant`, `artifact_dir`, `artifact_names` (JSON list), `created_at`, `last_used_at` (Unix seconds) | created on complete without a secret, removed by TTL or when an artifact is missing |
+| PROFILE | fleet-builds | `id`, `name` UNIQUE, `config_json` without secrets, `must_reenter_json`, `stores_secrets`, `secrets_ciphertext` (Fernet token, nullable), `created_at`, `updated_at` | created → updated → deleted |
+| FLEET | fleet-builds | `id`, `name`, `profile_id`, `firmware_version` (nullable: the default firmware source), `created_at`, `updated_at` | created → updated → deleted |
+| FLEET_DEVICE | fleet-builds | `id`, `fleet_id`, `label`, `variant`, `long_name`, `short_name`, `role`, `fixed_lat`, `fixed_lon`, `fixed_alt`, `admin_key_ciphertext` (Fernet token of the admin key, nullable, ADR 0007), `position` (the order of the fleet editor table) | created → updated → deleted |
+| FLEET_RUN | fleet-builds | `id` (row id, never in a URL), `public_id` (the fleet run id, random, 128-bit), `fleet_id`, `profile_id` (the profile of the fleet run, for Retry failed), `firmware_version`, `status`, `created_at` | running → complete / partial / failed. A stored `running` status that no process runs reads `partial`, or `complete` when every fleet device has a complete build. |
+| FLEET_RUN_BUILD | fleet-builds | `fleet_run_id` + `fleet_device_id` PK, `build_id` | One row for each fleet device in a fleet run. It links the fleet device to its build. |
 
 A build log is not stored in the database. Upstream PlatformIO prints the `-D` build
 flags, and those flags hold every secret (see `Risks`).
@@ -315,18 +330,22 @@ This is the planned build lifecycle. The `scrub` step runs on every transition i
 **Authentication and authorization (built).** The admin password is a bcrypt hash in
 `config.yaml`. `POST /admin/login` sets the cookie `mtfw_session`: an itsdangerous
 signature of the string `admin`, HttpOnly, SameSite=Lax, max age 3600 s. The cookie sets
-`Secure` only when the request scheme is `https`. Only `/api/v1/update-firmware` and
-`/api/v1/cleanup` require the session. The `/admin` page shows a sign-in form when no
+`Secure` only when the request scheme is `https`. These routes require the session:
+`/api/v1/update-firmware`, `/api/v1/cleanup`, `GET /api/v1/firmware/available`,
+`POST /api/v1/firmware/install` and `DELETE /api/v1/firmware/{version}`. The `/admin` page shows a sign-in form when no
 session exists.
 
 **CSRF (built, Epic 3).** Each admin form carries the hidden field `csrf_token`. The token
 is the value of the cookie `mtfw_csrf`, signed with the same itsdangerous secret key. Sign-in
-sets a new `mtfw_csrf` value, so the token belongs to one session. Each admin POST without a
+sets a new `mtfw_csrf` value, so the token belongs to one session. A JSON request and a DELETE
+request send the token in the header `X-CSRF-Token`. Each admin POST or DELETE without a
 valid token returns 403:
 - `/admin/login`
 - `/admin/logout`
 - `/api/v1/update-firmware`
 - `/api/v1/cleanup`
+- `POST /api/v1/firmware/install`
+- `DELETE /api/v1/firmware/{version}`
 
 **Planned auth changes** (feature `build-pipeline-repair`):
 - Build ids are random, so one operator cannot guess another operator's build.
@@ -713,3 +732,9 @@ Written by `/spec-to-issues` on 2026-11-21.
 - 2026-11-21 — Epic 2 shipped (#102). PM decision from the batch review, flagged for the owner: the project sets no shared PlatformIO build cache and the scrub deletes `.pio/build_cache`, because the cache keeps objects compiled with secrets (Goal 7). Each build then compiles from the start; toolchains stay cached. `config_hash` is an HMAC with `secret_key`. Follow-up #88 (more than one build worker) stays open.
 - 2026-11-21 — Epic 4 shipped (#112). Batch review fixes: the data-directory move respects path overrides and scrubs an old firmware tree it keeps; production trusts only the nginx network for `X-Forwarded-For`; nginx repeats its security headers in each block. Terms: added `release channel` and `install` (the word `channel` alone means a Meshtastic channel).
 - 2026-11-21 — Epic 3 shipped (#124). Milestone M1 (Works again) is complete. Additions accepted at the batch gate: `GET /api/v1/builds/{id}`, `config_source=form`, and `?log_from=` on the progress stream. CSRF covers sign-in and sign-out too. Not built from the Screens table: the build queue position and the elapsed time.
+- 2026-11-21 — Epic 5 shipped (#132). PM decisions: the default firmware version falls back to the newest installed version of any release channel when no stable one is installed; `require_csrf` accepts the `X-CSRF-Token` header; `GET /api/v1/firmware/available` has no CSRF (read-only); the startup cleanup may remove a half-imported old firmware source after a crash (it is downloadable again).
+- 2026-11-21 — Epic 6 shipped (#145). The registry comes from `pio project config --json-output` per firmware version (ADR 0006); a bad value in one env skips that field or env, not the version. The YAML registry and feature 03 are retired. Open: #139 (device image source, owner question), #144 (weekly registry check). Epic 9 (held) must update its flash and UF2 branches to the new architecture values (PR #135 finding).
+- 2026-11-21 — Epic 7 shipped (#142). Milestone M2 (Current upstream) is complete. PM ruling on #50: `USERPREFS_SIMRADIO_EMULATE_COLLISIONS` and `USERPREFS_HAS_SPLASH` are Non-goals. Every 422 body leaves out the rejected input, so no secret returns to the caller.
+- 2026-11-21 — Epic 10 shipped (#160). PM decisions from the gates and the batch review: only an admin session may store, load or remove the secrets of a profile (ADR 0007). A config that holds a secret is never cached, because the project rule forbids a secret in a cache entry. The owner question is #158. The cache key also covers the app version.
+- 2026-11-21 — Epic 8 shipped (#170). PM decisions from the batch review: Apply never writes into a control that the firmware version does not read. An empty PSK means "No encryption" on a primary channel and "Uses the primary channel key" on a secondary channel (`Channels.cpp` `getKey`). An `add=true` URL follows upstream `setURL`. `requires-python` is `>=3.13,<3.15` because of the `meshtastic` package.
+- 2026-11-21 — Epic 11 shipped (#176). PM decisions from the batch review: a fleet run has a random public id, and the fleet page lists no past runs (the operator keeps the run URL). Fleet runs obey the rate limit and the build queue limit, and one fleet runs one fleet run at a time. Fleet device admin keys are the admin's public keys: the project stores them encrypted and puts them in every build (ADR 0007).

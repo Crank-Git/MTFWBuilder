@@ -1,14 +1,80 @@
 {% extends "includes/base.html" %}
 
 {% block content %}
+{% include "partials/channel_share.html" %}
+{# The profile controls stay outside the config form, so the profile name is not part of the config. #}
+<div class="config-section" id="profile-section">
+    <h3 class="section-title"><i class="bi bi-collection-fill text-success"></i>Profile</h3>
+    <noscript>
+        <div class="alert alert-warning">Save as profile and Load need JavaScript.</div>
+    </noscript>
+    <div class="row g-3 align-items-end">
+        <div class="col-md-5">
+            <label for="profileSelect" class="form-label">Saved profile</label>
+            <select class="form-select" id="profileSelect"{% if not profiles %} disabled{% endif %}>
+                {% for profile in profiles %}
+                <option value="{{ profile.id }}">{{ profile.name }}</option>
+                {% else %}
+                <option value="">No profiles yet.</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button type="button" class="btn btn-outline-success w-100" id="loadProfileBtn"{% if not profiles %} disabled{% endif %}>
+                <i class="bi bi-box-arrow-in-down me-2"></i>Load
+            </button>
+        </div>
+    </div>
+    <div class="row g-3 align-items-end mt-1">
+        <div class="col-md-5">
+            <label for="profileName" class="form-label">Profile name</label>
+            <input type="text" class="form-control" id="profileName" maxlength="100" autocomplete="off">
+        </div>
+        <div class="col-md-2">
+            <button type="button" class="btn btn-outline-success w-100" id="saveProfileBtn"{% if stored_secrets_csrf_token %} data-csrf-token="{{ stored_secrets_csrf_token }}"{% endif %}>
+                <i class="bi bi-save me-2"></i>Save as profile
+            </button>
+        </div>
+        {% if stored_secrets_csrf_token %}
+        <div class="col-md-5">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="profileStoresSecrets">
+                <label class="form-check-label" for="profileStoresSecrets">Store the secrets on the server, encrypted</label>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    <div id="profile-status" class="mt-3" role="status" aria-live="polite"></div>
+</div>
+
 {# Without JavaScript, the Download control submits the form, so the operator still gets the userPrefs file. #}
 <form id="configForm" method="post" action="/api/v1/download">
-    {% include "includes/basic_info.html" %}
-    {% include "includes/channel_config.html" %}
-    {% include "includes/lora_config.html" %}
-    {% include "includes/gps_config.html" %}
-    {% include "includes/network_config.html" %}
-    {% include "includes/advanced_config.html" %}
+    <div class="config-section" id="configTabs">
+        <div class="alert alert-info" id="factoryDefaultBanner" role="note">These values are factory defaults. The device applies them on first boot and on factory reset only.</div>
+        {% set config_tabs = [
+            ("device", "Device", "basic_info"),
+            ("channels", "Channels", "channel_config"),
+            ("lora", "LoRa", "lora_config"),
+            ("position", "Position", "gps_config"),
+            ("network", "Network", "network_config"),
+            ("telemetry", "Telemetry", "telemetry_config"),
+            ("security", "Security", "security_config"),
+            ("event", "Event", "event_config"),
+            ("mesh-beacon", "Mesh beacon", "mesh_beacon_config"),
+            ("advanced", "Advanced", "advanced_config"),
+        ] %}
+        <div class="nav nav-tabs config-tabs" id="configTabList" role="tablist" aria-label="Config sections">
+            {% for tab_id, label, _ in config_tabs %}
+            <button type="button" class="nav-link{% if loop.first %} active{% endif %}" id="config-tab-{{ tab_id }}" role="tab" aria-controls="config-pane-{{ tab_id }}" aria-selected="{{ 'true' if loop.first else 'false' }}" tabindex="{{ '0' if loop.first else '-1' }}">{{ label }} <span class="tab-count badge rounded-pill text-bg-secondary">0</span><span class="visually-hidden"> fields with a value</span><span class="tab-error-dot" hidden><span class="visually-hidden">, has an error</span></span></button>
+            {% endfor %}
+        </div>
+        {# Without JavaScript, every tab pane shows, so the operator can still fill in and download the whole form. #}
+        {% for tab_id, label, include in config_tabs %}
+        <div class="config-pane" id="config-pane-{{ tab_id }}" role="tabpanel" aria-labelledby="config-tab-{{ tab_id }}" tabindex="0">
+            {% include "includes/" ~ include ~ ".html" %}
+        </div>
+        {% endfor %}
+    </div>
 
     <div class="config-section">
         <h3 class="section-title"><i class="bi bi-file-earmark-code-fill text-success"></i>Generate Configuration</h3>
@@ -38,27 +104,31 @@
         <div class="alert alert-warning">The build needs JavaScript. Without JavaScript, you can download the userPrefs file only.</div>
     </noscript>
     <div class="row g-3 align-items-end">
-        <div class="col-md-8">
-            <label for="variant" class="form-label">Variant</label>
-            <select class="form-select" id="variant" name="variant">
-                <option value="" selected>Choose a variant...</option>
-                {% for manufacturer, variants in manufacturers.items() %}
-                <optgroup label="{{ manufacturer }}">
-                    {% for variant in variants %}
-                    <option value="{{ variant.id }}">{{ variant.name }}</option>
-                    {% endfor %}
-                </optgroup>
+        <div class="col-md-5">
+            <label for="device-search" class="form-label">Variant</label>
+            <input type="search" class="form-control" id="device-search" name="q" placeholder="Search name, manufacturer or env" autocomplete="off">
+        </div>
+        {# The field belongs to the config form, so Preview and Download use the chosen firmware version too. #}
+        <div class="col-md-4">
+            <label for="firmware_version" class="form-label">Firmware version</label>
+            <select class="form-select" id="firmware_version" name="firmware_version" form="configForm" data-rendered-version="{{ default_firmware_version or '' }}"{% if not firmware_sources %} disabled{% endif %}>
+                {% for source in firmware_sources %}
+                <option value="{{ source.version }}"{% if source.version == default_firmware_version %} selected{% endif %}>{{ source.version }} ({{ source.channel }})</option>
+                {% else %}
+                <option value="">No firmware version is installed.</option>
                 {% endfor %}
             </select>
+            <div id="error-firmware_version" class="field-error invalid-feedback d-block"></div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <button type="button" class="btn btn-success w-100" id="buildBtn" disabled
-                    hx-post="/api/v1/build-firmware" hx-include="#configForm, #variant"
+                    hx-post="/api/v1/build-firmware" hx-include="#configForm, #variant, #firmware_version"
                     hx-vals='{"config_source": "form"}' hx-target="#build-panel">
                 <i class="bi bi-hammer me-2"></i>Build
             </button>
         </div>
     </div>
+    {% include "partials/device_picker.html" %}
     <div id="build-panel" class="mt-3" aria-live="polite">
         {% if build %}
         {% include "partials/build_panel.html" %}
@@ -71,4 +141,8 @@
 <div class="mt-4 text-center text-muted">
     <p><small>Meshtastic Configuration Generator &copy; 2025</small></p>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='js/profiles.js') }}"></script>
 {% endblock %}

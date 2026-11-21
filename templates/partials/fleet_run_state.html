@@ -1,0 +1,57 @@
+{# The state of a running fleet run polls the page route, and the state of an ended fleet run has no poll, so the poll stops. #}
+{% set ended = run.status != "running" %}
+{% set status_class = {"complete": "text-success", "failed": "text-danger", "queued": "text-muted", "cancelled": "text-muted"} %}
+<div id="fleet-run-state" aria-live="polite"{% if not ended %} hx-get="/fleet-runs/{{ run.id }}" hx-trigger="every 1s" hx-swap="outerHTML"{% endif %}>
+    <h3 class="section-title"><i class="bi bi-cpu-fill text-success"></i>Fleet run {{ run.id[:8] }}: {{ complete_count }} of {{ run.devices | length }} complete</h3>
+    <p class="text-muted">
+        Fleet: {% if fleet %}<a href="/fleets/{{ fleet.id }}">{{ fleet.name }}</a>{% else %}deleted{% endif %}.
+        Firmware version: {{ run.firmware_version or "the default firmware version" }}.
+        Fleet run status: <strong id="fleet-run-status">{{ run.status }}</strong>.
+    </p>
+    <div class="table-responsive">
+        <table class="table table-sm align-middle" id="fleet-run-devices">
+            <thead>
+                <tr>
+                    <th scope="col">Fleet device</th>
+                    <th scope="col">Variant</th>
+                    <th scope="col">Build</th>
+                    <th scope="col">Build status</th>
+                    <th scope="col">Error</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for device in run.devices %}
+                <tr class="fleet-run-row" data-status="{{ device.status }}">
+                    <td>{{ device.label or "removed fleet device" }}</td>
+                    <td>{{ device.variant or "" }}</td>
+                    <td>{% if device.build_id %}<a href="/?build={{ device.build_id }}"><code>{{ device.build_id[:8] }}</code></a>{% else %}<span class="text-muted">none yet</span>{% endif %}</td>
+                    <td class="fleet-run-build-status {{ status_class.get(device.status, 'text-primary') }}">{{ device.status }}</td>
+                    <td class="small text-danger">{{ device.error or "" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if not ended %}
+    <p class="text-muted mb-0">Download all is available when every build ends.</p>
+    {% else %}
+    <a class="btn btn-success" id="downloadAllBtn" href="/api/v1/fleet-runs/{{ run.id }}/download" download>
+        <i class="bi bi-file-earmark-zip me-1"></i>Download all as zip
+    </a>
+    {% if run.status != "complete" %}
+    <div class="mt-3" id="fleet-run-retry">
+        <p class="text-muted">Retry failed makes a new build for each fleet device without a complete build.</p>
+        {% if must_reenter %}
+        {# After a restart, the server holds no secrets of the fleet run, so the page asks for them again. #}
+        <p class="text-muted">After a server restart, enter each secret again. Otherwise, leave the fields empty.</p>
+        {% for name in must_reenter %}
+        <label class="form-label" for="secret-{{ loop.index }}">{{ name }}</label>
+        <input type="password" class="form-control mb-2" id="secret-{{ loop.index }}" data-secret="{{ name }}" autocomplete="off">
+        {% endfor %}
+        {% endif %}
+        <ul id="run-errors" class="text-danger small mb-2" role="alert"></ul>
+        <button type="button" class="btn btn-outline-danger" id="retryBtn" data-run-id="{{ run.id }}"{% if run_csrf_token %} data-csrf-token="{{ run_csrf_token }}"{% endif %}>Retry failed</button>
+    </div>
+    {% endif %}
+    {% endif %}
+</div>

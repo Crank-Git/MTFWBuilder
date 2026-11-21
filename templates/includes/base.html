@@ -24,14 +24,23 @@
                 </h1>
                 <p class="app-subtitle">Create a custom userPrefs.jsonc file for your Meshtastic device</p>
             </div>
-            <div class="d-flex align-items-center">
+            <nav class="d-flex align-items-center" aria-label="Pages">
+                <a href="/" class="btn btn-outline-secondary me-2">
+                    <i class="bi bi-hammer me-1"></i>Build
+                </a>
+                <a href="/profiles" class="btn btn-outline-secondary me-2">
+                    <i class="bi bi-collection me-1"></i>Profiles
+                </a>
+                <a href="/fleets" class="btn btn-outline-secondary me-2">
+                    <i class="bi bi-diagram-3 me-1"></i>Fleets
+                </a>
                 <a href="/admin" class="btn btn-outline-secondary me-2" title="Admin Dashboard" aria-label="Admin dashboard">
                     <i class="bi bi-shield-lock-fill"></i>
                 </a>
                 <button id="darkModeToggle" class="btn btn-outline-secondary" title="Toggle Light/Dark Mode" aria-label="Toggle dark mode">
                     <i class="bi bi-sun-fill"></i>
                 </button>
-            </div>
+            </nav>
         </div>
         
         {% block content %}{% endblock %}

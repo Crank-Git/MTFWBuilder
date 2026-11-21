@@ -1,0 +1,82 @@
+[
+  {
+    "draft": false,
+    "name": "Meshtastic Firmware 2.8.2.d5f1619 Alpha",
+    "prerelease": true,
+    "published_at": "2026-11-04T00:09:53Z",
+    "tag_name": "v2.8.2.d5f1619",
+    "zipball_url": "https://api.github.com/repos/meshtastic/firmware/zipball/v2.8.2.d5f1619"
+  },
+  {
+    "draft": false,
+    "name": "Meshtastic Firmware 2.8.2.4c89b69 Alpha (Revoked)",
+    "prerelease": true,
+    "published_at": "2026-11-02T18:26:50Z",
+    "tag_name": "v2.8.2.4c89b69",
+    "zipball_url": "https://api.github.com/repos/meshtastic/firmware/zipball/v2.8.2.4c89b69"
+  },
+  {
+    "draft": false,
+    "name": "Meshtastic Firmware 2.8.1.8e6a88d Alpha",
+    "prerelease": true,
+    "published_at": "2026-10-01T17:19:05Z",
+    "tag_name": "v2.8.1.8e6a88d",
+    "zipball_url": "https://api.github.com/repos/meshtastic/firmware/zipball/v2.8.1.8e6a88d"
+  },
+  {
+    "draft": false,
+    "name": "Meshtastic Firmware 2.8.0.47db0e3 Alpha (Revoked)",
+    "prerelease": true,
+    "published_at": "2026-09-01T10:56:13Z",
+    "tag_name": "v2.8.0.47db0e3",
+    "zipball_url": "https://api.github.com/repos/meshtastic/firmware/zipball/v2.8.0.47db0e3"
+  },
+  {
+    "draft": false,
+    "name": "Meshtastic Firmware 2.8.0.7239fe8 (Revoked)",
+    "prerelease": true,
+    "published_at": "2026-08-30T00:52:23Z",
+    "tag_name": "v2.8.0.7239fe8",
+    "zipball_url": "https://api.github.com/repos/meshtastic/firmware/zipball/v2.8.0.7239fe8"
+  },
+  {
+    "draft": false,
+    "name": "Meshtastic Firmware 2.7.26.54e0d8d Beta",
+    "prerelease": false,
+    "published_at": "2026-06-24T11:19:27Z",
+    "tag_name": "v2.7.26.54e0d8d",
+    "zipball_url": "https://api.github.com/repos/meshtastic/firmware/zipball/v2.7.26.54e0d8d"
+  },
+  {
+    "draft": false,
+    "name": "Meshtastic Firmware 2.7.25.104df5f Alpha",
+    "prerelease": true,
+    "published_at": "2026-06-10T00:18:32Z",
+    "tag_name": "v2.7.25.104df5f",
+    "zipball_url": "https://api.github.com/repos/meshtastic/firmware/zipball/v2.7.25.104df5f"
+  },
+  {
+    "draft": false,
+    "name": "Meshtastic Firmware 2.7.24.472b14c Alpha",
+    "prerelease": true,
+    "published_at": "2026-05-23T01:12:32Z",
+    "tag_name": "v2.7.24.472b14c",
+    "zipball_url": "https://api.github.com/repos/meshtastic/firmware/zipball/v2.7.24.472b14c"
+  },
+  {
+    "draft": false,
+    "name": "Meshtastic Firmware 2.7.23.b246bcd Alpha",
+    "prerelease": true,
+    "published_at": "2026-05-08T10:43:32Z",
+    "tag_name": "v2.7.23.b246bcd",
+    "zipball_url": "https://api.github.com/repos/meshtastic/firmware/zipball/v2.7.23.b246bcd"
+  },
+  {
+    "draft": false,
+    "name": "Meshtastic Firmware 2.7.22.96dd647 Alpha",
+    "prerelease": true,
+    "published_at": "2026-04-14T12:29:08Z",
+    "tag_name": "v2.7.22.96dd647",
+    "zipball_url": "https://api.github.com/repos/meshtastic/firmware/zipball/v2.7.22.96dd647"
+  }
+]

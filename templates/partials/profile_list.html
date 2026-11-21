@@ -1,0 +1,44 @@
+<div id="profile-list">
+    {% if not profiles %}
+    <p class="text-muted mb-0" id="profile-empty">No profiles yet. Save one from the build page.</p>
+    {% else %}
+    <ul class="list-group">
+        {% for profile in profiles %}
+        <li class="list-group-item" data-profile="{{ profile.id }}">
+            <div class="profile-view d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <div class="fw-semibold profile-name">{{ profile.name }}</div>
+                    <div class="small text-muted">Updated {{ profile.updated_at }} UTC</div>
+                    {% if profile.must_reenter %}
+                    <div class="small text-muted">Must re-enter: {{ profile.must_reenter | join(", ") }}</div>
+                    {% endif %}
+                    {% if profile.stores_secrets %}
+                    <div class="small text-warning">This profile stores secrets on the server.</div>
+                    {% endif %}
+                </div>
+                <div class="btn-group" role="group" aria-label="Actions for {{ profile.name }}">
+                    <a class="btn btn-sm btn-outline-success" href="/?profile={{ profile.id }}">Load</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="/api/v1/profiles/{{ profile.id }}/export" download>Export JSON</a>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-rename="{{ profile.id }}">Rename</button>
+                    <button type="button" class="btn btn-sm btn-outline-danger" data-delete="{{ profile.id }}">Delete</button>
+                </div>
+            </div>
+            <form class="profile-rename mt-2" data-profile-id="{{ profile.id }}" hidden>
+                <label class="form-label" for="rename-{{ profile.id }}">New name</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="rename-{{ profile.id }}" name="name" value="{{ profile.name }}" maxlength="100" required>
+                    <button type="submit" class="btn btn-success">Save name</button>
+                    <button type="button" class="btn btn-outline-secondary" data-cancel>Cancel</button>
+                </div>
+                <div class="field-error invalid-feedback d-block" role="alert"></div>
+            </form>
+            <div class="profile-delete-confirm alert alert-danger mt-2 mb-0" role="alertdialog" aria-label="Delete {{ profile.name }}" hidden>
+                <p class="mb-2">Delete the profile {{ profile.name }}? You cannot undo this.</p>
+                <button type="button" class="btn btn-sm btn-danger" data-confirm-delete="{{ profile.id }}">Delete</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-cancel>Cancel</button>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+</div>

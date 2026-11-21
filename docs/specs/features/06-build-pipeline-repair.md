@@ -61,7 +61,7 @@ produces.
   one artifact. The name must be in the artifact list.
 - FR-build-pipeline-repair-19 — The fake `pio` test executable writes upstream-named
   artifacts, so the tests run without PlatformIO.
-- FR-build-pipeline-repair-20 — Until Epic 6 deletes it, every `id` in
+- FR-build-pipeline-repair-20 — (Done; superseded by Epic 6, #145, which deleted the file.) Until Epic 6 deleted it, every `id` in
   `devices/variants.yaml` is a PlatformIO environment name of the stable firmware
   version. The 71 wrong ids change to the env names in
   `pages/inherit-reconciliation.md` § Registry id map. Where one directory holds several

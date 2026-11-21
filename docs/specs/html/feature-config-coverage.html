@@ -161,7 +161,7 @@ body.rv-open .layout { padding-right:21rem; }
 </ul></aside>
 <main>
 <h1>Feature: Config coverage</h1>
-<p class="meta">Epic 7: Config coverage &nbsp; <span class="badge">issued</span></p>
+<p class="meta">Epic 7: Config coverage &nbsp; <span class="badge">built</span></p>
 <h3 id="config-coverage-purpose">Purpose</h3>
 <p>The config form must cover the userPrefs keys that upstream lists. Today the form covers about 40 of 105 keys, with 13 of 37 regions, 7 of 17 modem presets, and no role.</p>
 <h3 id="config-coverage-user-stories">User stories</h3>
@@ -356,7 +356,26 @@ body.rv-open .layout { padding-right:21rem; }
 </ul>
 <h3 id="config-coverage-out-of-scope">Out of scope</h3>
 <p>Module config that upstream does not expose as userPrefs keys (for example serial, store-and-forward, range test, TAK). Push config (feature 15) covers those.</p>
-<h3 id="config-coverage-open-questions" class="callout-h">Open questions</h3><h2>Mockups</h2><p>Mockups convey intent — the rough shape a user will see. An implementer may diverge where framework conventions, components, accessibility, or a better idea serve the feature's requirements; the FRs and acceptance criteria are the contract, not the pixels.</p><div class="mockup"><iframe src="../mockups/04-config-form.html" loading="lazy"></iframe><p><a href="../mockups/04-config-form.html" target="_blank">Open ../mockups/04-config-form.html in new tab</a></p></div><nav class="pager">
+<h3 id="config-coverage-open-questions" class="callout-h">Open questions</h3>
+<h3 id="config-coverage-changes-at-the-batch-gate-142">Changes at the batch gate (#142)</h3>
+<ul>
+<li>Enum checks read the fixture <code>config.proto</code> (protobufs <code>v2.8.3</code>); per-version enum values come from each firmware source's <code>config.pb.h</code>.
+</li>
+<li>The router-role fallback is at <code>src/mesh/NodeDB.cpp:604-611</code> in firmware <code>v2.7.26.54e0d8d</code> (the line numbers above were from <code>develop</code>).
+</li>
+<li>Limits accepted at the gates: mesh beacon interval 0 or 3600–2,592,000 s; event hop limit 0–7; canned messages 200 bytes or fewer (the joined value); with <code>USERPREFS_BLOCK_POSITION_ON_EVENT_CHANNEL</code> on and a channel 0 PSK set, that PSK is 16 or 32 bytes; frequency slot 1 or more.
+</li>
+<li>A key that the chosen firmware version does not read returns 422; <code>channels_to_write</code> above the version's channel slots returns 422.
+</li>
+<li>Toggles with a firmware default are "Firmware default / On / Off" selects; an untouched toggle writes no key.
+</li>
+<li>Preview, generate and download send <code>X-Userprefs-Note</code> (and preview shows it) when no firmware version or no key scan is available.
+</li>
+<li><code>GET /api/v1/userprefs/keys?version=</code> returns <code>keys</code> and <code>enum_values</code>; 404 for an unknown version.
+</li>
+<li>A 422 body holds only <code>loc</code>, <code>msg</code> and <code>type</code> for each error, never the rejected input.
+</li>
+</ul><h2>Mockups</h2><p>Mockups convey intent — the rough shape a user will see. An implementer may diverge where framework conventions, components, accessibility, or a better idea serve the feature's requirements; the FRs and acceptance criteria are the contract, not the pixels.</p><div class="mockup"><iframe src="../mockups/04-config-form.html" loading="lazy"></iframe><p><a href="../mockups/04-config-form.html" target="_blank">Open ../mockups/04-config-form.html in new tab</a></p></div><nav class="pager">
 <a href="feature-generated-registry.html">&larr; Feature: Generated registry</a>
 <a href="feature-channel-share.html">Feature: Channel share &rarr;</a>
 </nav>

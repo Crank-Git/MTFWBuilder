@@ -12,7 +12,7 @@ from itsdangerous import TimestampSigner
 from mtfwbuilder.auth import CSRF_COOKIE, SESSION_COOKIE, csrf_token
 from mtfwbuilder.database import init_db, save_build
 from mtfwbuilder.rate_limit import limiter
-from mtfwbuilder.routers import admin
+from mtfwbuilder.services.firmware_updater import ReleaseNotFound
 from tests.conftest import sign_in_admin
 
 CSRF_FIELD = re.compile(r'name="csrf_token" value="([^"]+)"')
@@ -201,30 +201,21 @@ async def test_sign_out_with_a_valid_csrf_token_clears_the_session(client, setti
 # FR-frontend-htmx-12
 
 
-@pytest.mark.usefixtures("database")
-async def test_dashboard_shows_firmware_source_update_cleanup_recent_builds_and_sign_out(client, settings):
-    (settings.base_dir / "firmware_version.txt").write_text("Version: v2.7.26.54e0d8d\nUpdated: 2026-11-21 10:00:00\n")
+@pytest.mark.usefixtures("firmware_source")
+async def test_dashboard_shows_firmware_sources_install_cleanup_recent_builds_and_sign_out(client, settings):
     sign_in_admin(client, settings)
 
     resp = await client.get("/admin")
 
     assert resp.status_code == 200
     assert 'type="password"' not in resp.text
+    assert 'id="firmware-sources"' in resp.text
     assert "v2.7.26.54e0d8d" in resp.text
-    assert 'hx-post="/api/v1/update-firmware"' in resp.text
+    assert 'hx-post="/api/v1/firmware/install"' in resp.text
     assert 'hx-post="/api/v1/cleanup"' in resp.text
     assert 'id="recent-builds"' in resp.text
     assert 'action="/admin/logout"' in resp.text
     assert "Sign out" in resp.text
-
-
-@pytest.mark.usefixtures("database")
-async def test_dashboard_without_a_firmware_source_shows_not_installed(client, settings):
-    sign_in_admin(client, settings)
-
-    resp = await client.get("/admin")
-
-    assert "Not installed" in resp.text
 
 
 async def test_dashboard_lists_the_recent_builds_from_the_builds_table(client, settings, database):
@@ -241,6 +232,7 @@ async def test_dashboard_lists_the_recent_builds_from_the_builds_table(client, s
                 "error_message": None,
                 "config_hash": None,
                 "firmware_version": "v2.7.26.54e0d8d",
+                "fleet_run_id": None,
             },
         )
     sign_in_admin(client, settings)
@@ -273,15 +265,18 @@ async def test_htmx_cleanup_returns_an_html_fragment_with_the_message(client, se
     assert "Removed 0 old build directories." in resp.text
 
 
-async def test_htmx_update_failure_returns_an_html_fragment_with_the_error(client, settings, monkeypatch):
-    monkeypatch.setattr(admin, "update_firmware", lambda _settings: False)
+async def test_htmx_update_failure_returns_an_html_fragment_with_the_error(app, client, settings):
+    def no_release(channel):
+        raise ReleaseNotFound(channel)
+
+    app.state.firmware_installs.resolver = no_release
     token = sign_in_admin(client, settings)
 
     resp = await client.post("/api/v1/update-firmware", data={"csrf_token": token}, headers={"HX-Request": "true"})
 
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/html")
-    assert "Firmware update failed. Check logs for details." in resp.text
+    assert "Cannot get the firmware version from the upstream firmware list." in resp.text
 
 
 # Edge case: the admin session expires.

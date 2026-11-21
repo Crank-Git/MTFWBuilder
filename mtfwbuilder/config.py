@@ -33,7 +33,6 @@ class Settings(BaseSettings):
     firmware_dir: Path | None = None
     temp_dir: Path | None = None
     database_path: Path | None = None
-    devices_file: Path | None = None
 
     # Build settings
     max_queue_size: int = 5
@@ -41,6 +40,10 @@ class Settings(BaseSettings):
     build_timeout_seconds: int = 900  # 15 minutes
     cleanup_interval_seconds: int = 1800  # 30 minutes
     build_max_age_seconds: int = 3600  # 1 hour
+    install_timeout_seconds: int = 3600  # The time limit of `pio pkg install` for one firmware version
+    cache_enabled: bool = True
+    cache_ttl_seconds: int = 86400  # The build cache removes an entry one day after its last use
+    max_fleet_size: int = Field(default=50, ge=1)
 
     # Auth
     admin_password_hash: str = ""
@@ -77,8 +80,6 @@ class Settings(BaseSettings):
             self.temp_dir = self.data_dir / "artifacts"
         if self.database_path is None:
             self.database_path = self.data_dir / "mtfwbuilder.db"
-        if self.devices_file is None:
-            self.devices_file = self.base_dir / "devices" / "variants.yaml"
 
 
 def prepare_data_dir(data_dir: Path, base_dir: Path) -> None:
