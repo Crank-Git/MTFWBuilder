@@ -537,6 +537,22 @@ class FleetUpdate(BaseModel):
         return self
 
 
+class FleetDeviceRows(BaseModel):
+    """The body of `PUT /api/v1/fleets/{id}/devices`: the rows of the fleet device table, in table order.
+
+    Each row holds the fields of a `FleetDevice`. The route validates each row on its own, so it reports every
+    row error with its row number (FR-fleet-builds-13).
+    """
+
+    devices: list[dict[str, str | int | float | None]]
+
+
+class FleetCsv(BaseModel):
+    """The body of `POST /api/v1/fleets/{id}/devices/csv`: CSV text whose first line is the header."""
+
+    csv: str
+
+
 class FleetDeviceRecord(BaseModel):
     """A saved fleet device. `admin_key` is set only for an admin session, and `has_admin_key` tells if one is saved."""
 

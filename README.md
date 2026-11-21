@@ -221,6 +221,16 @@ Key endpoints:
 - `DELETE /api/v1/profiles/{id}` — Delete the profile. Returns 204.
 - `GET /api/v1/profiles/{id}/export` — The profile as a JSON file with `name`, `config` and
   `must_reenter`, without secrets.
+- `PUT /api/v1/fleets/{id}/devices` — Replace every fleet device with `{"devices": [{...}, ...]}`, the rows
+  of the fleet device table. A row without an `admin_key` keeps the saved admin key of its label.
+- `POST /api/v1/fleets/{id}/devices/csv` — Add a fleet device for each line of `{"csv": "<text>"}` after
+  the header `label,variant,long_name,short_name,role,lat,lon,alt,admin_key`. The rows go after the saved
+  fleet devices.
+
+The two fleet device routes return 404 for an unknown fleet. Each returns 422 with every row error and
+then saves no row. A row error has `row`, `field` and `msg`. Row 1 is the first fleet device: the first
+table row, or the line after the CSV header. A duplicate label, a variant that is not in the firmware
+version of the fleet, and a router role are row errors. The page `/fleets/{id}` is the fleet editor.
 
 Each operator of the instance uses each profile. The profile routes need no admin session, except to
 store, load or remove the stored secrets.

@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from markupsafe import Markup
 
@@ -15,11 +15,11 @@ from mtfwbuilder.auth import (
     set_cookie,
     validate_session_token,
 )
-from mtfwbuilder.database import find_firmware_source, list_firmware_sources
+from mtfwbuilder.database import find_firmware_source, list_firmware_sources, list_variants
 from mtfwbuilder.htmx import is_htmx
 from mtfwbuilder.models import CHANNEL_SLOTS, ProfileRequest
 from mtfwbuilder.routers.firmware_builder import panel_context
-from mtfwbuilder.services import profiles
+from mtfwbuilder.services import fleets, profiles
 from mtfwbuilder.services.userprefs_keys import KeyScan, find_key_scan
 from mtfwbuilder.time_zones import POSIX_TZ_BY_ZONE
 
@@ -94,6 +94,39 @@ async def profiles_page(request: Request):
     context = {"title": "Profiles", "profiles": await profiles.list_profiles(request.app.state.settings.database_path)}
     template = "partials/profile_list.html" if is_htmx(request) else "profiles.html"
     return request.app.state.templates.TemplateResponse(request, template, context)
+
+
+@router.get("/fleets")
+async def fleets_page(request: Request):
+    """Render the fleets page: each fleet with a link to its fleet editor."""
+    context = {"title": "Fleets", "fleets": await fleets.list_fleets(request.app.state.settings.database_path)}
+    return request.app.state.templates.TemplateResponse(request, "fleets.html", context)
+
+
+@router.get("/fleets/{fleet_id}")
+async def fleet_page(request: Request, fleet_id: int):
+    """Render the fleet editor: the fleet device table form and the CSV box (FR-fleet-builds-12 and -13).
+
+    The page never holds an admin key, also for an admin session, so a saved admin key shows as "Saved" only.
+    Returns 404 when no fleet has the id.
+    """
+    database_path = request.app.state.settings.database_path
+    fleet = await fleets.get_fleet(database_path, fleet_id, None)
+    if fleet is None:
+        raise HTTPException(status_code=404, detail=f"Fleet {fleet_id} does not exist")
+    profile = await profiles.get_profile(database_path, fleet["profile_id"], None)
+    source = await find_firmware_source(database_path, fleet["firmware_version"])
+    context = {
+        "title": f"Fleet {fleet['name']}",
+        "fleet": fleet,
+        "profile_name": profile["name"] if profile else None,
+        "firmware_version": source["version"] if source else fleet["firmware_version"],
+        "variants": [entry["env"] for entry in await list_variants(database_path, source["version"])] if source else [],
+        "role_options": meshtastic_enums.ROLES.options(),
+        "router_role_message": meshtastic_enums.ROUTER_ROLE_MESSAGE,
+        "csv_header": ",".join(fleets.CSV_HEADER),
+    }
+    return request.app.state.templates.TemplateResponse(request, "fleet.html", context)
 
 
 @router.get("/firmware-builder")
