@@ -253,6 +253,17 @@ async def test_install_returns_502_when_github_gives_no_firmware_version(app, ad
     assert await _rows(settings) == []
 
 
+@pytest.mark.usefixtures("installs")
+async def test_install_refuses_a_channel_tag_that_is_not_a_firmware_version(app, admin, settings, downloads):
+    app.state.firmware_installs.resolver = lambda _channel: "../escape"
+
+    resp = await admin.post("/api/v1/firmware/install", json={"channel": "stable"})
+
+    assert resp.status_code == 502
+    assert downloads == []
+    assert not (settings.firmware_dir.parent / "escape").exists()
+
+
 # FR-firmware-versions-6: a failed install leaves no directory and no record
 
 

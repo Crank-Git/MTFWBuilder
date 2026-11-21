@@ -102,10 +102,7 @@ def resolve_channel(channel: str) -> str:
         # `releases/latest` excludes drafts and prereleases, and upstream marks each alpha as a prerelease.
         response = requests.get(f"{GITHUB_REPO_API}/releases/latest", headers=github_headers(), timeout=30)
         response.raise_for_status()
-        tag = response.json()["tag_name"]
-        if not TAG.fullmatch(tag):
-            raise ReleaseNotFound(f"The newest stable release tag {tag!r} is not a firmware version")
-        return tag
+        return response.json()["tag_name"]
     url = f"{GITHUB_REPO_API}/releases"
     response = requests.get(url, params={"per_page": 100}, headers=github_headers(), timeout=30)
     response.raise_for_status()
@@ -121,11 +118,8 @@ def resolve_channel(channel: str) -> str:
     if not alphas:
         raise ReleaseNotFound("GitHub lists no alpha firmware version")
     # The documentation of the list gives no order, so the version numbers decide.
-    return max(alphas, key=lambda r: (_version_numbers(r["tag_name"]), r["published_at"]))["tag_name"]
-
-
-def _version_numbers(tag: str) -> tuple[int, ...]:
-    return tuple(int(part) for part in tag[1:].split(".")[:3])
+    newest = max(alphas, key=lambda r: (tuple(map(int, r["tag_name"][1:].split(".")[:3])), r["published_at"]))
+    return newest["tag_name"]
 
 
 def download_zipball(tag: str, zip_path: Path) -> None:
@@ -219,12 +213,15 @@ class FirmwareInstalls:
         """Return a new install of the exact tag, or of the newest firmware version of the channel.
 
         Raises:
-        - `ReleaseNotFound` or `requests.RequestException` when the channel gives no firmware version.
+        - `ReleaseNotFound` or `requests.RequestException` when the channel gives no valid firmware version.
         - `FirmwareVersionInstalled` when the firmware version is installed.
         - `InstallActive` when an install of the firmware version has not ended.
         """
         if tag is None:
             version = await asyncio.to_thread(self.resolver, channel)
+            # The firmware version becomes a directory name, so a resolver result gets the same check as a tag.
+            if not TAG.fullmatch(version):
+                raise ReleaseNotFound(f"The {channel} release tag {version!r} is not a firmware version")
         else:
             # Only an install by channel knows the channel of the firmware version.
             version, channel = tag, "pinned"
