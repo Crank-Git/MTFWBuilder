@@ -1,9 +1,12 @@
-"""E2E smoke tests of the build page in a real browser (feature frontend-htmx, criteria 1 and 2)."""
+"""E2E smoke tests of the build page in a browser (frontend-htmx criteria 1 and 2, firmware-versions criterion 2)."""
 
 import re
 
 import pytest
 from playwright.sync_api import Page, expect
+
+from tests.conftest import FIRMWARE_VERSION
+from tests.e2e.conftest import ALPHA_VERSION
 
 pytestmark = pytest.mark.e2e
 
@@ -55,3 +58,16 @@ def test_build_completes_and_downloads_the_factory_artifact(page: Page, live_ser
     saved = tmp_path / download.suggested_filename
     download.save_as(saved)
     assert saved.read_bytes().startswith(b"fake firmware-heltec-v3-")
+    assert FIRMWARE_VERSION.removeprefix("v") in download.suggested_filename
+
+
+def test_build_of_the_chosen_alpha_firmware_version_gives_alpha_artifacts(page: Page, live_server: str):
+    page.goto(f"{live_server}/")
+    fill_config_form(page)
+    page.select_option("#variant", "heltec-v3")
+    page.select_option("#firmware_version", ALPHA_VERSION)
+
+    page.click("#buildBtn")
+
+    expect(page.locator('[data-step="complete"]')).to_have_attribute("data-state", "done", timeout=15_000)
+    expect(page.locator("#build-state tr", has_text=".factory.bin")).to_contain_text(ALPHA_VERSION.removeprefix("v"))

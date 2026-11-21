@@ -50,6 +50,10 @@ class BuildEnded(Exception):
     """The build has a build status of `complete`, `failed` or `cancelled`."""
 
 
+class FirmwareVersionNotInstalled(Exception):
+    """The build request names a firmware version that has no ready firmware source."""
+
+
 @dataclass
 class BuildContext:
     """All state for a single firmware build."""
@@ -255,18 +259,35 @@ class BuildQueue:
     def get(self, build_id: str) -> BuildContext | None:
         return self._builds.get(build_id)
 
-    async def submit(self, variant: DeviceVariant, config_content: str) -> BuildContext:
-        """Return a new build, after it is put in the build queue.
+    async def submit(
+        self, variant: DeviceVariant, config_content: str, firmware_version: str | None = None
+    ) -> BuildContext:
+        """Return a new build of `firmware_version`, after it is put in the build queue.
 
-        Raises `BuildQueueFull` when the build queue holds `max_queue_size` builds. A build
-        for a missing firmware source fails at once and does not go in the build queue.
+        When `firmware_version` is None, the build uses the newest installed stable firmware version.
+
+        Raises:
+        - `FirmwareVersionNotInstalled` when `firmware_version` has no ready firmware source.
+        - `BuildQueueFull` when the build queue holds `max_queue_size` builds.
+
+        A default build with no firmware source fails at once and does not go in the build queue.
         """
         # The read is before the queue check, so no other submit can fill the build queue between the two.
-        source = await installed_firmware_source(self.settings)
+        source = await installed_firmware_source(self.settings, firmware_version)
+        if source is None and firmware_version is not None:
+            raise FirmwareVersionNotInstalled(firmware_version)
         if self._queue.full():
             raise BuildQueueFull
         self._forget_old_builds()
-        ctx = BuildContext(generate_build_id(), variant, config_content, self.settings, on_change=self._record)
+        # A removal refuses a firmware version that a queued build uses, so the build holds its version from submit.
+        ctx = BuildContext(
+            generate_build_id(),
+            variant,
+            config_content,
+            self.settings,
+            firmware_version=source[0] if source else None,
+            on_change=self._record,
+        )
         self._builds[ctx.build_id] = ctx
         self._record(ctx)
         if source is not None:
@@ -316,7 +337,7 @@ class BuildQueue:
     def unended_firmware_versions(self, default_version: str | None) -> set[str]:
         """Return the firmware versions that the builds that have not ended use.
 
-        A queued build reads its firmware version when it starts, so it counts as a build of `default_version`.
+        A build without a firmware version counts as a build of `default_version`.
         """
         versions = {ctx.firmware_version or default_version for ctx in self._builds.values() if not ctx.ended}
         return versions - {None}
@@ -390,12 +411,13 @@ async def progress_events(ctx: BuildContext, log_from: int | None = None):
         await changed.wait()
 
 
-async def installed_firmware_source(settings: Settings) -> tuple[str, Path] | None:
-    """Return the firmware version and the directory of the default firmware source.
+async def installed_firmware_source(settings: Settings, version: str | None = None) -> tuple[str, Path] | None:
+    """Return the firmware version and the directory of the firmware source of `version`.
 
-    Returns None when no firmware source is installed, or when the directory of its record is missing.
+    When `version` is None, the result is the default firmware source: the newest installed stable one.
+    Returns None when no ready firmware source matches, or when the directory of its record is missing.
     """
-    record = await find_firmware_source(settings.database_path)
+    record = await find_firmware_source(settings.database_path, version)
     if record is None or not Path(record["path"]).is_dir():
         return None
     return record["version"], Path(record["path"])
@@ -403,8 +425,8 @@ async def installed_firmware_source(settings: Settings) -> tuple[str, Path] | No
 
 async def run_build(ctx: BuildContext) -> None:
     """Run one build to an ended build status, and scrub the firmware source before the end event."""
-    # A firmware update can add a firmware source while the build waits, so the build reads it when it starts.
-    source = await installed_firmware_source(ctx.settings)
+    # The directory of the firmware source can be gone when the build starts, so the build reads the record again.
+    source = await installed_firmware_source(ctx.settings, ctx.firmware_version)
     if source is None:
         ctx.set_status("failed", error=FIRMWARE_SOURCE_MISSING)
         return

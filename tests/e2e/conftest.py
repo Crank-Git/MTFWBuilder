@@ -20,6 +20,7 @@ from tests.conftest import _ADMIN_PASSWORD_HASH, FIRMWARE_VERSION, REPO_ROOT, SE
 
 STARTUP_TIMEOUT_SECONDS = 20
 FIRMWARE_LIST = REPO_ROOT / "tests" / "fixtures" / "firmware" / "firmware_list.json"
+ALPHA_VERSION = "v2.8.2.d5f1619"
 
 
 def _free_port() -> int:
@@ -76,9 +77,9 @@ def _serve(command: list[str], env: dict, port: int):
 def live_server(tmp_path_factory):
     """Return the base URL of a uvicorn server that builds with the fake `pio`.
 
-    The server reads every path from a directory under `tmp_path`. The firmware source is the
-    empty directory `firmware/<tag>/` with a ready record, because the fake `pio` reads only the
-    userPrefs file that the build writes.
+    The server reads every path from a directory under `tmp_path`. Two firmware sources have a ready record:
+    the stable `FIRMWARE_VERSION` and the alpha `ALPHA_VERSION`. Each is a directory `firmware/<tag>/` that holds
+    no firmware, because the fake `pio` reads only the userPrefs file and `.fake-pio-version`.
     The server stops when the module ends.
     """
     base = tmp_path_factory.mktemp("e2e")
@@ -93,7 +94,19 @@ def live_server(tmp_path_factory):
         "size_bytes": 0,
         "status": "ready",
     }
-    record_firmware_source(base / "mtfwbuilder.db", record)
+    database_path = base / "mtfwbuilder.db"
+    record_firmware_source(database_path, record)
+    # The fake `pio` reads `.fake-pio-version`, so the artifact names show which firmware source the build used.
+    alpha_dir = base / "firmware" / ALPHA_VERSION
+    alpha_dir.mkdir()
+    (alpha_dir / ".fake-pio-version").write_text(ALPHA_VERSION.removeprefix("v"))
+    alpha = {
+        "version": ALPHA_VERSION,
+        "channel": "alpha",
+        "path": str(alpha_dir),
+        "installed_at": "2026-11-10T00:00:00+00:00",
+    }
+    record_firmware_source(database_path, {**record, **alpha})
     port = _free_port()
     command = [sys.executable, "-m", "uvicorn", "mtfwbuilder.main:app", "--host", "127.0.0.1", "--port", str(port)]
     with _serve(command, env, port) as url:

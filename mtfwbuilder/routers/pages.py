@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
+from mtfwbuilder.database import find_firmware_source, list_firmware_sources
 from mtfwbuilder.routers.firmware_builder import panel_context
 
 router = APIRouter(tags=["pages"])
@@ -10,7 +11,10 @@ router = APIRouter(tags=["pages"])
 
 @router.get("/")
 async def index(request: Request, build: str | None = None):
-    """Render the build page: the config form, the variant picker, the Build control and the progress panel.
+    """Render the build page: the config form, the build controls and the progress panel.
+
+    The build controls are the variant picker, the firmware version selector and the Build control.
+    The selector lists the ready firmware sources, and selects the newest installed stable firmware version.
 
     Args:
         build: The build id of the build that the progress panel shows (FR-frontend-htmx-10).
@@ -20,7 +24,15 @@ async def index(request: Request, build: str | None = None):
     manufacturers: dict[str, list] = {}
     for variant in request.app.state.device_registry.all_variants:
         manufacturers.setdefault(variant.manufacturer, []).append(variant)
-    context = {"title": "Build", "manufacturers": manufacturers, "build_id": build}
+    database_path = request.app.state.settings.database_path
+    default_source = await find_firmware_source(database_path)
+    context = {
+        "title": "Build",
+        "manufacturers": manufacturers,
+        "build_id": build,
+        "firmware_sources": [s for s in await list_firmware_sources(database_path) if s["status"] == "ready"],
+        "default_firmware_version": default_source["version"] if default_source else None,
+    }
     ctx = request.app.state.build_queue.get(build) if build else None
     if ctx is not None:
         context.update(panel_context(ctx))
