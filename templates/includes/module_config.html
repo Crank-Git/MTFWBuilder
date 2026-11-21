@@ -1,0 +1,105 @@
+{# Feature module-settings: no build writes these fields, so no fieldset has a `data-userprefs-key` and the key scan never hides one. #}
+{# The options and the number limits come from the tables in `mtfwbuilder/models.py`, so the form offers what the validators accept. #}
+{% set module_cards = [
+    ("serial", "Serial", [
+        ("serial_enabled", "Enabled", False),
+        ("serial_echo", "Echo", False),
+        ("serial_mode", "Mode", False),
+        ("serial_baud", "Baud", False),
+        ("serial_timeout", "Timeout (ms)", False),
+        ("serial_rxd", "RX Pin", True),
+        ("serial_txd", "TX Pin", True),
+        ("serial_override_console_serial_port", "Override Console Serial Port", True),
+    ]),
+    ("store-forward", "Store and forward", [
+        ("store_forward_enabled", "Enabled", False),
+        ("store_forward_heartbeat", "Heartbeat", False),
+        ("store_forward_is_server", "Server", False),
+        ("store_forward_records", "Records", False),
+        ("store_forward_history_return_max", "History Return Max", False),
+        ("store_forward_history_return_window", "History Return Window (s)", False),
+    ]),
+    ("range-test", "Range test", [
+        ("range_test_enabled", "Enabled", False),
+        ("range_test_sender", "Sender Interval (s)", False),
+        ("range_test_save", "Save", False),
+    ]),
+    ("ext-notify", "External notification", [
+        ("ext_notify_enabled", "Enabled", False),
+        ("ext_notify_output_ms", "Output Duration (ms)", False),
+        ("ext_notify_alert_message", "Alert on Message", False),
+        ("ext_notify_alert_message_vibra", "Alert on Message, Vibration", False),
+        ("ext_notify_alert_message_buzzer", "Alert on Message, Buzzer", False),
+        ("ext_notify_alert_bell", "Alert on Bell", False),
+        ("ext_notify_alert_bell_vibra", "Alert on Bell, Vibration", False),
+        ("ext_notify_alert_bell_buzzer", "Alert on Bell, Buzzer", False),
+        ("ext_notify_output", "Output Pin", True),
+        ("ext_notify_output_vibra", "Vibration Pin", True),
+        ("ext_notify_output_buzzer", "Buzzer Pin", True),
+        ("ext_notify_active", "Active High", True),
+        ("ext_notify_use_pwm", "Use PWM", True),
+        ("ext_notify_use_i2s_as_buzzer", "Use I2S as Buzzer", True),
+    ]),
+    ("neighbor-info", "Neighbor info", [
+        ("neighbor_info_enabled", "Enabled", False),
+        ("neighbor_info_update_interval", "Update Interval (s)", False),
+        ("neighbor_info_transmit_over_lora", "Transmit over LoRa", False),
+    ]),
+    ("detection-sensor", "Detection sensor", [
+        ("detection_sensor_enabled", "Enabled", False),
+        ("detection_sensor_name", "Name", False),
+        ("detection_sensor_trigger_type", "Trigger Type", False),
+        ("detection_sensor_minimum_broadcast_secs", "Minimum Broadcast Interval (s)", False),
+        ("detection_sensor_state_broadcast_secs", "State Broadcast Interval (s)", False),
+        ("detection_sensor_send_bell", "Send Bell", False),
+        ("detection_sensor_monitor_pin", "Monitor Pin", True),
+        ("detection_sensor_use_pullup", "Use Pull-up", True),
+    ]),
+    ("paxcounter", "Paxcounter", [
+        ("paxcounter_enabled", "Enabled", False),
+        ("paxcounter_update_interval", "Update Interval (s)", False),
+        ("paxcounter_wifi_threshold", "WiFi Threshold", False),
+        ("paxcounter_ble_threshold", "BLE Threshold", False),
+    ]),
+] %}
+<div class="config-section">
+    <h3 class="section-title"><i class="bi bi-puzzle-fill text-success"></i>Modules</h3>
+    <div class="alert alert-info" id="moduleSettingsNote" role="note">These settings are not compiled into the firmware. Push config sends them to a connected device.</div>
+    {% for card_id, title, fields in module_cards %}
+    <div class="card mb-3" id="module-card-{{ card_id }}">
+        <div class="card-header"><h4 class="card-title h6 mb-0">{{ title }}</h4></div>
+        <div class="card-body">
+            <div class="row g-3">
+                {% for name, label, hardware in fields %}
+                {% set control_id = "module-" ~ name %}
+                <fieldset class="col-md-4" data-module-field="{{ name }}">
+                    <label for="{{ control_id }}" class="form-label">{{ label }}{% if hardware %} (hardware){% endif %}</label>
+                    {% if name in module_bool_fields %}
+                    <select class="form-select" id="{{ control_id }}" name="{{ name }}">
+                        <option value="" selected>Keep device value</option>
+                        <option value="true">On</option>
+                        <option value="false">Off</option>
+                    </select>
+                    {% elif name in module_enums %}
+                    <select class="form-select" id="{{ control_id }}" name="{{ name }}">
+                        <option value="" selected>Keep device value</option>
+                        {% for value in module_enums[name] %}
+                        <option value="{{ value }}">{{ value }}</option>
+                        {% endfor %}
+                    </select>
+                    {% elif name in module_number_limits %}
+                    <input type="number" class="form-control" id="{{ control_id }}" name="{{ name }}" min="{{ module_number_limits[name][0] }}" max="{{ module_number_limits[name][1] }}" step="1" placeholder="Keep device value">
+                    {% else %}
+                    <input type="text" class="form-control" id="{{ control_id }}" name="{{ name }}" placeholder="Keep device value" autocomplete="off">
+                    {% endif %}
+                    <div id="error-{{ name }}" class="field-error invalid-feedback d-block"></div>
+                    {% if hardware %}
+                    <div class="form-text text-muted">Leave empty to keep the pin of the device. A wrong pin can drive the wrong GPIO.</div>
+                    {% endif %}
+                </fieldset>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
