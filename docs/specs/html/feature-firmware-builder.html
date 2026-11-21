@@ -164,6 +164,7 @@ body.rv-open .layout { padding-right:21rem; }
 <p class="meta">— &nbsp; <span class="badge">built</span></p>
 <h3 id="firmware-builder-purpose">Purpose</h3>
 <p>The firmware builder compiles one variant with one userPrefs file, and gives the operator the artifact. This file describes the code at commit <code>bd15bb1</code>.</p>
+<p><strong>Changed since this record.</strong> Epic 2 (#102) changed this behaviour: builds run from a build queue, the progress stream never cancels a build, build ids are random, artifacts keep upstream names and have their own routes, one scrub runs on every exit, log lines are masked, and the build route validates with <code>ConfigRequest</code>. The current contract is <code>06-build-pipeline-repair.md</code>.</p>
 <h3 id="firmware-builder-user-stories">User stories</h3>
 <ul>
 <li>As an operator, I want to choose a variant and start a build, so that I get firmware

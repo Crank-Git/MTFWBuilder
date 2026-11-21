@@ -2,7 +2,7 @@
 id: build-pipeline-repair
 feature: Build pipeline repair
 epic: "Epic 2: Build pipeline repair"
-status: issued
+status: built
 issues: [16, 17, 18, 19, 20, 21]
 mockups: []
 ---

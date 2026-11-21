@@ -29,7 +29,7 @@ edit `docs/specs/spec.html` or `docs/specs/html/` by hand.
 | `mtfwbuilder/main.py` | App factory, lifespan, middleware |
 | `mtfwbuilder/config.py` | Settings (`config.yaml`, then `MTFW_*` env vars) |
 | `mtfwbuilder/routers/` | HTTP routes, all API routes under `/api/v1` |
-| `mtfwbuilder/services/` | Generator, build service, registry, firmware updater, cleanup |
+| `mtfwbuilder/services/` | Generator, userPrefs key reader, build service, registry, firmware updater, cleanup |
 | `templates/`, `static/` | Pages and assets. Vendored libraries go in `static/vendor/`. |
 | `devices/variants.yaml` | Registry, until Epic 6 replaces it |
 | `tests/` | pytest suite. Fixtures in `tests/fixtures/`. |

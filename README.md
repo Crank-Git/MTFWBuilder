@@ -154,8 +154,13 @@ Key endpoints:
 - `POST /api/v1/download` — Download `userPrefs.jsonc`
 - `POST /api/v1/build-firmware` — Start firmware build
 - `GET /api/v1/build-progress/{id}` — SSE build progress stream
-- `GET /api/v1/download-firmware/{id}` — Download built firmware
+- `GET /api/v1/builds/{id}/artifacts` — Artifact list of a build: `name`, `size`, `kind`
+- `GET /api/v1/builds/{id}/artifacts/{name}` — Download one artifact from the artifact list
+- `GET /api/v1/download-firmware/{id}` — Redirects (308) to the factory or primary artifact, for one release
 - `GET /api/v1/system-info` — Firmware version and status
+
+The three config routes validate the body with `ConfigRequest`. An invalid body returns
+422 with field errors, for example `channel_0.psk`.
 
 ## Docker
 

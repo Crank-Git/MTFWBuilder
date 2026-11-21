@@ -12,6 +12,8 @@ mockups: []
 The firmware builder compiles one variant with one userPrefs file, and gives the
 operator the artifact. This file describes the code at commit `bd15bb1`.
 
+**Changed since this record.** Epic 2 (#102) changed this behaviour: builds run from a build queue, the progress stream never cancels a build, build ids are random, artifacts keep upstream names and have their own routes, one scrub runs on every exit, log lines are masked, and the build route validates with `ConfigRequest`. The current contract is `06-build-pipeline-repair.md`.
+
 ## User stories
 
 - As an operator, I want to choose a variant and start a build, so that I get firmware

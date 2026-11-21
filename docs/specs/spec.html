@@ -244,6 +244,8 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><td>modem preset</td><td>noun</td><td>A Meshtastic LoRa modem preset, for example <code>LONG_FAST</code>.</td><td>preset (alone), speed</td></tr>
 <tr><td>region</td><td>noun</td><td>A Meshtastic LoRa region code, for example <code>US</code>.</td><td>country, band</td></tr>
 <tr><td>role</td><td>noun</td><td>A Meshtastic device role, for example <code>CLIENT</code> or <code>ROUTER</code>.</td><td>mode, type</td></tr>
+<tr><td>time zone</td><td>noun</td><td>An IANA tz database name, for example <code>America/New_York</code>. The form sends a time zone.</td><td>timezone, tz name</td></tr>
+<tr><td>POSIX TZ string</td><td>noun</td><td>The <code>TZ</code> value that the firmware gives to <code>setenv</code>, for example <code>EST5EDT,M3.2.0,M11.1.0</code>.</td><td>tz string, timezone string</td></tr>
 <tr><td>Web Serial</td><td>noun</td><td>The browser API that opens a USB serial port from a page.</td><td>WebUSB</td></tr>
 <tr><td>SSE</td><td>noun</td><td>Server-Sent Events: a one-way HTTP stream from server to browser.</td><td>websocket</td></tr>
 </table></div>
@@ -869,6 +871,10 @@ body.rv-open .layout { padding-right:21rem; }
 <li>2026-11-21 — <code>/spec-to-issues</code>: 13 epics (#4–#70) and 58 sub-issues created. See <code>## Issue map</code>.
 </li>
 <li>2026-11-21 — Epic 0 shipped (#82). Batch ruling: the generic ruff criterion on each Epic 0 sub-issue was checked at the batch gate, after #7. Out-of-plan fix accepted in #80: Starlette 1.10 needs <code>TemplateResponse(request, name, context)</code>; every page returned 500 before it. <code>dev</code> is now the repository default branch.
+</li>
+<li>2026-11-21 — Epic 1 shipped (#92). PM decision, flagged for the owner: the event mode select defaults to Disabled (#13), so a form left at its defaults does not turn event mode on. The contract test found that firmware v2.7.26 reads no <code>USERPREFS_CHANNEL_3_*</code> key; the generator writes channel slots 0–2 only until #47. The build route still skips <code>ConfigRequest</code>: filed as #94 in epic #16.
+</li>
+<li>2026-11-21 — Epic 2 shipped (#102). PM decision from the batch review, flagged for the owner: the project sets no shared PlatformIO build cache and the scrub deletes <code>.pio/build_cache</code>, because the cache keeps objects compiled with secrets (Goal 7). Each build then compiles from the start; toolchains stay cached. <code>config_hash</code> is an HMAC with <code>secret_key</code>. Follow-up #88 (more than one build worker) stays open.
 </li>
 </ul><nav class="pager">
 <span></span>

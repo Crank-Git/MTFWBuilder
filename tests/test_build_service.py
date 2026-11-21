@@ -1,7 +1,7 @@
 """Tests for build service and firmware routes."""
 
 import json
-import time
+import os
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -10,26 +10,9 @@ from mtfwbuilder.config import Settings
 from mtfwbuilder.services.build_service import (
     BuildContext,
     _parse_progress,
-    _scrub_firmware_tree,
-    generate_build_id,
 )
-from mtfwbuilder.services.cleanup_service import cleanup_build_directory, cleanup_old_builds
+from mtfwbuilder.services.cleanup_service import cleanup_old_builds
 from mtfwbuilder.services.device_registry import DeviceVariant
-
-
-class TestBuildId:
-    """Tests for build ID generation."""
-
-    def test_build_id_format(self):
-        bid = generate_build_id()
-        assert bid.startswith("build_")
-        parts = bid.split("_")
-        assert len(parts) == 4  # build, timestamp, pid, counter
-        assert parts[1].isdigit()
-
-    def test_build_ids_unique(self):
-        ids = {generate_build_id() for _ in range(10)}
-        assert len(ids) == 10
 
 
 class TestProgressParsing:
@@ -46,28 +29,6 @@ class TestProgressParsing:
 
     def test_packaging_detected(self):
         assert _parse_progress("Checking size .pio/build/tbeam/firmware.bin") == "packaging"
-
-    def test_success_detected(self):
-        assert _parse_progress("========================= [SUCCESS] =========================") == "complete"
-
-    def test_success_no_false_positive(self):
-        """'Successfully installed' should NOT trigger complete."""
-        assert _parse_progress("Successfully installed toolchain") is None
-
-    def test_error_detected(self):
-        assert _parse_progress("error: undefined reference to 'foo'") == "failed"
-
-    def test_failed_banner_detected(self):
-        assert _parse_progress("========================= [FAILED] =========================") == "failed"
-
-    def test_warning_not_error(self):
-        """Warnings should not trigger 'failed' status."""
-        assert _parse_progress("warning: unused variable 'x'") is None
-
-    def test_error_in_filename_not_failed(self):
-        """A filename containing 'error' should not trigger failed — it's a compiling line."""
-        result = _parse_progress("Compiling .pio/build/tbeam/src/error_handler.cpp.o")
-        assert result != "failed"  # Should be "compiling", not "failed"
 
     def test_unrelated_line_returns_none(self):
         assert _parse_progress("Installing ESP32 platform") is None
@@ -101,58 +62,14 @@ class TestBuildContext:
         assert ctx.build_log == []
 
 
-class TestScrubFirmwareTree:
-    """Tests for sensitive file cleanup."""
-
-    def test_removes_userprefs(self, temp_dir):
-        firmware_dir = temp_dir / "firmware"
-        configs_dir = firmware_dir / "configs"
-        configs_dir.mkdir(parents=True)
-        (configs_dir / "userPrefs.jsonc").write_text('{"PSK": "secret"}')
-        (firmware_dir / "userPrefs.jsonc").write_text('{"PSK": "secret"}')
-
-        # Create PIO build dir
-        build_dir = firmware_dir / ".pio" / "build" / "tbeam"
-        build_dir.mkdir(parents=True)
-        (build_dir / "firmware.bin").write_bytes(b"\x00" * 100)
-
-        settings = Settings(firmware_dir=firmware_dir, temp_dir=temp_dir)
-        variant = DeviceVariant(id="tbeam", name="T-Beam", manufacturer="LILYGO", architecture="esp32")
-        ctx = BuildContext(
-            build_id="build_test",
-            variant=variant,
-            config_content="{}",
-            settings=settings,
-        )
-
-        _scrub_firmware_tree(ctx)
-
-        assert not (configs_dir / "userPrefs.jsonc").exists()
-        assert not (firmware_dir / "userPrefs.jsonc").exists()
-        assert not (build_dir / "firmware.bin").exists()
-
-
 class TestCleanupService:
     """Tests for build directory cleanup."""
 
-    @pytest.mark.asyncio
-    async def test_cleanup_build_directory(self, temp_dir):
-        build_dir = temp_dir / "build_123"
-        build_dir.mkdir()
-        (build_dir / "firmware.bin").write_bytes(b"\x00")
-
-        await cleanup_build_directory(build_dir)
-        assert not build_dir.exists()
-
-    @pytest.mark.asyncio
-    async def test_cleanup_nonexistent_is_noop(self, temp_dir):
-        await cleanup_build_directory(temp_dir / "nonexistent")
-
     def test_cleanup_old_builds_removes_expired(self, temp_dir):
-        # Create an "old" build dir (timestamp 0)
-        old_build = temp_dir / "build_1000000_123"
+        old_build = temp_dir / ("0" * 32)
         old_build.mkdir()
         (old_build / "firmware.bin").write_bytes(b"\x00")
+        os.utime(old_build, (1_000_000, 1_000_000))
 
         settings = Settings(temp_dir=temp_dir, build_max_age_seconds=1)
 
@@ -161,7 +78,7 @@ class TestCleanupService:
         assert not old_build.exists()
 
     def test_cleanup_old_builds_keeps_recent(self, temp_dir):
-        recent = temp_dir / f"build_{int(time.time())}_123"
+        recent = temp_dir / ("1" * 32)
         recent.mkdir()
 
         settings = Settings(temp_dir=temp_dir, build_max_age_seconds=3600)
@@ -204,17 +121,14 @@ class TestFirmwareRoutes:
         assert "No configuration" in resp.json()["detail"]
 
     @pytest.mark.asyncio
-    async def test_build_valid_request_returns_build_id(self, client):
-        config = json.dumps({"device_name": "TestNode"})
+    async def test_build_valid_request_returns_202_with_build_id_and_progress_url(self, client):
+        config = json.dumps({"owner_long_name": "TestNode"})
         resp = await client.post(
             "/api/v1/build-firmware",
             data={"variant": "tbeam", "config_source": "current", "config_json": config},
         )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["success"] is True
-        assert "build_id" in data
-        assert data["build_id"].startswith("build_")
+        assert resp.status_code == 202
+        assert set(resp.json()) == {"build_id", "progress_url"}
 
     @pytest.mark.asyncio
     async def test_download_missing_build(self, client):

@@ -1,5 +1,6 @@
 """Shared test fixtures."""
 
+import os
 import tempfile
 from pathlib import Path
 
@@ -8,8 +9,8 @@ import yaml
 
 from mtfwbuilder.config import _hash_password, load_settings
 from mtfwbuilder.main import create_app
-from mtfwbuilder.rate_limit import configure_rate_limits
-from mtfwbuilder.services.build_service import init_build_system
+from mtfwbuilder.rate_limit import configure_rate_limits, limiter
+from mtfwbuilder.services.build_service import BuildQueue
 from mtfwbuilder.services.device_registry import DeviceRegistry
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -26,6 +27,18 @@ _ADMIN_PASSWORD_HASH = _hash_password(ADMIN_PASSWORD)
 def variants_path():
     """Path to the real variants.yaml file."""
     return REPO_ROOT / "devices" / "variants.yaml"
+
+
+@pytest.fixture
+def fake_pio(monkeypatch):
+    """Return the path of the fake `pio` executable, after it is put first on `PATH`.
+
+    The fake writes upstream-named artifacts into `.pio/build/<env>/` of its working
+    directory. `FAKE_PIO_FAIL=1` makes it fail, and `FAKE_PIO_SLEEP=<seconds>` delays it.
+    """
+    fakes_dir = REPO_ROOT / "tests" / "fakes"
+    monkeypatch.setenv("PATH", str(fakes_dir) + os.pathsep + os.environ["PATH"])
+    return fakes_dir / "pio"
 
 
 @pytest.fixture
@@ -64,13 +77,17 @@ def settings(settings_env):
 
 @pytest.fixture
 def app(settings):
-    """Return an app with the lifespan state, built from the `settings` fixture."""
+    """Return an app with the lifespan state, built from the `settings` fixture.
+
+    The build queue has no build workers. A test that needs them calls `build_queue.start()`.
+    """
     app = create_app()
     app.state.settings = settings
     configure_rate_limits(settings)
     app.state.device_registry = DeviceRegistry(settings.devices_file)
-    init_build_system(settings)
-    app.state.active_builds = {}
+    app.state.build_queue = BuildQueue(settings)
+    # The rate limit counts across tests, so each test starts with an empty count.
+    limiter.reset()
     return app
 
 
@@ -78,7 +95,6 @@ def app(settings):
 def sample_config_data():
     """Minimal valid configuration data."""
     return {
-        "device_name": "TestNode",
         "owner_short_name": "TST",
         "owner_long_name": "Test Node",
         "channels_to_write": "1",

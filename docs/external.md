@@ -17,9 +17,10 @@ Settings read `config.yaml` first, then `MTFW_<FIELD>` environment variables
 | `MTFW_TEMP_DIR` | Build directories. Default `artifacts/` in the data directory. | built |
 | `MTFW_DATABASE_PATH` | SQLite file. Default `mtfwbuilder.db` in the data directory. | built |
 | `MTFW_DEVICES_FILE` | Registry YAML | built; removed by feature 10 |
-| `MTFW_MAX_QUEUE_SIZE` | Build queue limit | built (unused); used by feature 06 |
+| `MTFW_MAX_QUEUE_SIZE` | Build queue limit | built; used by the build queue |
+| `MTFW_BUILD_WORKERS` | Number of build workers | built; a value above 1 logs a warning, and one build worker runs until #88 |
 | `MTFW_BUILD_TIMEOUT_SECONDS` | Build timeout | built |
-| `MTFW_CLEANUP_INTERVAL_SECONDS` | Cleanup task interval | built (unused); used by feature 06 |
+| `MTFW_CLEANUP_INTERVAL_SECONDS` | Cleanup task interval | built |
 | `MTFW_BUILD_MAX_AGE_SECONDS` | Artifact age limit | built |
 | `MTFW_ADMIN_PASSWORD_HASH` | Admin bcrypt hash | built |
 | `MTFW_SECRET_KEY` | Session and CSRF signing key | built |
@@ -27,12 +28,11 @@ Settings read `config.yaml` first, then `MTFW_<FIELD>` environment variables
 | `MTFW_BUILD_RATE_LIMIT`, `MTFW_LOGIN_RATE_LIMIT` | Rate limits of the build route and the login route, in slowapi notation (`5/minute`) | built |
 | `MTFW_DATA_DIR` | Data directory. Holds firmware sources, artifacts, the database and `config.yaml`. Default `data/` in the project root, `/data` in Docker. | built |
 | `MTFW_TRUSTED_PROXIES` | Comma-separated addresses or subnets of the proxies whose `X-Forwarded-For` the rate limiter reads. Default empty: the limiter counts the peer address. | built |
-| `MTFW_BUILD_WORKERS` | Number of build workers | planned, feature 06 |
 | `MTFW_INSTALL_TIMEOUT_SECONDS` | Firmware install timeout | planned, feature 09 |
 | `MTFW_CACHE_ENABLED`, `MTFW_CACHE_TTL_SECONDS` | Build cache | planned, feature 14 |
 | `MTFW_MAX_FLEET_SIZE` | Fleet size limit | planned, feature 14 |
 | `GITHUB_TOKEN` | Optional. Raises the GitHub API rate limit for firmware lists | planned, feature 09 |
-| `PLATFORMIO_BUILD_CACHE_DIR`, `PLATFORMIO_FORCE_COLOR`, `PLATFORMIO_NO_ANSI` | Set by the build for `pio` | built |
+| `PLATFORMIO_FORCE_COLOR`, `PLATFORMIO_NO_ANSI` | Set by the build for `pio` | built |
 | `PLATFORMIO_CORE_DIR` | PlatformIO toolchain directory. The Docker image sets `/home/app/.platformio`, a volume. | built |
 
 ## Upstream services

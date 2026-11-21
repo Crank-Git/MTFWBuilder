@@ -126,6 +126,8 @@ the header of `userPrefs.jsonc` in `meshtastic/firmware` `develop@fe89ac1`.
 | modem preset | noun | A Meshtastic LoRa modem preset, for example `LONG_FAST`. | preset (alone), speed |
 | region | noun | A Meshtastic LoRa region code, for example `US`. | country, band |
 | role | noun | A Meshtastic device role, for example `CLIENT` or `ROUTER`. | mode, type |
+| time zone | noun | An IANA tz database name, for example `America/New_York`. The form sends a time zone. | timezone, tz name |
+| POSIX TZ string | noun | The `TZ` value that the firmware gives to `setenv`, for example `EST5EDT,M3.2.0,M11.1.0`. | tz string, timezone string |
 | Web Serial | noun | The browser API that opens a USB serial port from a page. | WebUSB |
 | SSE | noun | Server-Sent Events: a one-way HTTP stream from server to browser. | websocket |
 
@@ -699,3 +701,5 @@ Written by `/spec-to-issues` on 2026-11-21.
   `firmware/` pattern.
 - 2026-11-21 — `/spec-to-issues`: 13 epics (#4–#70) and 58 sub-issues created. See `## Issue map`.
 - 2026-11-21 — Epic 0 shipped (#82). Batch ruling: the generic ruff criterion on each Epic 0 sub-issue was checked at the batch gate, after #7. Out-of-plan fix accepted in #80: Starlette 1.10 needs `TemplateResponse(request, name, context)`; every page returned 500 before it. `dev` is now the repository default branch.
+- 2026-11-21 — Epic 1 shipped (#92). PM decision, flagged for the owner: the event mode select defaults to Disabled (#13), so a form left at its defaults does not turn event mode on. The contract test found that firmware v2.7.26 reads no `USERPREFS_CHANNEL_3_*` key; the generator writes channel slots 0–2 only until #47. The build route still skips `ConfigRequest`: filed as #94 in epic #16.
+- 2026-11-21 — Epic 2 shipped (#102). PM decision from the batch review, flagged for the owner: the project sets no shared PlatformIO build cache and the scrub deletes `.pio/build_cache`, because the cache keeps objects compiled with secrets (Goal 7). Each build then compiles from the start; toolchains stay cached. `config_hash` is an HMAC with `secret_key`. Follow-up #88 (more than one build worker) stays open.
