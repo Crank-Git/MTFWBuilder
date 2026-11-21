@@ -32,8 +32,14 @@ Variant files, with the variants each file defines:
 | `variants/rp2040/rpipico/platformio.ini` | `rp2040` | `pico` |
 | `variants/rp2040/rak11310/platformio.ini` | `rp2040` | `rak11310` |
 
-The architecture files that these variant files extend (for example
-`variants/rp2040/rp2040.ini`) are not in the fixture.
+Architecture files, which the variant files extend:
+
+- `variants/esp32/esp32-common.ini`
+- `variants/esp32s3/esp32s3.ini`
+- `variants/nrf52840/nrf52.ini`
+- `variants/nrf52840/nrf52840.ini`
+- `variants/rp2040/rp2040.ini`
+- `src/graphics/niche/InkHUD/PlatformioConfig.ini` (the `inkhud` section of `t-echo-inkhud`)
 
 Source files: every file under `src/` that contains the text `USERPREFS_` at this
 firmware version. The contract test scans these files for the keys the firmware reads.
@@ -73,6 +79,15 @@ folder (the first folder under `variants/`). It holds all 230 envs of every
 
 To make it again, clone the tag with `git clone --depth 1 --branch <version>`. Then read
 each `^\[env:([^\]]+)\]` line of each `variants/**/*.ini` file.
+
+## Project config
+
+`project_config.json` is not an upstream file. It is the output of `pio project config --json-output`
+(PlatformIO Core 6.2.0) in a copy of this directory, retrieved 2026-11-21. The text `<firmware_dir>`
+replaces the absolute path of the copy. The registry tests and the fake `pio` read it.
+
+To make it again, run the command in a copy of this directory. Then replace the path of the copy with
+`<firmware_dir>`, and write the JSON with an indent of 1.
 
 ## Release list
 

@@ -1,6 +1,7 @@
 """Fixtures for the E2E tests, which drive a real browser against a real server process."""
 
 import http.server
+import json
 import os
 import socket
 import sqlite3
@@ -16,11 +17,15 @@ import pytest
 import yaml
 
 from mtfwbuilder.database import SCHEMA, record_firmware_source
+from mtfwbuilder.services.registry_generator import registry_entries
 from tests.conftest import _ADMIN_PASSWORD_HASH, FIRMWARE_VERSION, REPO_ROOT, SECRET_KEY
 
 STARTUP_TIMEOUT_SECONDS = 20
 FIRMWARE_LIST = REPO_ROOT / "tests" / "fixtures" / "firmware" / "firmware_list.json"
+PROJECT_CONFIG = REPO_ROOT / "tests" / "fixtures" / "firmware" / "project_config.json"
 ALPHA_VERSION = "v2.8.2.d5f1619"
+# An older stable firmware version, so the default firmware version stays `FIRMWARE_VERSION`.
+NO_REGISTRY_VERSION = "v2.7.20.0000000"
 
 
 def open_tab(page, tab_id: str) -> None:
@@ -61,7 +66,6 @@ def _server_env(base) -> dict:
         "MTFW_TEMP_DIR": str(base / "tmp"),
         "MTFW_DATABASE_PATH": str(base / "mtfwbuilder.db"),
         "MTFW_FIRMWARE_DIR": str(base / "firmware"),
-        "MTFW_DEVICES_FILE": str(REPO_ROOT / "devices" / "variants.yaml"),
     }
 
 
@@ -85,6 +89,9 @@ def live_server(tmp_path_factory):
     The server reads every path from a directory under `tmp_path`. Two firmware sources have a ready record:
     the stable `FIRMWARE_VERSION` and the alpha `ALPHA_VERSION`. Each is a directory `firmware/<tag>/` that holds
     no firmware, because the fake `pio` reads only the userPrefs file and `.fake-pio-version`.
+    The stable firmware version has the registry of `tests/fixtures/firmware/project_config.json`.
+    The alpha firmware version has that registry with `heltec-v4` renamed to `heltec-v4-r2`.
+    A third ready firmware version `NO_REGISTRY_VERSION` has no registry rows, as an import before feature 10 gives.
     The server stops when the module ends.
     """
     base = tmp_path_factory.mktemp("e2e")
@@ -100,7 +107,8 @@ def live_server(tmp_path_factory):
         "status": "ready",
     }
     database_path = base / "mtfwbuilder.db"
-    record_firmware_source(database_path, record)
+    registry = registry_entries(json.loads(PROJECT_CONFIG.read_text()))
+    record_firmware_source(database_path, record, registry)
     # The fake `pio` reads `.fake-pio-version`, so the artifact names show which firmware source the build used.
     alpha_dir = base / "firmware" / ALPHA_VERSION
     alpha_dir.mkdir()
@@ -111,7 +119,13 @@ def live_server(tmp_path_factory):
         "path": str(alpha_dir),
         "installed_at": "2026-11-10T00:00:00+00:00",
     }
-    record_firmware_source(database_path, {**record, **alpha})
+    # Upstream can rename an env between firmware versions, so the alpha registry holds `heltec-v4` under a new name.
+    renamed = [{**entry, "env": "heltec-v4-r2"} if entry["env"] == "heltec-v4" else entry for entry in registry]
+    record_firmware_source(database_path, {**record, **alpha}, renamed)
+    old_dir = base / "firmware" / NO_REGISTRY_VERSION
+    old_dir.mkdir()
+    old = {"version": NO_REGISTRY_VERSION, "path": str(old_dir), "installed_at": "2026-10-01T00:00:00+00:00"}
+    record_firmware_source(database_path, {**record, **old})
     port = _free_port()
     command = [sys.executable, "-m", "uvicorn", "mtfwbuilder.main:app", "--host", "127.0.0.1", "--port", str(port)]
     with _serve(command, env, port) as url:

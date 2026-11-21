@@ -24,7 +24,7 @@ from mtfwbuilder.services.jsonc_generator import (
     version_errors,
 )
 from mtfwbuilder.services.userprefs_keys import SCAN_FILE, KeyScan, ensure_key_scan, read_keys
-from tests.conftest import FIRMWARE_VERSION
+from tests.conftest import FIRMWARE_VERSION, FIXTURE_REGISTRY
 from tests.test_config_mesh_beacon import UPSTREAM_KEYS as MESH_BEACON_KEYS
 from tests.test_userprefs_contract import full_config
 
@@ -42,7 +42,10 @@ PSK_16 = "00" * 16
 
 
 def _install_copy(settings, version: str, channel: str, extra_keys=()) -> Path:
-    """Return a firmware source that copies the fixture, with one more source file that reads `extra_keys`."""
+    """Return a firmware source that copies the fixture, with one more source file that reads `extra_keys`.
+
+    The record holds the registry of the firmware fixture, so a build of a fixture env passes the registry check.
+    """
     source_dir = settings.firmware_dir / version
     source_dir.mkdir(parents=True)
     shutil.copy(FIXTURE_DIR / "userPrefs.jsonc", source_dir)
@@ -56,7 +59,7 @@ def _install_copy(settings, version: str, channel: str, extra_keys=()) -> Path:
         "size_bytes": 0,
         "status": "ready",
     }
-    record_firmware_source(settings.database_path, record)
+    record_firmware_source(settings.database_path, record, FIXTURE_REGISTRY)
     return source_dir
 
 

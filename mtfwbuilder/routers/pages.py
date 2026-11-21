@@ -24,7 +24,7 @@ async def index(request: Request, build: str | None = None):
     """Render the build page: the config form, the build controls and the progress panel.
 
     The build controls are the variant picker, the firmware version selector and the Build control.
-    The selector lists the ready firmware sources, and selects the newest installed stable firmware version.
+    The selector lists the installed firmware sources, and selects the newest installed stable firmware version.
     The form hides each control and enum value that the default firmware version does not read (FR-config-coverage-16).
 
     Args:
@@ -32,14 +32,10 @@ async def index(request: Request, build: str | None = None):
             An unknown build id shows "Build not found."
     """
     templates = request.app.state.templates
-    manufacturers: dict[str, list] = {}
-    for variant in request.app.state.device_registry.all_variants:
-        manufacturers.setdefault(variant.manufacturer, []).append(variant)
     database_path = request.app.state.settings.database_path
     default_source = await find_firmware_source(database_path)
     context = {
         "title": "Build",
-        "manufacturers": manufacturers,
         "build_id": build,
         "region_options": meshtastic_enums.REGIONS.options(),
         "modem_preset_options": meshtastic_enums.MODEM_PRESETS.options(),
@@ -50,7 +46,10 @@ async def index(request: Request, build: str | None = None):
         "packet_signature_policy_options": meshtastic_enums.PACKET_SIGNATURE_POLICIES.options(),
         "router_role_message": meshtastic_enums.ROUTER_ROLE_MESSAGE,
         "tz_posix_table": POSIX_TZ_BY_ZONE,
-        "firmware_sources": [s for s in await list_firmware_sources(database_path) if s["status"] == "ready"],
+        # A version with status `registry failed` stays in the selector, so the picker can say that its list failed.
+        "firmware_sources": [
+            s for s in await list_firmware_sources(database_path) if s["status"] in ("ready", "registry failed")
+        ],
         "default_firmware_version": default_source["version"] if default_source else None,
         **_version_filters(await find_key_scan(database_path)),
     }

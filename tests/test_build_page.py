@@ -18,6 +18,8 @@ from tests.conftest import REPO_ROOT
 HX = {"HX-Request": "true"}
 
 PSK_15_BYTES_HEX = "ab" * 15
+# The device picker sends these fields to the variants route and the build route, never to the config form.
+PICKER_FIELDS = ("variant", "q", "experimental")
 
 
 @pytest.fixture
@@ -58,7 +60,7 @@ def _default_form_body(parser) -> list[tuple[str, str]]:
     body = []
     select = None
     for tag, attrs in parser.elements:
-        if attrs.get("form") is not None or attrs.get("name") == "variant":
+        if attrs.get("form") is not None or attrs.get("name") in PICKER_FIELDS:
             continue
         if tag == "select":
             select = {"name": attrs["name"], "value": None}
@@ -94,8 +96,7 @@ async def test_build_page_has_the_variant_picker_the_build_control_and_the_build
     variant = parser.by_id("variant")
     assert variant is not None
     assert variant["name"] == "variant"
-    options = [attrs.get("value") for tag, attrs in parser.elements if tag == "option"]
-    assert "feather_diy" in options
+    assert parser.by_id("device-picker") is not None
     assert parser.by_id("buildBtn") is not None
     assert parser.by_id("build-panel") is not None
 
@@ -208,7 +209,7 @@ async def test_every_text_field_of_the_build_page_has_an_error_slot_for_its_loca
         if tag in ("input", "select", "textarea")
         and attrs.get("form") is None
         and attrs.get("type") not in ("checkbox", "hidden")
-        and attrs.get("name") not in (None, "variant")
+        and attrs.get("name") not in (None, *PICKER_FIELDS)
     ]
     assert "channel_0[psk]" in names
     missing = [name for name in names if parser.by_id(f"error-{_loc(name)}") is None]
@@ -282,7 +283,11 @@ async def test_managed_mode_control_names_the_managed_mode_notice_as_its_descrip
 @pytest.mark.asyncio
 async def test_every_checkbox_of_the_build_page_follows_a_hidden_false_field_of_the_same_name(client):
     _, parser = await _page(client)
-    inputs = [attrs for tag, attrs in parser.elements if tag == "input" and attrs.get("name")]
+    inputs = [
+        attrs
+        for tag, attrs in parser.elements
+        if tag == "input" and attrs.get("name") and attrs["name"] not in PICKER_FIELDS
+    ]
     checkboxes = [i for i, attrs in enumerate(inputs) if attrs.get("type") == "checkbox"]
     assert checkboxes
     for i in checkboxes:

@@ -1,6 +1,7 @@
 """Shared test fixtures."""
 
 import asyncio
+import json
 import os
 import tempfile
 from pathlib import Path
@@ -13,10 +14,10 @@ from mtfwbuilder.config import _hash_password, load_settings
 from mtfwbuilder.database import init_db, record_firmware_source
 from mtfwbuilder.main import create_app
 from mtfwbuilder.rate_limit import configure_rate_limits, limiter
-from mtfwbuilder.services.build_service import BuildQueue
-from mtfwbuilder.services.device_registry import DeviceRegistry
+from mtfwbuilder.services.build_service import BuildQueue, DeviceVariant
 from mtfwbuilder.services.firmware_catalog import FirmwareCatalog
 from mtfwbuilder.services.firmware_updater import FirmwareInstalls
+from mtfwbuilder.services.registry_generator import registry_entries
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -25,6 +26,11 @@ ADMIN_PASSWORD = "test-admin-password"
 SECRET_KEY = "test-secret-key"
 # The firmware version of the firmware fixture and of the fake `pio`.
 FIRMWARE_VERSION = "v2.7.26.54e0d8d"
+
+# The registry of the firmware fixture, as the install stores it.
+FIXTURE_REGISTRY = registry_entries(
+    json.loads((REPO_ROOT / "tests" / "fixtures" / "firmware" / "project_config.json").read_text())
+)
 
 # bcrypt is slow by design, so the suite hashes the password once.
 _ADMIN_PASSWORD_HASH = _hash_password(ADMIN_PASSWORD)
@@ -52,10 +58,12 @@ def pytest_collection_modifyitems(items):
     items.sort(key=lambda item: item.get_closest_marker("e2e") is not None)
 
 
-@pytest.fixture
-def variants_path():
-    """Path to the real variants.yaml file."""
-    return REPO_ROOT / "devices" / "variants.yaml"
+def fixture_variant(env: str) -> DeviceVariant:
+    """Return the variant of the env from the registry of the firmware fixture, as the build route gives it."""
+    entry = next(e for e in FIXTURE_REGISTRY if e["env"] == env)
+    return DeviceVariant(
+        id=env, name=entry["display_name"], manufacturer=entry["manufacturer"], architecture=entry["architecture"]
+    )
 
 
 @pytest.fixture
@@ -88,11 +96,9 @@ def settings_env(tmp_path, monkeypatch):
     """Return a directory under `tmp_path` that is both the base directory and the data directory.
 
     The directory holds a `config.yaml` with a known admin password and secret key.
-    The registry stays the real `devices/variants.yaml`, which the tests only read.
     """
     monkeypatch.setenv("MTFW_BASE_DIR", str(tmp_path))
     monkeypatch.setenv("MTFW_DATA_DIR", str(tmp_path))
-    monkeypatch.setenv("MTFW_DEVICES_FILE", str(REPO_ROOT / "devices" / "variants.yaml"))
     config = {"admin_password_hash": _ADMIN_PASSWORD_HASH, "secret_key": SECRET_KEY}
     (tmp_path / "config.yaml").write_text(yaml.safe_dump(config))
     return tmp_path
@@ -115,7 +121,6 @@ def app(settings):
     app = create_app()
     app.state.settings = settings
     configure_rate_limits(settings)
-    app.state.device_registry = DeviceRegistry(settings.devices_file)
     app.state.build_queue = BuildQueue(settings)
     app.state.firmware_catalog = FirmwareCatalog()
     app.state.firmware_installs = FirmwareInstalls(
@@ -128,7 +133,10 @@ def app(settings):
 
 @pytest.fixture
 def firmware_source(settings):
-    """Return the directory `<firmware_dir>/<tag>/` of one installed firmware source, after its record is written."""
+    """Return the directory `<firmware_dir>/<tag>/` of one installed firmware source, after its record is written.
+
+    The record holds the registry of the firmware fixture, so a build of a fixture env passes the registry check.
+    """
     source_dir = settings.firmware_dir / FIRMWARE_VERSION
     source_dir.mkdir(parents=True)
     asyncio.run(init_db(settings))
@@ -140,7 +148,7 @@ def firmware_source(settings):
         "size_bytes": 0,
         "status": "ready",
     }
-    record_firmware_source(settings.database_path, record)
+    record_firmware_source(settings.database_path, record, FIXTURE_REGISTRY)
     return source_dir
 
 

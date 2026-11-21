@@ -125,6 +125,7 @@ the header of `userPrefs.jsonc` in `meshtastic/firmware` `develop@fe89ac1`.
 | progress stream | noun | The Server-Sent Events (SSE) stream that sends build status and log lines to the page. | event feed, socket |
 | scrub | verb | To delete every file that holds a secret, after a build ends. | sanitize, wipe, clean |
 | flash | verb | To write an artifact to a device. | burn, install, upload |
+| flash method | noun | The way an operator flashes the artifact of an architecture: Web Serial, UF2, DFU zip or download only. | flash mode, upload method |
 | profile | noun | A saved config with a name, stored by the project. | template, preset (alone) |
 | fleet | noun | A named group of devices that share one profile and differ in per-device fields. | batch, group |
 | fleet run | noun | One request that makes one build for each device in a fleet. | bulk build |

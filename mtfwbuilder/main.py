@@ -23,9 +23,9 @@ from mtfwbuilder.routers.config_generator import router as config_router
 from mtfwbuilder.routers.firmware import router as firmware_versions_router
 from mtfwbuilder.routers.firmware_builder import router as firmware_router
 from mtfwbuilder.routers.pages import router as pages_router
+from mtfwbuilder.routers.variants import router as variants_router
 from mtfwbuilder.services.build_service import BuildQueue
 from mtfwbuilder.services.cleanup_service import cleanup_every_interval, scrub_sources_after_restart
-from mtfwbuilder.services.device_registry import DeviceRegistry
 from mtfwbuilder.services.firmware_catalog import FirmwareCatalog
 from mtfwbuilder.services.firmware_updater import (
     FirmwareInstalls,
@@ -88,11 +88,6 @@ async def lifespan(app: FastAPI):
     await remove_unrecorded_sources(settings)
     scrub_sources_after_restart(settings.firmware_dir)
 
-    # Load device registry
-    registry = DeviceRegistry(settings.devices_file)
-    app.state.device_registry = registry
-    logger.info(f"Loaded {registry.count} device variants")
-
     build_queue = BuildQueue(settings)
     build_queue.start()
     app.state.build_queue = build_queue
@@ -135,6 +130,7 @@ def create_app() -> FastAPI:
     app.include_router(config_router)
     app.include_router(firmware_router)
     app.include_router(firmware_versions_router)
+    app.include_router(variants_router)
     app.include_router(admin_router)
     app.include_router(pages_router)
 

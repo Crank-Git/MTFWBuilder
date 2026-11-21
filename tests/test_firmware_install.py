@@ -31,7 +31,7 @@ from mtfwbuilder.services.firmware_updater import (
     install_events,
 )
 from mtfwbuilder.services.userprefs_keys import SCAN_FILE
-from tests.conftest import sign_in_admin
+from tests.conftest import fixture_variant, sign_in_admin
 
 STABLE = "v2.7.26.54e0d8d"
 ALPHA = "v2.8.2.d5f1619"
@@ -738,7 +738,7 @@ async def test_remove_without_a_valid_csrf_token_returns_403_and_keeps_the_firmw
 @pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
 async def test_remove_request_during_a_build_of_that_version_returns_409(app, admin, settings, monkeypatch):
     monkeypatch.setenv("FAKE_PIO_SLEEP", "1")
-    ctx = await app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
+    ctx = await app.state.build_queue.submit(fixture_variant("heltec-v3"), CONFIG)
     await _until(lambda: ctx.status == "compiling")
 
     resp = await asyncio.wait_for(admin.delete(f"/api/v1/firmware/{STABLE}"), 0.5)
@@ -754,7 +754,7 @@ async def test_remove_request_during_a_build_of_that_version_returns_409(app, ad
 @pytest.mark.usefixtures("firmware_source")
 async def test_remove_request_returns_409_while_a_build_of_the_default_version_is_queued(app, admin, settings):
     # No build worker runs, so the build stays queued, and it reads the default firmware version when it starts.
-    ctx = await app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
+    ctx = await app.state.build_queue.submit(fixture_variant("heltec-v3"), CONFIG)
 
     resp = await admin.delete(f"/api/v1/firmware/{STABLE}")
 
@@ -765,7 +765,7 @@ async def test_remove_request_returns_409_while_a_build_of_the_default_version_i
 @pytest.mark.usefixtures("installs", "firmware_source")
 async def test_remove_of_another_version_succeeds_while_a_build_is_queued(app, admin, settings):
     await _install(admin, app, {"channel": "alpha"})
-    await app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
+    await app.state.build_queue.submit(fixture_variant("heltec-v3"), CONFIG)
 
     resp = await admin.delete(f"/api/v1/firmware/{ALPHA}")
 
@@ -819,7 +819,7 @@ async def test_install_moves_the_firmware_source_only_after_the_running_build_en
         record(*args)
 
     monkeypatch.setattr(firmware_updater, "record_firmware_source", record_after_status)
-    ctx = await app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
+    ctx = await app.state.build_queue.submit(fixture_variant("heltec-v3"), CONFIG)
     await _until(lambda: ctx.status == "compiling")
 
     install = await _install(admin, app, {"channel": "alpha"})
@@ -832,7 +832,7 @@ async def test_install_moves_the_firmware_source_only_after_the_running_build_en
 async def test_remove_waits_until_the_running_build_ends(app, admin, settings, monkeypatch):
     await _install(admin, app, {"channel": "alpha"})
     monkeypatch.setenv("FAKE_PIO_SLEEP", "1")
-    ctx = await app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
+    ctx = await app.state.build_queue.submit(fixture_variant("heltec-v3"), CONFIG)
     await _until(lambda: ctx.status == "compiling")
 
     resp = await admin.delete(f"/api/v1/firmware/{ALPHA}")
@@ -855,7 +855,7 @@ async def test_no_build_starts_while_an_install_writes_its_record(app, admin, mo
     monkeypatch.setattr(firmware_updater, "record_firmware_source", slow_record)
     resp = await admin.post("/api/v1/firmware/install", json={"channel": "alpha"})
     await asyncio.to_thread(started.wait, 5)
-    ctx = await app.state.build_queue.submit(app.state.device_registry.get("heltec-v3"), CONFIG)
+    ctx = await app.state.build_queue.submit(fixture_variant("heltec-v3"), CONFIG)
     await asyncio.sleep(0.3)
     status_during_install = ctx.status
     release.set()

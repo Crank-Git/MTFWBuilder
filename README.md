@@ -25,7 +25,7 @@ In this README, "planned" marks a part that the code does not do yet. The spec i
 
 - **Configuration Generator** — Web UI for building `userPrefs.jsonc` files with channel setup, LoRa settings, GPS, WiFi/MQTT, and more
 - **Firmware Builder** — Compiles custom firmware via PlatformIO with your config pre-loaded
-- **Device registry** — `devices/variants.yaml` lists the variants. The count of entries in that file is the variant count, and the startup log states it. ESP32 variants give `.bin` files. nRF52 and RP2040 variants give `.uf2` files.
+- **Device registry** — Each firmware version has its own registry. The install reads it from the firmware source with `pio project config --json-output`. ESP32 variants give `.bin` files. nRF52840 and RP2040 variants give `.uf2` files.
 - **Factory Binary Support** — ESP32 devices get both `firmware.bin` and `firmware.factory.bin`
 - **Build progress (planned)** — The progress stream `GET /api/v1/build-progress/{id}` exists. The build page does not open it yet.
 - **Admin Dashboard** — Sign-in, firmware sources (install and remove firmware versions), build cleanup and recent builds.
@@ -115,16 +115,16 @@ MTFWBuilder/
 │   │   ├── config_generator.py     # /api/v1/generate, preview, download
 │   │   ├── firmware_builder.py     # /api/v1/build-firmware, SSE progress
 │   │   ├── firmware.py             # /api/v1/firmware, installed and upstream firmware versions
+│   │   ├── variants.py             # /api/v1/variants, registry of a firmware version, device images
 │   │   ├── admin.py                # Login, firmware updates, cleanup
 │   │   └── pages.py                # HTML page routes
 │   └── services/
 │       ├── jsonc_generator.py      # userPrefs.jsonc generation
 │       ├── build_service.py        # Async PlatformIO build pipeline
-│       ├── device_registry.py      # YAML device variant registry
+│       ├── registry_generator.py   # Registry of a firmware source, from its PlatformIO config
 │       ├── firmware_updater.py     # GitHub firmware source downloads
 │       ├── firmware_catalog.py     # Upstream stable and alpha firmware versions
 │       └── cleanup_service.py      # Build artifact and PSK cleanup
-├── devices/variants.yaml           # Registry (the variant list)
 ├── templates/                      # Jinja2 templates (htmx planned)
 ├── static/                         # CSS, JS
 ├── tests/                          # pytest suite
@@ -181,6 +181,15 @@ Key endpoints:
 - `GET /api/v1/firmware/install/{install_id}/progress` (admin) — SSE install progress stream
 - `DELETE /api/v1/firmware/{version}` (admin) — Remove an installed firmware version. Returns 204,
   and 409 while a build uses it.
+- `GET /api/v1/variants?version=&q=&arch=&experimental=` — Registry entries of a firmware version, in env
+  order. Without `version`, the registry of the default firmware version. `q` matches the display name, the
+  env or the manufacturer without case and punctuation. Give `arch` once for each architecture to keep.
+  Variants with support level `extra` show only with `experimental=true`. Each entry has the registry
+  fields and `image_url`, which is null when the firmware source does not hold the image file. Returns 404
+  for a `version` that is not installed. An htmx request (header `HX-Request`) gets the device picker
+  list of the build page as HTML, grouped by manufacturer.
+- `GET /api/v1/variants/{env}/image?version=` — The SVG or PNG device image from the firmware source.
+  Returns 404 when the firmware source does not hold the image file named in `custom_meshtastic_images`.
 
 Each admin POST and DELETE requires the CSRF token. A form sends it in the field `csrf_token`.
 A JSON request and a DELETE request send it in the header `X-CSRF-Token`. Without a valid token,
@@ -212,6 +221,9 @@ Every other request gets JSON.
 The optional form field `firmware_version` names an installed firmware version, for example
 `v2.8.2.d5f1619`. Without it, the build uses the newest installed stable firmware version.
 A firmware version that is not installed gives 422 with a field error for `firmware_version`.
+A `variant` that is not in the registry of the firmware version gives 422 with a field error for
+`variant`, for example "Variant not in v2.8.2.d5f1619". A firmware version without registry rows holds
+no variant, so each build of it gives that error.
 
 An htmx request to `/api/v1/build-firmware` or `/api/v1/builds/{id}` gets the progress
 panel as an HTML fragment. The page `/?build=<id>` shows the progress panel of that build.

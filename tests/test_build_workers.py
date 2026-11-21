@@ -14,7 +14,7 @@ from mtfwbuilder.database import record_firmware_source
 from mtfwbuilder.services import firmware_updater
 from mtfwbuilder.services.build_service import COPY_VERSION_FILE, FirmwareLock, worker_firmware_source
 from mtfwbuilder.services.cleanup_service import scrub_after_restart, scrub_sources_after_restart
-from tests.conftest import FIRMWARE_VERSION, sign_in_admin
+from tests.conftest import FIRMWARE_VERSION, fixture_variant, sign_in_admin
 
 ENDED = {"complete", "failed", "cancelled"}
 OWNER_KEY = "USERPREFS_CONFIG_OWNER_LONG_NAME"
@@ -88,9 +88,8 @@ def _owner_flags(ctx):
 @pytest.mark.usefixtures("fake_pio", "source", "workers")
 async def test_two_builds_of_different_variants_run_at_the_same_time_with_two_build_workers(app, monkeypatch):
     monkeypatch.setenv("FAKE_PIO_SLEEP", "1")
-    registry = app.state.device_registry
-    first = await app.state.build_queue.submit(registry.get("heltec-v3"), _owner_config("Alpha"))
-    second = await app.state.build_queue.submit(registry.get("rak4631"), _owner_config("Bravo"))
+    first = await app.state.build_queue.submit(fixture_variant("heltec-v3"), _owner_config("Alpha"))
+    second = await app.state.build_queue.submit(fixture_variant("rak4631"), _owner_config("Bravo"))
 
     await _wait_until(lambda: first.status == "compiling" and second.status == "compiling")
 
@@ -102,9 +101,8 @@ async def test_two_builds_of_different_variants_run_at_the_same_time_with_two_bu
 @pytest.mark.usefixtures("fake_pio", "workers")
 async def test_each_build_compiles_its_own_userprefs_file(app, source, monkeypatch):
     monkeypatch.setenv("FAKE_PIO_SLEEP", "0.5")
-    registry = app.state.device_registry
-    first = await app.state.build_queue.submit(registry.get("heltec-v3"), _owner_config("Alpha"))
-    second = await app.state.build_queue.submit(registry.get("rak4631"), _owner_config("Bravo"))
+    first = await app.state.build_queue.submit(fixture_variant("heltec-v3"), _owner_config("Alpha"))
+    second = await app.state.build_queue.submit(fixture_variant("rak4631"), _owner_config("Bravo"))
 
     await _wait_until(lambda: first.ended and second.ended)
 
@@ -116,10 +114,9 @@ async def test_each_build_compiles_its_own_userprefs_file(app, source, monkeypat
 @pytest.mark.usefixtures("fake_pio", "source", "workers")
 async def test_each_build_scrubs_its_own_firmware_source(app, monkeypatch):
     monkeypatch.setenv("FAKE_PIO_SLEEP", "0.5")
-    registry = app.state.device_registry
     builds = [
-        await app.state.build_queue.submit(registry.get("heltec-v3"), _owner_config("Alpha")),
-        await app.state.build_queue.submit(registry.get("rak4631"), _owner_config("Bravo")),
+        await app.state.build_queue.submit(fixture_variant("heltec-v3"), _owner_config("Alpha")),
+        await app.state.build_queue.submit(fixture_variant("rak4631"), _owner_config("Bravo")),
     ]
 
     await _wait_until(lambda: all(ctx.ended for ctx in builds))
@@ -136,10 +133,9 @@ async def test_firmware_install_waits_until_both_running_builds_end(app, client,
     monkeypatch.setenv("FAKE_PIO_SLEEP", "1")
     monkeypatch.setattr(firmware_updater, "download_zipball", _fake_download)
     app.state.firmware_installs.resolver = {"alpha": OTHER_VERSION}.__getitem__
-    registry = app.state.device_registry
     builds = [
-        await app.state.build_queue.submit(registry.get("heltec-v3"), _owner_config("Alpha")),
-        await app.state.build_queue.submit(registry.get("rak4631"), _owner_config("Bravo")),
+        await app.state.build_queue.submit(fixture_variant("heltec-v3"), _owner_config("Alpha")),
+        await app.state.build_queue.submit(fixture_variant("rak4631"), _owner_config("Bravo")),
     ]
     statuses_at_move = []
     record = firmware_updater.record_firmware_source
@@ -168,12 +164,11 @@ async def test_two_builds_of_different_firmware_versions_with_two_build_workers_
     app, settings, monkeypatch
 ):
     monkeypatch.setenv("FAKE_PIO_SLEEP", "1")
-    registry = app.state.device_registry
-    first = await app.state.build_queue.submit(registry.get("heltec-v3"), _owner_config("Alpha"))
+    first = await app.state.build_queue.submit(fixture_variant("heltec-v3"), _owner_config("Alpha"))
     await _wait_until(lambda: first.status == "compiling")
     # The newest stable firmware source is the default, so the second build reads the other firmware version.
     other = _record(settings, OTHER_VERSION, "2026-11-20T00:00:00+00:00")
-    second = await app.state.build_queue.submit(registry.get("rak4631"), _owner_config("Bravo"))
+    second = await app.state.build_queue.submit(fixture_variant("rak4631"), _owner_config("Bravo"))
 
     await _wait_until(lambda: first.ended and second.ended)
 
