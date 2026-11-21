@@ -1,6 +1,7 @@
 {% extends "includes/base.html" %}
 
 {% block content %}
+{% include "partials/channel_share.html" %}
 {# Without JavaScript, the Download control submits the form, so the operator still gets the userPrefs file. #}
 <form id="configForm" method="post" action="/api/v1/download">
     <div class="config-section" id="configTabs">
