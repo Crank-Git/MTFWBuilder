@@ -7,11 +7,11 @@ import time
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from mtfwbuilder.auth import SESSION_COOKIE, create_session_token
 from mtfwbuilder.config import load_settings
 from mtfwbuilder.routers import admin
 from mtfwbuilder.services.build_service import FirmwareLock, worker_firmware_source
 from mtfwbuilder.services.cleanup_service import scrub_after_restart
+from tests.conftest import sign_in_admin
 
 ENDED = {"complete", "failed", "cancelled"}
 OWNER_KEY = "USERPREFS_CONFIG_OWNER_LONG_NAME"
@@ -114,9 +114,9 @@ async def test_firmware_update_waits_until_both_running_builds_end(app, client, 
         admin, "update_firmware", lambda _settings: statuses_at_update.extend(c.status for c in builds) or True
     )
     await _wait_until(lambda: all(ctx.status == "compiling" for ctx in builds))
-    client.cookies.set(SESSION_COOKIE, create_session_token(settings))
+    token = sign_in_admin(client, settings)
 
-    resp = await client.post("/api/v1/update-firmware")
+    resp = await client.post("/api/v1/update-firmware", data={"csrf_token": token})
 
     assert resp.json()["success"] is True
     assert statuses_at_update == ["complete", "complete"]
