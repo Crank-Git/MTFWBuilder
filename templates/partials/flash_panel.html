@@ -5,10 +5,39 @@
     <div class="card-body">
         <h2 class="h5 card-title">Flash from the browser</h2>
         <div id="flash-ready" hidden>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="flash-mode" id="flash-mode-full" value="full" checked>
+                <label class="form-check-label" for="flash-mode-full"><strong>Full install</strong>
+                    <span class="text-muted small d-block">Erases the device, then writes the factory artifact at <code>0x0</code>. The device boots with your factory defaults.</span></label>
+            </div>
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="radio" name="flash-mode" id="flash-mode-update" value="update">
+                <label class="form-check-label" for="flash-mode-update"><strong>Update</strong>
+                    <span class="text-muted small d-block">Writes the app partition only. The device keeps its saved settings, so your factory defaults do not apply.</span></label>
+            </div>
             <button type="button" class="btn btn-primary" id="flash-start" disabled>Flash</button>
+        </div>
+        <div class="alert alert-warning" role="alert" id="flash-confirm" hidden>
+            <p class="mb-2" id="flash-erase-warning">This erases the device. Saved settings, messages and keys are lost.</p>
+            <button type="button" class="btn btn-danger" id="flash-confirm-erase">Erase and flash</button>
+            <button type="button" class="btn btn-outline-secondary" id="flash-cancel">Cancel</button>
+        </div>
+        <div id="flash-progress" aria-live="polite" hidden>
+            <p class="mb-1" id="flash-step"></p>
+            <div class="progress" role="progressbar" aria-label="Flash progress" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-bar" id="flash-bar" style="width: 0%">0%</div>
+            </div>
+        </div>
+        <div class="alert alert-success" role="status" id="flash-done" hidden></div>
+        <div class="alert alert-danger" role="alert" id="flash-error" hidden>
+            <p class="mb-2" id="flash-error-text"></p>
+            <p class="mb-2" id="flash-manual">Flash it manually, with the serial port of the device in place of <code>&lt;PORT&gt;</code>:
+                <code class="d-block mt-1" id="flash-command"></code></p>
+            <button type="button" class="btn btn-outline-danger" id="flash-retry">Retry</button>
         </div>
         <div class="alert alert-warning" role="alert" id="flash-unsupported" hidden>This browser cannot flash. Use Chrome or Edge on a desktop.</div>
         <div class="alert alert-warning" role="alert" id="flash-insecure" hidden>Web Serial needs HTTPS. Open this page through the TLS proxy or on localhost.</div>
+        <div class="alert alert-warning" role="alert" id="flash-load-failed" hidden>The flashing tool did not load. Use the download links.</div>
         <div id="flash-downloads" hidden>
             <p class="mb-1">Download the artifacts and flash them with <code>esptool</code>:</p>
             <ul class="list-unstyled mb-0">

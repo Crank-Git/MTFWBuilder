@@ -212,7 +212,9 @@ function element(id, attrs = {}) {
   };
 }
 const ids = ['flash-ready', 'flash-start', 'flash-unsupported', 'flash-insecure', 'flash-downloads'];
-const parts = Object.fromEntries(ids.map(id => [id, element(id)]));
+// The flow elements stay hidden in these checks; flash.js binds their listeners after esptool-js loads.
+const flow = ['flash-mode-update', 'flash-confirm-erase', 'flash-cancel', 'flash-retry'];
+const parts = Object.fromEntries([...ids, ...flow].map(id => [id, element(id)]));
 const panel = element('flash-panel', { esptoolUrl: '/static/vendor/esptool-js-0.7.1/bundle.js' });
 panel.querySelector = selector => parts[selector.replace('#', '')] || null;
 panel.closest = () => null;
