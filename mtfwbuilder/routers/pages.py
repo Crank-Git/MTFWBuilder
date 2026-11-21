@@ -9,7 +9,7 @@ router = APIRouter(tags=["pages"])
 async def index(request: Request):
     """Render the main configuration generator page."""
     templates = request.app.state.templates
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request, "index.html")
 
 
 @router.get("/firmware-builder")
@@ -31,6 +31,7 @@ async def firmware_builder(request: Request):
         )
 
     return templates.TemplateResponse(
+        request,
         "firmware_builder.html",
-        {"request": request, "variants": variants, "manufacturers": manufacturers},
+        {"variants": variants, "manufacturers": manufacturers},
     )
