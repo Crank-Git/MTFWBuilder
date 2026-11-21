@@ -1,6 +1,6 @@
-"""E2E tests of the flash panel in Chromium (feature browser-flashing, criteria 1, 2, 3 and 7).
+"""E2E tests of the flash panel in Chromium (feature browser-flashing, criteria 1, 2, 3, 4 and 7).
 
-No test selects the Flash control, so no test opens a serial port or writes to a device.
+A test that selects the Flash control replaces esptool-js and the port picker, so no test opens a serial port.
 """
 
 from urllib.parse import urlsplit
@@ -75,3 +75,67 @@ def test_esp32_build_over_plain_http_on_a_lan_address_shows_the_https_message(br
         expect(page.locator("#flash-start")).to_be_hidden()
     finally:
         browser.close()
+
+
+# The route replaces esptool-js with this module, so the full install flow runs with no device and no port.
+FAKE_ESPTOOL = """
+const log = (window.flashLog = []);
+export class Transport {
+  constructor(port) { log.push('transport:new'); }
+  async disconnect() { log.push('transport:disconnect'); }
+}
+export class ESPLoader {
+  constructor(options) { log.push('loader:new:' + options.baudrate); }
+  async main() { log.push('loader:main'); return 'ESP32-S3'; }
+  async eraseFlash() { log.push('loader:eraseFlash'); }
+  async writeFlash(options) {
+    const file = options.fileArray[0];
+    log.push('loader:writeFlash:' + file.address + ':' + file.data.length);
+    options.reportProgress(0, file.data.length, file.data.length);
+  }
+  async after(mode) { log.push('loader:after:' + mode); }
+}
+"""
+# The script replaces the port picker, because a test cannot answer the browser's own dialog.
+FAKE_PORT_PICKER = (
+    "Serial.prototype.requestPort = async () => { window.portRequests = (window.portRequests || 0) + 1; return {}; };"
+)
+ERASE_WARNING = "This erases the device. Saved settings, messages and keys are lost."
+DONE_FULL = "Done. The device restarts with your factory defaults."
+
+
+def test_full_install_shows_the_erase_warning_before_any_write_then_flashes_the_factory_artifact(
+    page: Page, live_server: str
+):
+    page.route(
+        "**/esptool-js-0.7.1/bundle.js",
+        lambda route: route.fulfill(status=200, content_type="text/javascript", body=FAKE_ESPTOOL),
+    )
+    page.add_init_script(FAKE_PORT_PICKER)
+    build_esp32(page, live_server)
+    expect(page.locator("#flash-start")).to_be_enabled()
+    expect(page.locator("#flash-mode-full")).to_be_checked()
+
+    page.click("#flash-start")
+
+    expect(page.locator("#flash-erase-warning")).to_have_text(ERASE_WARNING)
+    expect(page.locator("#flash-erase-warning")).to_be_visible()
+    assert page.evaluate("() => window.portRequests") == 1
+    assert page.evaluate("() => window.flashLog") == []
+
+    page.click("#flash-confirm-erase")
+
+    expect(page.locator("#flash-done")).to_have_text(DONE_FULL)
+    expect(page.locator("#flash-bar")).to_have_text("100%")
+    log = page.evaluate("() => window.flashLog")
+    factory = page.locator("#flash-downloads a[href$='.factory.bin']").get_attribute("href")
+    size = len(page.request.get(f"{live_server}{factory}").body())
+    assert log == [
+        "transport:new",
+        "loader:new:921600",
+        "loader:main",
+        "loader:eraseFlash",
+        f"loader:writeFlash:0:{size}",
+        "loader:after:hard_reset",
+        "transport:disconnect",
+    ]
