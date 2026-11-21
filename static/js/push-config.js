@@ -535,8 +535,8 @@ export function notPushed(config) {
   return [...NOT_PUSHED.filter(row => filled(config[row.form]) && applies(row, config)), ...tooLarge];
 }
 
-// A protobuf-es message keeps a nested plain object as it is, so the page sends plain objects only.
-// `create` in core then builds each message again from its fields.
+// A protobuf-es message keeps a nested plain object as it is, so the page sends a channel, the owner and the position
+// as plain objects. `create` in core then builds each message again from its fields.
 function plain(value) {
   if (value === null || typeof value !== 'object' || value instanceof Uint8Array) {
     return value;

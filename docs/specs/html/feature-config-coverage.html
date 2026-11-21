@@ -274,7 +274,7 @@ body.rv-open .layout { padding-right:21rem; }
 <h3 id="config-coverage-user-flows">User flows</h3>
 <div class="diagram"><pre class="mermaid">flowchart TD
   A[Choose firmware version] --&gt; B[Form shows controls for keys that version reads]
-  B --&gt; C[Fill tabs: Device, Channels, LoRa, Position, Network, Telemetry, Security, Event, Mesh beacon, Advanced]
+  B --&gt; C[Fill tabs: Device, Channels, LoRa, Position, Network, Telemetry, Security, Event, Mesh beacon, Advanced, Modules]
   C --&gt; D{Managed mode on?}
   D --&gt;|yes, no admin key| E[Error under Managed mode]
   D --&gt;|no, or key present| F[Preview / Build]</pre></div>
@@ -292,7 +292,7 @@ body.rv-open .layout { padding-right:21rem; }
 </ol>
 <h3 id="config-coverage-screens-states">Screens &amp; states</h3>
 <p>Mockup: <a href="../mockups/04-config-form.html">04-config-form</a>.</p>
-<p>Tabs: Device, Channels, LoRa, Position, Network, Telemetry, Security, Event, Mesh beacon, Advanced. Each tab shows a count of the fields with a value. Each control has help text and the userPrefs key in small monospace text.</p>
+<p>Tabs: Device, Channels, LoRa, Position, Network, Telemetry, Security, Event, Mesh beacon, Advanced, Modules. Feature 16 (module-settings) adds the Modules tab. Each tab shows a count of the fields with a value. Each control has help text and the userPrefs key in small monospace text.</p>
 <div class="table-wrap"><table>
 <tr><th>State</th><th>What the operator sees</th></tr>
 <tr><td>Default</td><td>Banner about factory defaults. All fields empty: the firmware keeps its own defaults.</td></tr>

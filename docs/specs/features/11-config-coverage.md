@@ -77,7 +77,7 @@ about 40 of 105 keys, with 13 of 37 regions, 7 of 17 modem presets, and no role.
 ```mermaid
 flowchart TD
   A[Choose firmware version] --> B[Form shows controls for keys that version reads]
-  B --> C[Fill tabs: Device, Channels, LoRa, Position, Network, Telemetry, Security, Event, Mesh beacon, Advanced]
+  B --> C[Fill tabs: Device, Channels, LoRa, Position, Network, Telemetry, Security, Event, Mesh beacon, Advanced, Modules]
   C --> D{Managed mode on?}
   D -->|yes, no admin key| E[Error under Managed mode]
   D -->|no, or key present| F[Preview / Build]
@@ -94,7 +94,7 @@ flowchart TD
 Mockup: [04-config-form](../mockups/04-config-form.html).
 
 Tabs: Device, Channels, LoRa, Position, Network, Telemetry, Security, Event, Mesh beacon,
-Advanced. Each tab shows a count of the fields with a value. Each control has help text
+Advanced, Modules. Feature 16 (module-settings) adds the Modules tab. Each tab shows a count of the fields with a value. Each control has help text
 and the userPrefs key in small monospace text.
 
 | State | What the operator sees |
