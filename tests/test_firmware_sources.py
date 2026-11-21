@@ -301,6 +301,37 @@ async def test_import_changes_nothing_when_the_old_tree_holds_the_tag_directory(
     assert await _rows(settings) == []
 
 
+async def test_startup_scrubs_an_old_firmware_source_that_the_import_leaves_in_place(app, settings, monkeypatch):
+    _old_layout(settings, "Unknown")
+    (settings.firmware_dir / "userPrefs.jsonc").write_text(CONFIG)
+    env_build = settings.firmware_dir / ".pio" / "build" / "heltec-v3"
+    env_build.mkdir(parents=True)
+    _newest_stable(monkeypatch, STABLE)
+
+    async with lifespan(app):
+        pass
+
+    assert (settings.firmware_dir / "platformio.ini").is_file()
+    assert not (settings.firmware_dir / "userPrefs.jsonc").exists()
+    assert not env_build.exists()
+
+
+async def test_startup_scrubs_each_firmware_source(app, settings):
+    env_builds = []
+    for version in (STABLE, ALPHA):
+        source_dir = settings.firmware_dir / version
+        (source_dir / "userPrefs.jsonc").parent.mkdir(parents=True)
+        (source_dir / "userPrefs.jsonc").write_text(CONFIG)
+        env_builds.append(source_dir / ".pio" / "build" / "heltec-v3")
+        env_builds[-1].mkdir(parents=True)
+
+    async with lifespan(app):
+        pass
+
+    assert not any((settings.firmware_dir / v / "userPrefs.jsonc").exists() for v in (STABLE, ALPHA))
+    assert not any(env_build.exists() for env_build in env_builds)
+
+
 @pytest.mark.usefixtures("fake_pio")
 async def test_build_runs_in_the_tag_directory_and_records_its_firmware_version(app, client, settings):
     await init_db(settings)

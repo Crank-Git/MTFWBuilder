@@ -49,6 +49,20 @@ async def cleanup_every_interval(settings: Settings, unended_build_ids: Callable
         await asyncio.sleep(settings.cleanup_interval_seconds)
 
 
+def scrub_sources_after_restart(firmware_dir: Path) -> None:
+    """Run `scrub_after_restart` on each firmware source under `firmware_dir`.
+
+    Each firmware source is `<firmware_dir>/<tag>/`. When the startup import cannot move an old firmware source,
+    the old firmware source is `<firmware_dir>` itself. Raises `OSError` when a delete fails.
+    """
+    if (firmware_dir / "platformio.ini").is_file():
+        scrub_after_restart(firmware_dir)
+    elif firmware_dir.is_dir():
+        for source_dir in firmware_dir.iterdir():
+            if source_dir.is_dir():
+                scrub_after_restart(source_dir)
+
+
 def scrub_after_restart(firmware_dir: Path) -> None:
     """Delete `userPrefs.jsonc`, `.pio/build_cache` and each `.pio/build/<env>/` directory from the firmware source.
 
