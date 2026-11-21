@@ -40,6 +40,7 @@ edit `docs/specs/spec.html` or `docs/specs/html/` by hand.
 
 ```bash
 pip install -e ".[dev]"        # install (uv sync after Epic 4)
+python -m playwright install chromium   # browser for the E2E tests in tests/e2e/
 pytest                         # tests (uv run pytest after Epic 4)
 ruff check mtfwbuilder/ tests/ # lint
 ruff format mtfwbuilder/ tests/ # format

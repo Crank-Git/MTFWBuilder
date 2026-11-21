@@ -18,7 +18,9 @@ def is_htmx(request: Request) -> bool:
     return request.headers.get("HX-Request") == "true"
 
 
-def fragment_or_json(request: Request, template: str, context: dict[str, Any], data: Any) -> Response:
+def fragment_or_json(
+    request: Request, template: str, context: dict[str, Any], data: Any, status_code: int = 200
+) -> Response:
     """Return the template as an HTML fragment for an htmx request, else `data` as JSON.
 
     Args:
@@ -26,10 +28,11 @@ def fragment_or_json(request: Request, template: str, context: dict[str, Any], d
         template: The fragment template, relative to `templates/`.
         context: The template context.
         data: The JSON body, a pydantic model or another value that `jsonable_encoder` accepts.
+        status_code: The status code of both formats.
     """
     if is_htmx(request):
-        return request.app.state.templates.TemplateResponse(request, template, context)
-    return JSONResponse(jsonable_encoder(data))
+        return request.app.state.templates.TemplateResponse(request, template, context, status_code=status_code)
+    return JSONResponse(jsonable_encoder(data), status_code=status_code)
 
 
 def _field_error(error: dict[str, Any]) -> dict[str, str]:

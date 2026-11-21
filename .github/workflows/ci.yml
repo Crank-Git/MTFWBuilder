@@ -39,6 +39,10 @@ jobs:
       - name: Format check
         run: ruff format --check mtfwbuilder/ tests/
 
+      # The E2E tests in tests/e2e/ drive Chromium, so the browser and its system libraries come first.
+      - name: Install Chromium for the E2E tests
+        run: python -m playwright install --with-deps chromium
+
       - name: Tests
         run: pytest -q
 

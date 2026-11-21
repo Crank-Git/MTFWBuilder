@@ -52,13 +52,20 @@
             </select>
         </div>
         <div class="col-md-4">
-            <button type="button" class="btn btn-success w-100" id="buildBtn" disabled>
+            <button type="button" class="btn btn-success w-100" id="buildBtn" disabled
+                    hx-post="/api/v1/build-firmware" hx-include="#configForm, #variant"
+                    hx-vals='{"config_source": "form"}' hx-target="#build-panel">
                 <i class="bi bi-hammer me-2"></i>Build
             </button>
         </div>
     </div>
-    {# The build panel of issue #25 replaces this element. #}
-    <div id="build-panel" class="mt-3" aria-live="polite"></div>
+    <div id="build-panel" class="mt-3" aria-live="polite">
+        {% if build %}
+        {% include "partials/build_panel.html" %}
+        {% elif build_id %}
+        {% with notice = "Build not found." %}{% include "partials/build_notice.html" %}{% endwith %}
+        {% endif %}
+    </div>
 </div>
 
 <div class="mt-4 text-center text-muted">
