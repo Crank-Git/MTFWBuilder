@@ -930,6 +930,8 @@ body.rv-open .layout { padding-right:21rem; }
 </li>
 <li>2026-11-21 — Epic 9 shipped (#135). Owner rulings: Epic 9 merged without the manual hardware check, because no device was available. The check is #177, and #177 also holds the manual check of Epic 12. The flash panel shows for each ESP32 family member (<code>flash_method</code> is <code>web-serial</code>). Owner ruling on #139: the picker shows no device images, because the meshtastic/web-flasher images are proprietary. Owner ruling on #158: a config that holds a secret is never cached.
 </li>
+<li>2026-11-21 — Epic 12 shipped (#186). Owner rulings: build on <code>@meshtastic/core</code> 2.6.7, pinned, with three vendored ES modules and an import map (ADR 0008). FR-push-config-10 is deferred (#182), and the protobufs in core 2.6.7 lack <code>status_message</code> and <code>traffic_management</code>. PM decisions from the batch review: push config never sends managed mode, admin keys come only from the profile, and the test hook needs <code>MTFW_PUSH_TEST_HOOKS</code>. The manual device push is in #177.
+</li>
 </ul><nav class="pager">
 <span></span>
 <a href="html/page-inherit-reconciliation.html">Inherit reconciliation and research &rarr;</a>

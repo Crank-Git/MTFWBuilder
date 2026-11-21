@@ -5,8 +5,9 @@ project writes a `userPrefs.jsonc` file and compiles Meshtastic firmware with Pl
 The operator downloads the artifact and flashes the device. Every userPrefs key is a
 factory default: the device applies it on first boot and on factory reset only.
 
-**Current state (2026-11-21).** The v2 FastAPI backend exists. The pages still call v1
-URLs, so the end-to-end flow does not work. Epics 0–3 of the spec repair it.
+**Current state (2026-11-21).** Epics 0–12 are on `dev`. The end-to-end flow works: build,
+download, browser flashing, channel share, profiles, the build cache, fleet runs and push config.
+The manual hardware checks are open in #177.
 
 ## Spec
 
