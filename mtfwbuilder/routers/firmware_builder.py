@@ -3,25 +3,31 @@
 import json
 import logging
 import re
+import shutil
+import time
 
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from sse_starlette.sse import EventSourceResponse
 
 from mtfwbuilder.models import BuildStatus
 from mtfwbuilder.rate_limit import limiter
 from mtfwbuilder.services import build_service
-from mtfwbuilder.services.cleanup_service import cleanup_build_directory
+from mtfwbuilder.services.firmware_updater import get_firmware_version
 from mtfwbuilder.services.jsonc_generator import generate_jsonc
 
 logger = logging.getLogger("mtfwbuilder.firmware_routes")
 
 router = APIRouter(prefix="/api/v1", tags=["firmware"])
 
+# The same 64 KB limit as the preview-userprefs route.
+MAX_UPLOAD_SIZE = 65536
+ACTIVE_BUILD_TTL_SECONDS = 30 * 60
+
 
 @router.post("/build-firmware")
 @limiter.limit("5/minute")
-async def start_build(request: Request):
+async def start_build(request: Request):  # noqa: C901  # TODO(#18): The build queue rewrite splits this route.
     """Start a firmware build. Returns build_id for SSE progress tracking."""
     settings = request.app.state.settings
     registry = request.app.state.device_registry
@@ -29,7 +35,6 @@ async def start_build(request: Request):
     form = await request.form()
     variant_id = form.get("variant")
     config_source = form.get("config_source", "upload")
-    custom_filename = form.get("custom_filename", "").strip()
 
     if not variant_id:
         raise HTTPException(status_code=400, detail="No device variant selected")
@@ -48,14 +53,14 @@ async def start_build(request: Request):
             config_data = json.loads(config_json)
             config_content = generate_jsonc(config_data)
         except (json.JSONDecodeError, Exception) as e:
-            raise HTTPException(status_code=400, detail=f"Invalid configuration: {e}")
+            raise HTTPException(status_code=400, detail=f"Invalid configuration: {e}") from e
     else:
         upload = form.get("userPrefs")
         if upload is None:
             raise HTTPException(status_code=400, detail="No userPrefs file uploaded")
         if hasattr(upload, "read"):
             raw = await upload.read()
-            if len(raw) > 65536:  # 64KB max, same as preview-userprefs
+            if len(raw) > MAX_UPLOAD_SIZE:
                 raise HTTPException(status_code=400, detail="File too large (max 64KB)")
             config_content = raw.decode("utf-8")
         else:
@@ -75,9 +80,12 @@ async def start_build(request: Request):
         request.app.state.active_builds = {}
 
     # TTL cleanup: remove entries older than 30 minutes
-    import time as _time
-    now = _time.time()
-    stale = [k for k, v in request.app.state.active_builds.items() if now - getattr(v, "_created_at", 0) > 1800]
+    now = time.time()
+    stale = [
+        k
+        for k, v in request.app.state.active_builds.items()
+        if now - getattr(v, "_created_at", 0) > ACTIVE_BUILD_TTL_SECONDS
+    ]
     for k in stale:
         request.app.state.active_builds.pop(k, None)
 
@@ -131,7 +139,9 @@ async def build_progress(build_id: str, request: Request):
 
 
 @router.get("/download-firmware/{build_id}")
-async def download_firmware(build_id: str, request: Request, variant: str = "unknown", filename: str = ""):
+async def download_firmware(  # noqa: C901, PLR0912  # TODO(#19): The artifact routes replace this route.
+    build_id: str, request: Request, variant: str = "unknown", filename: str = ""
+):
     """Download the built firmware file."""
     settings = request.app.state.settings
     registry = request.app.state.device_registry
@@ -172,11 +182,10 @@ async def download_firmware(build_id: str, request: Request, variant: str = "unk
                 download_name = download_name.replace(".bin", "") + ".factory.bin"
         elif not download_name.lower().endswith(f".{fmt}"):
             download_name += f".{fmt}"
+    elif firmware_filename == "firmware.factory.bin":
+        download_name = f"meshtastic_{variant}_firmware.factory.bin"
     else:
-        if firmware_filename == "firmware.factory.bin":
-            download_name = f"meshtastic_{variant}_firmware.factory.bin"
-        else:
-            download_name = f"meshtastic_{variant}_firmware.{fmt}"
+        download_name = f"meshtastic_{variant}_firmware.{fmt}"
 
     response = FileResponse(
         path=str(firmware_path),
@@ -196,8 +205,6 @@ async def download_firmware(build_id: str, request: Request, variant: str = "unk
 
 def _sync_cleanup(build_dir):
     """Synchronous cleanup for FileResponse background task."""
-    import shutil
-
     try:
         if build_dir.exists():
             shutil.rmtree(str(build_dir), ignore_errors=True)
@@ -209,8 +216,6 @@ def _sync_cleanup(build_dir):
 @router.get("/system-info")
 async def system_info(request: Request):
     """Get firmware version and system status."""
-    from mtfwbuilder.services.firmware_updater import get_firmware_version
-
     settings = request.app.state.settings
     info = get_firmware_version(settings)
     return {"success": True, **info}

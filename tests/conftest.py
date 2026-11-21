@@ -7,6 +7,9 @@ import pytest
 import yaml
 
 from mtfwbuilder.config import _hash_password, load_settings
+from mtfwbuilder.main import create_app
+from mtfwbuilder.services.build_service import init_build_system
+from mtfwbuilder.services.device_registry import DeviceRegistry
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -63,10 +66,6 @@ def settings(settings_env):
 @pytest.fixture
 def app(settings):
     """Return an app with the lifespan state, built from the `settings` fixture."""
-    from mtfwbuilder.main import create_app
-    from mtfwbuilder.services.build_service import init_build_system
-    from mtfwbuilder.services.device_registry import DeviceRegistry
-
     app = create_app()
     app.state.settings = settings
     app.state.device_registry = DeviceRegistry(settings.devices_file)

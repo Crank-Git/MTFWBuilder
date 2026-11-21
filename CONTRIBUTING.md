@@ -63,9 +63,9 @@ pytest tests/test_config_generator.py -v
 
 ## Code Style
 
-- Python 3.10+, type hints encouraged
-- Format with `black` (line length 120)
-- Lint with `ruff`
+- Python 3.11+, type hints encouraged
+- Format with `ruff format` (line length 120)
+- Lint with `ruff check`. The rule list is in `pyproject.toml`.
 - No `print()` — use `logging` module
 - No `shell=True` in subprocess calls
 

@@ -1,23 +1,20 @@
 """Tests for build service and firmware routes."""
 
 import json
-import os
-import shutil
-from pathlib import Path
-from unittest.mock import AsyncMock, patch, MagicMock
+import time
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from mtfwbuilder.config import Settings
 from mtfwbuilder.services.build_service import (
     BuildContext,
-    BuildProgress,
-    generate_build_id,
     _parse_progress,
     _scrub_firmware_tree,
+    generate_build_id,
 )
-from mtfwbuilder.services.cleanup_service import cleanup_old_builds, cleanup_build_directory
-from mtfwbuilder.services.device_registry import DeviceRegistry, DeviceVariant
+from mtfwbuilder.services.cleanup_service import cleanup_build_directory, cleanup_old_builds
+from mtfwbuilder.services.device_registry import DeviceVariant
 
 
 class TestBuildId:
@@ -81,8 +78,6 @@ class TestBuildContext:
     """Tests for BuildContext initialization."""
 
     def test_build_dir_created(self, temp_dir):
-        from mtfwbuilder.config import Settings
-
         settings = Settings(temp_dir=temp_dir)
         variant = DeviceVariant(id="tbeam", name="T-Beam", manufacturer="LILYGO", architecture="esp32")
         ctx = BuildContext(
@@ -95,8 +90,6 @@ class TestBuildContext:
         assert ctx.build_dir == temp_dir / "build_123_456"
 
     def test_build_log_starts_empty(self, temp_dir):
-        from mtfwbuilder.config import Settings
-
         settings = Settings(temp_dir=temp_dir)
         variant = DeviceVariant(id="tbeam", name="T-Beam", manufacturer="LILYGO", architecture="esp32")
         ctx = BuildContext(
@@ -112,8 +105,6 @@ class TestScrubFirmwareTree:
     """Tests for sensitive file cleanup."""
 
     def test_removes_userprefs(self, temp_dir):
-        from mtfwbuilder.config import Settings
-
         firmware_dir = temp_dir / "firmware"
         configs_dir = firmware_dir / "configs"
         configs_dir.mkdir(parents=True)
@@ -158,8 +149,6 @@ class TestCleanupService:
         await cleanup_build_directory(temp_dir / "nonexistent")
 
     def test_cleanup_old_builds_removes_expired(self, temp_dir):
-        from mtfwbuilder.config import Settings
-
         # Create an "old" build dir (timestamp 0)
         old_build = temp_dir / "build_1000000_123"
         old_build.mkdir()
@@ -172,10 +161,6 @@ class TestCleanupService:
         assert not old_build.exists()
 
     def test_cleanup_old_builds_keeps_recent(self, temp_dir):
-        import time
-
-        from mtfwbuilder.config import Settings
-
         recent = temp_dir / f"build_{int(time.time())}_123"
         recent.mkdir()
 

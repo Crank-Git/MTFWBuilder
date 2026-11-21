@@ -3,8 +3,9 @@
 import asyncio
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
+
 from mtfwbuilder.auth import (
     SESSION_COOKIE,
     create_session_token,
@@ -13,7 +14,7 @@ from mtfwbuilder.auth import (
 )
 from mtfwbuilder.rate_limit import limiter
 from mtfwbuilder.services.cleanup_service import cleanup_old_builds
-from mtfwbuilder.services.firmware_updater import get_firmware_version, update_firmware
+from mtfwbuilder.services.firmware_updater import update_firmware
 
 logger = logging.getLogger("mtfwbuilder.admin")
 

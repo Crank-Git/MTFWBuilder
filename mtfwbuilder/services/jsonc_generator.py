@@ -44,10 +44,10 @@ def _process_channel_config(config_data: dict, output: dict, channel_index: int)
     """Process configuration for a specific channel."""
     channel_data: dict[str, str] = {}
     prefix = f"channel_{channel_index}["
-    for key in config_data:
+    for key, value in config_data.items():
         if key.startswith(prefix) and key.endswith("]"):
             prop = key[key.find("[") + 1 : key.find("]")]
-            channel_data[prop] = config_data[key]
+            channel_data[prop] = value
 
     if not channel_data:
         return
@@ -72,7 +72,7 @@ def _process_channel_psk(psk_value: str, output: dict, channel_index: int) -> No
     if psk.startswith("{") and psk.endswith("}"):
         output[f"USERPREFS_CHANNEL_{channel_index}_PSK"] = psk
     elif psk:
-        psk_bytes = [f"0x{psk[i:i+2]}" for i in range(0, len(psk), 2)]
+        psk_bytes = [f"0x{psk[i : i + 2]}" for i in range(0, len(psk), 2)]
         output[f"USERPREFS_CHANNEL_{channel_index}_PSK"] = "{ " + ", ".join(psk_bytes) + " }"
 
 

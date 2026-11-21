@@ -8,7 +8,7 @@ version = "2.0.0"
 description = "Meshtastic firmware configuration generator and builder"
 readme = "README.md"
 license = "GPL-3.0-or-later"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [{ name = "Crank-Git" }]
 keywords = ["meshtastic", "firmware", "configuration", "platformio"]
 classifiers = [
@@ -42,7 +42,6 @@ dev = [
     "pytest-asyncio>=0.23.0",
     "pytest-cov>=4.1.0",
     "httpx>=0.25.0",
-    "black>=23.7.0",
     "ruff>=0.1.0",
 ]
 
@@ -52,14 +51,22 @@ Issues = "https://github.com/Crank-Git/MTFWBuilder/issues"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 line-length = 120
 # The firmware fixture is upstream source, copied unchanged.
 extend-exclude = ["tests/fixtures/firmware"]
 
-[tool.black]
-line-length = 120
-target-version = ["py310"]
+[tool.ruff.lint]
+# An explicit list, because the ruff default rule set grows between releases.
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "C90", "PL"]
+
+[tool.ruff.lint.per-file-ignores]
+# A test compares a status code or a count with a literal, and a name adds nothing.
+"tests/**" = ["PLR2004"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10

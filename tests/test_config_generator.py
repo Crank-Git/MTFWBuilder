@@ -2,8 +2,6 @@
 
 import json
 
-import pytest
-
 from mtfwbuilder.services.jsonc_generator import generate_jsonc
 
 
