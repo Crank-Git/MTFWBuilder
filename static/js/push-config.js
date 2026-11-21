@@ -80,13 +80,23 @@ async function connect(library, kind) {
     if (security.isManaged) {
       // A managed device accepts admin messages only with an admin key, so the page sends nothing (FR-push-config-11).
       showState('push-managed');
-      await device.disconnect();
+      await close(device);
       return;
     }
     // TODO(#73): Read the full device config and show the diff with the profile.
     showState('push-connected');
   } catch (error) {
+    // An open port makes the next Connect fail, so the page closes the connection before it shows the error.
+    await close(device);
     showError(error);
+  }
+}
+
+async function close(device) {
+  try {
+    await device.disconnect();
+  } catch (error) {
+    // The port is already closed when the device is unplugged, and the page keeps the state that it shows.
   }
 }
 

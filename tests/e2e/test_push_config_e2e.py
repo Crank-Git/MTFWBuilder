@@ -4,6 +4,7 @@ A test that connects sets `window.__pushConfigTestDevice` to a fake device, or r
 so no test opens a serial port or a Bluetooth device.
 """
 
+import json
 from urllib.parse import urlsplit
 
 import pytest
@@ -21,8 +22,9 @@ VENDORED = [
 
 # The fake device has the MeshDevice members that the page uses, and it records each call in `calls`.
 # `configure()` answers with the security config, then with the end of the config, as a device does.
+# The options select managed mode, a `configure()` that fails, and a `disconnect()` that fails.
 FAKE_DEVICE = """
-(managed => {
+(options => {
   const dispatcher = () => {
     const handlers = [];
     return {
@@ -36,13 +38,20 @@ FAKE_DEVICE = """
     events: { onConfigPacket: dispatcher(), onDeviceStatus: dispatcher() },
     configure() {
       device.calls.push('configure');
+      if (options.configureError) {
+        return Promise.reject(new Error(options.configureError));
+      }
       setTimeout(() => {
-        device.events.onConfigPacket.dispatch({ payloadVariant: { case: 'security', value: { isManaged: managed } } });
+        const security = { isManaged: options.managed };
+        device.events.onConfigPacket.dispatch({ payloadVariant: { case: 'security', value: security } });
         device.events.onDeviceStatus.dispatch(7);
       });
       return Promise.resolve(0);
     },
-    disconnect() { device.calls.push('disconnect'); return Promise.resolve(); },
+    disconnect() {
+      device.calls.push('disconnect');
+      return options.disconnectError ? Promise.reject(new Error('The port is closed.')) : Promise.resolve();
+    },
   };
   const record = name => (...args) => { device.calls.push(name); return Promise.resolve(0); };
   ['beginEditSettings', 'commitEditSettings', 'setConfig', 'setModuleConfig', 'setChannel', 'setOwner',
@@ -89,7 +98,7 @@ def test_page_load_loads_the_three_vendored_modules_with_no_console_error(page: 
 
 
 def test_managed_device_shows_the_managed_message_and_gets_no_set_message(page: Page, live_server: str):
-    page.add_init_script(FAKE_DEVICE % "true")
+    page.add_init_script(FAKE_DEVICE % json.dumps({"managed": True}))
     open_push_config(page, live_server)
 
     page.click("#push-connect-usb")
@@ -102,8 +111,30 @@ def test_managed_device_shows_the_managed_message_and_gets_no_set_message(page: 
     expect(page.locator("#push-connected")).to_be_hidden()
 
 
+def test_managed_device_keeps_the_managed_message_when_the_disconnect_fails(page: Page, live_server: str):
+    page.add_init_script(FAKE_DEVICE % json.dumps({"managed": True, "disconnectError": True}))
+    open_push_config(page, live_server)
+
+    page.click("#push-connect-usb")
+
+    expect(page.locator("#push-managed")).to_be_visible()
+    page.wait_for_function("() => window.__pushConfigTestDevice.calls.includes('disconnect')")
+    expect(page.locator("#push-error")).to_be_hidden()
+
+
+def test_failed_config_read_shows_the_error_and_closes_the_connection(page: Page, live_server: str):
+    page.add_init_script(FAKE_DEVICE % json.dumps({"configureError": "Device connection lost"}))
+    open_push_config(page, live_server)
+
+    page.click("#push-connect-usb")
+
+    expect(page.locator("#push-error")).to_have_text("Device connection lost")
+    assert "disconnect" in device_calls(page)
+    expect(page.locator("#push-connect-usb")).to_be_enabled()
+
+
 def test_device_without_managed_mode_shows_connected_and_no_managed_message(page: Page, live_server: str):
-    page.add_init_script(FAKE_DEVICE % "false")
+    page.add_init_script(FAKE_DEVICE % json.dumps({"managed": False}))
     open_push_config(page, live_server)
 
     page.click("#push-connect-usb")
