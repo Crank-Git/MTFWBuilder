@@ -340,3 +340,40 @@ def test_export_without_a_region_shows_the_warning(page: Page, live_server: str)
     page.click("#channelShareExport")
 
     expect(page.locator("#channelShareExportWarnings")).to_contain_text("UNSET")
+
+
+def test_primary_channel_with_an_empty_psk_shows_no_encryption(page: Page, live_server: str):
+    page.goto(f"{live_server}/")
+
+    decode(page, channel_url(_open_set()))
+
+    row = page.locator("#channelSharePreview tbody tr").nth(0)
+    expect(row).to_contain_text("No encryption")
+    expect(row).not_to_contain_text("Uses the primary channel key")
+
+
+def test_secondary_channel_with_an_empty_psk_shows_that_it_uses_the_primary_key(page: Page, live_server: str):
+    page.goto(f"{live_server}/")
+
+    decode(page, channel_url(_open_set()))
+
+    row = page.locator("#channelSharePreview tbody tr").nth(1)
+    expect(row).to_contain_text("Uses the primary channel key")
+    expect(row).not_to_contain_text("No encryption")
+
+
+def test_psk_help_text_of_a_secondary_slot_says_that_it_uses_the_primary_key(page: Page, live_server: str):
+    page.goto(f"{live_server}/")
+    open_tab(page, "channels")
+
+    expect(page.locator("#channel0PSKHelp")).to_contain_text("no encryption")
+    page.click("#channel-1-tab")
+    expect(page.locator("#channel1PSKHelp")).to_contain_text("uses the primary channel key")
+
+
+def _open_set() -> apponly_pb2.ChannelSet:
+    """Return a channel set of a primary and a secondary channel, both with an empty PSK."""
+    channel_set = apponly_pb2.ChannelSet()
+    channel_set.settings.add(name="Open")
+    channel_set.settings.add(name="Side")
+    return channel_set

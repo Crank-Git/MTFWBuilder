@@ -124,9 +124,10 @@ function yamlChannels(config) {
 }
 
 /** Return the text of a PSK that the preview can show without the Show control, or null for a secret key. */
-function plainPskText(psk, defaultKey) {
+function plainPskText(psk, defaultKey, role) {
     if (!psk || /^\{\s*\}$/.test(psk)) {
-        return 'No encryption';
+        // Upstream `Channels::getKey` gives a secondary channel with an empty PSK the primary channel key.
+        return role === 'SECONDARY' ? 'Uses the primary channel key' : 'No encryption';
     }
     if (defaultKey !== undefined && defaultKey !== null) {
         return `Default key ${defaultKey}`;
@@ -139,9 +140,9 @@ function plainPskText(psk, defaultKey) {
 }
 
 /** Return the table cell of a PSK: masked, with a Show control that switches the PSK text on and off. */
-function pskCell(psk, defaultKey) {
+function pskCell(psk, defaultKey, role) {
     const cell = document.createElement('td');
-    const plain = plainPskText(psk, defaultKey);
+    const plain = plainPskText(psk, defaultKey, role);
     if (plain !== null) {
         cell.textContent = plain;
         return cell;
@@ -204,7 +205,7 @@ function showPreview(preview) {
         row.append(
             textCell(String(channel.index)),
             textCell(channel.name),
-            pskCell(channel.psk, channel.default_key),
+            pskCell(channel.psk, channel.default_key, channel.role),
             textCell(channel.role === 'PRIMARY' ? 'Primary' : 'Secondary'),
         );
         return row;

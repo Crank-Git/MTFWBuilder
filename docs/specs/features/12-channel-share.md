@@ -118,7 +118,11 @@ Mockup: [05-channel-share](../mockups/05-channel-share.html).
   firmware version does not read it".
 - The PSK `{ }` is a PSK of 0 bytes. Upstream `Channels::getKey` gives the primary channel
   no encryption, and a secondary channel the primary key. The import fills `{ }` for an
-  empty PSK, and the export writes an empty PSK. The preview shows "No encryption".
+  empty PSK, and the export writes an empty PSK.
+- The preview shows an empty PSK by the channel role, as upstream `Channels::getKey` reads it
+  (`src/mesh/Channels.cpp:221-226` at `v2.7.26.54e0d8d`):
+  - A primary channel shows "No encryption".
+  - A secondary channel shows "Uses the primary channel key".
 - A channel name is at most 11 bytes in UTF-8. Upstream `channel.options` gives
   `ChannelSettings.name` a `max_size` of 12, and the C string ends with a 0 byte.
 
@@ -135,6 +139,7 @@ None stored.
 | POST | `/api/v1/export/channel-url` | config | `{url, qr_svg, warnings: [...]}`; 422 |
 
 - `add` is true for an `add=true` URL.
+- Each channel has `uses_primary_key`: true for a secondary channel with an empty PSK.
 - `qr_svg` is an SVG document of a QR code that holds `url`.
 - The import `warnings` give the reason for each rejected value, and the 8-channel limit.
 - The export `warnings` hold a line when the config sets no LoRa region.

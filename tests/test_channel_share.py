@@ -102,6 +102,7 @@ async def test_channel_fields_import_with_a_base64_psk_and_secondary_roles(clien
         "psk": base64.b64encode(key).decode("ascii"),
         "default_key": None,
         "role": "SECONDARY",
+        "uses_primary_key": False,
         "uplink_enabled": True,
         "downlink_enabled": True,
         "position_precision": 13,
@@ -220,3 +221,29 @@ async def test_add_url_gives_every_channel_the_secondary_role(client):
     response = await client.post(IMPORT_URL, json={"url": url})
 
     assert [channel["role"] for channel in response.json()["channels"]] == ["SECONDARY"]
+
+
+def _empty_psk_set() -> apponly_pb2.ChannelSet:
+    """Return a channel set of a primary and a secondary channel, both with an empty PSK."""
+    channel_set = apponly_pb2.ChannelSet()
+    channel_set.settings.add(name="Open")
+    channel_set.settings.add(name="Side")
+    return channel_set
+
+
+async def test_primary_channel_with_an_empty_psk_does_not_use_the_primary_key(client):
+    # Upstream `Channels::getKey` turns encryption off for a primary channel with a PSK of 0 bytes.
+    response = await client.post(IMPORT_URL, json={"url": channel_url(_empty_psk_set())})
+
+    channel = response.json()["channels"][0]
+    assert channel["role"] == "PRIMARY"
+    assert channel["uses_primary_key"] is False
+
+
+async def test_secondary_channel_with_an_empty_psk_uses_the_primary_key(client):
+    # Upstream `Channels::getKey` gives a secondary channel with a PSK of 0 bytes the key of the primary channel.
+    response = await client.post(IMPORT_URL, json={"url": channel_url(_empty_psk_set())})
+
+    channel = response.json()["channels"][1]
+    assert channel["role"] == "SECONDARY"
+    assert channel["uses_primary_key"] is True

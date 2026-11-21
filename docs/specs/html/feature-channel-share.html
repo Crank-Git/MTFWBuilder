@@ -346,8 +346,19 @@ body.rv-open .layout { padding-right:21rem; }
 <li>The PSK <code>{ }</code> is a PSK of 0 bytes. Upstream <code>Channels::getKey</code> gives the primary channel
 </li>
 </ul>
-<p>no encryption, and a secondary channel the primary key. The import fills <code>{ }</code> for an empty PSK, and the export writes an empty PSK. The preview shows "No encryption".</p>
+<p>no encryption, and a secondary channel the primary key. The import fills <code>{ }</code> for an empty PSK, and the export writes an empty PSK.</p>
 <ul>
+<li>The preview shows an empty PSK by the channel role, as upstream <code>Channels::getKey</code> reads it
+</li>
+</ul>
+<p>(<code>src/mesh/Channels.cpp:221-226</code> at <code>v2.7.26.54e0d8d</code>):</p>
+<ul>
+<li>A primary channel shows "No encryption".
+<ul>
+<li>A secondary channel shows "Uses the primary channel key".
+</li>
+</ul>
+</li>
 <li>A channel name is at most 11 bytes in UTF-8. Upstream <code>channel.options</code> gives
 </li>
 </ul>
@@ -363,6 +374,8 @@ body.rv-open .layout { padding-right:21rem; }
 </table></div>
 <ul>
 <li><code>add</code> is true for an <code>add=true</code> URL.
+</li>
+<li>Each channel has <code>uses_primary_key</code>: true for a secondary channel with an empty PSK.
 </li>
 <li><code>qr_svg</code> is an SVG document of a QR code that holds <code>url</code>.
 </li>

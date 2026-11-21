@@ -78,13 +78,16 @@ def _channel(index: int, settings: channel_pb2.ChannelSettings, add: bool) -> Im
     Upstream `setURL` gives each channel of an `add=true` URL the SECONDARY role.
     """
     psk = bytes(settings.psk)
+    role = "PRIMARY" if index == 0 and not add else "SECONDARY"
     return ImportedChannel(
         index=index,
         name=settings.name,
         psk=base64.b64encode(psk).decode("ascii"),
         # Upstream reads a PSK of 1 byte as the number of a default key, not as key material.
         default_key=psk[0] if len(psk) == 1 else None,
-        role="PRIMARY" if index == 0 and not add else "SECONDARY",
+        role=role,
+        # A primary channel with an empty PSK has no encryption (`Channels::getKey`).
+        uses_primary_key=not psk and role == "SECONDARY",
         uplink_enabled=settings.uplink_enabled,
         downlink_enabled=settings.downlink_enabled,
         position_precision=settings.module_settings.position_precision,

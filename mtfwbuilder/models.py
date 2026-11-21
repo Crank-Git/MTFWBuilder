@@ -564,6 +564,8 @@ class ImportedChannel(BaseModel):
     psk: str
     default_key: int | None
     role: Literal["PRIMARY", "SECONDARY"]
+    # Upstream `Channels::getKey` gives a secondary channel with an empty PSK the primary channel key.
+    uses_primary_key: bool
     uplink_enabled: bool
     downlink_enabled: bool
     position_precision: int
