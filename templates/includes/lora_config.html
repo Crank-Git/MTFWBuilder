@@ -1,6 +1,7 @@
 <div class="config-section">
     <h3 class="section-title"><i class="bi bi-broadcast-pin text-success"></i>LoRa Configuration</h3>
     <div class="form-check form-switch mb-3">
+        <input type="hidden" name="lora_enabled" value="false">
         <input class="form-check-input" type="checkbox" id="loraEnabled" name="lora_enabled" value="true" checked>
         <label class="form-check-label" for="loraEnabled">Enable LoRa Configuration</label>
     </div>
@@ -23,6 +24,7 @@
                     <option value="meshtastic_Config_LoRaConfig_RegionCode_TH">TH</option>
                     <option value="meshtastic_Config_LoRaConfig_RegionCode_LORA_24">LORA 24</option>
                 </select>
+                <div id="error-lora_region" class="field-error invalid-feedback d-block"></div>
             </div>
             <div class="col-md-6">
                 <label for="loraModemPreset" class="form-label">Modem Preset</label>
@@ -35,15 +37,18 @@
                     <option value="meshtastic_Config_LoRaConfig_ModemPreset_SHORT_SLOW">Short Range & Slow</option>
                     <option value="meshtastic_Config_LoRaConfig_ModemPreset_SHORT_FAST">Short Range & Fast</option>
                 </select>
+                <div id="error-lora_modem_preset" class="field-error invalid-feedback d-block"></div>
             </div>
         </div>
         <div class="row mb-3">
             <div class="col-md-6">
                 <label for="loraChannelNum" class="form-label">Channel Number</label>
                 <input type="number" class="form-control" id="loraChannelNum" name="lora_channel_num" value="31">
+                <div id="error-lora_channel_num" class="field-error invalid-feedback d-block"></div>
             </div>
             <div class="col-md-6">
                 <div class="form-check form-switch mt-4">
+                    <input type="hidden" name="lora_ignore_mqtt" value="false">
                     <input class="form-check-input" type="checkbox" id="loraIgnoreMqtt" name="lora_ignore_mqtt" value="true" checked>
                     <label class="form-check-label" for="loraIgnoreMqtt">Ignore MQTT (LoRa Only)</label>
                 </div>

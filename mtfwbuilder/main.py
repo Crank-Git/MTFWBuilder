@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 
 import aiosqlite
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from slowapi import _rate_limit_exceeded_handler
@@ -15,6 +16,7 @@ from slowapi.errors import RateLimitExceeded
 
 from mtfwbuilder.config import load_settings
 from mtfwbuilder.database import fail_unended_builds, init_db
+from mtfwbuilder.htmx import validation_error_response
 from mtfwbuilder.rate_limit import limiter
 from mtfwbuilder.routers.admin import router as admin_router
 from mtfwbuilder.routers.config_generator import router as config_router
@@ -112,6 +114,7 @@ def create_app() -> FastAPI:
     # Rate limiting
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_exception_handler(RequestValidationError, validation_error_response)
 
     # Routers
     app.include_router(config_router)

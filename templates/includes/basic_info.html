@@ -4,10 +4,12 @@
         <div class="col-md-6">
             <label for="ownerShortName" class="form-label">Owner Short Name</label>
             <input type="text" class="form-control" id="ownerShortName" name="owner_short_name" maxlength="4" placeholder="Short name (max 4 chars)">
+            <div id="error-owner_short_name" class="field-error invalid-feedback d-block"></div>
         </div>
         <div class="col-md-6">
             <label for="ownerLongName" class="form-label">Owner Long Name</label>
             <input type="text" class="form-control" id="ownerLongName" name="owner_long_name" placeholder="Full name or description">
+            <div id="error-owner_long_name" class="field-error invalid-feedback d-block"></div>
         </div>
     </div>
     <div class="row mb-3">
@@ -17,11 +19,13 @@
                 <option value="">Select a timezone...</option>
                 <!-- Timezone options will be populated by JavaScript -->
             </select>
+            <div id="error-tz_string" class="field-error invalid-feedback d-block"></div>
             <div class="form-text text-muted">Your local timezone will be auto-detected if possible</div>
         </div>
         <div class="col-md-6">
             <label for="bluetoothPin" class="form-label">Bluetooth PIN (optional)</label>
             <input type="text" class="form-control" id="bluetoothPin" name="bluetooth_fixed_pin" placeholder="6 digits PIN">
+            <div id="error-bluetooth_fixed_pin" class="field-error invalid-feedback d-block"></div>
         </div>
     </div>
 </div> 
