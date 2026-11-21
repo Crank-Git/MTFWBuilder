@@ -37,15 +37,15 @@ def test_arrow_keys_home_and_end_move_the_selection_along_the_tabs(page: Page, l
     expect(page.locator("#config-pane-channels")).to_be_visible()
 
     page.keyboard.press("End")
-    expect(page.locator("#config-tab-advanced")).to_be_focused()
+    expect(page.locator("#config-tab-modules")).to_be_focused()
     page.keyboard.press("ArrowRight")
     expect(page.locator("#config-tab-device")).to_be_focused()
     page.keyboard.press("ArrowLeft")
-    expect(page.locator("#config-tab-advanced")).to_be_focused()
+    expect(page.locator("#config-tab-modules")).to_be_focused()
     page.keyboard.press("Home")
     expect(page.locator("#config-tab-device")).to_be_focused()
     expect(page.locator("#config-tab-device")).to_have_attribute("tabindex", "0")
-    expect(page.locator("#config-tab-advanced")).to_have_attribute("tabindex", "-1")
+    expect(page.locator("#config-tab-modules")).to_have_attribute("tabindex", "-1")
 
 
 def test_tab_count_goes_up_by_one_for_a_field_that_gets_a_value(page: Page, live_server: str):

@@ -48,7 +48,13 @@ Owner rulings on #182 (2026-11-21):
 - FR-module-settings-5 — `ConfigRequest` validates each new field. A boolean is "true" or
   "false". An unsigned number is a whole number in the range of its proto type. A
   Paxcounter threshold is a whole number in the int32 range, and it can be negative. An enum is a name of its proto
-  enum in `@meshtastic/core` 2.6.7. The detection sensor name has at most 20 bytes.
+  enum in `@meshtastic/core` 2.6.7. The detection sensor name has at most 19 bytes.
+  The nanopb file `module_config.options` of protobufs v2.7.8 gives `output_vibra`, `output_buzzer` and
+  `monitor_pin` `int_size:8`, so each one is a whole number from 0 to 255.
+  `nag_timeout` has `int_size:16`, so `ringtone_nag_secs` is a whole number from 0 to
+  65535.
+  Firmware `module_config.pb.h` declares `char name[20]`, and nanopb keeps one byte of it
+  for the null terminator.
 - FR-module-settings-6 — The generator writes no userPrefs key for a new field. The
   contract test lists the new fields as fields that write no userPrefs key.
 - FR-module-settings-7 — A profile saves and loads the new fields as it does the other
@@ -56,7 +62,9 @@ Owner rulings on #182 (2026-11-21):
 - FR-module-settings-8 — Push config maps each new field to its `ModuleConfig` field
   (`moduleConfig.<section>`) and shows it in the diff. An empty field gives no diff row.
 - FR-module-settings-9 — Push config sends the form field "Ringtone nag seconds"
-  (`ringtone_nag_secs`) as `external_notification.nag_timeout`.
+  (`ringtone_nag_secs`) as `external_notification.nag_timeout`. Push config sends
+  `nag_timeout` only when the firmware version reads `USERPREFS_RINGTONE_NAG_SECS`,
+  because the key scan disables the field otherwise.
 - FR-module-settings-10 — A diff row that changes a pin or hardware field shows the
   warning "This changes a pin. Check that the profile fits this board."
 - FR-module-settings-11 — A neighbor info update interval below 14400 seconds shows the
@@ -129,8 +137,8 @@ The fields below are from the `ModuleConfig` descriptor in the vendored
 | External notification | `ext_notify_enabled` | `enabled` | bool | |
 | External notification | `ext_notify_output_ms` | `output_ms` | uint32 | |
 | External notification | `ext_notify_output` | `output` | uint32 | HW |
-| External notification | `ext_notify_output_vibra` | `output_vibra` | uint32 | HW |
-| External notification | `ext_notify_output_buzzer` | `output_buzzer` | uint32 | HW |
+| External notification | `ext_notify_output_vibra` | `output_vibra` | uint8 | HW |
+| External notification | `ext_notify_output_buzzer` | `output_buzzer` | uint8 | HW |
 | External notification | `ext_notify_active` | `active` | bool | HW |
 | External notification | `ext_notify_alert_message` | `alert_message` | bool | |
 | External notification | `ext_notify_alert_message_vibra` | `alert_message_vibra` | bool | |
@@ -140,7 +148,7 @@ The fields below are from the `ModuleConfig` descriptor in the vendored
 | External notification | `ext_notify_alert_bell_buzzer` | `alert_bell_buzzer` | bool | |
 | External notification | `ext_notify_use_pwm` | `use_pwm` | bool | HW |
 | External notification | `ext_notify_use_i2s_as_buzzer` | `use_i2s_as_buzzer` | bool | HW |
-| External notification | (`ringtone_nag_secs`, FR 9) | `nag_timeout` | uint32 | |
+| External notification | (`ringtone_nag_secs`, FR 9) | `nag_timeout` | uint16 | |
 | Neighbor info | `neighbor_info_enabled` | `enabled` | bool | |
 | Neighbor info | `neighbor_info_update_interval` | `update_interval` | uint32 (seconds) | |
 | Neighbor info | `neighbor_info_transmit_over_lora` | `transmit_over_lora` | bool | |
@@ -148,8 +156,8 @@ The fields below are from the `ModuleConfig` descriptor in the vendored
 | Detection sensor | `detection_sensor_minimum_broadcast_secs` | `minimum_broadcast_secs` | uint32 | |
 | Detection sensor | `detection_sensor_state_broadcast_secs` | `state_broadcast_secs` | uint32 | |
 | Detection sensor | `detection_sensor_send_bell` | `send_bell` | bool | |
-| Detection sensor | `detection_sensor_name` | `name` | string, ≤ 20 bytes | |
-| Detection sensor | `detection_sensor_monitor_pin` | `monitor_pin` | uint32 | HW |
+| Detection sensor | `detection_sensor_name` | `name` | string, ≤ 19 bytes | |
+| Detection sensor | `detection_sensor_monitor_pin` | `monitor_pin` | uint8 | HW |
 | Detection sensor | `detection_sensor_trigger_type` | `detection_trigger_type` | enum `TriggerType` | |
 | Detection sensor | `detection_sensor_use_pullup` | `use_pullup` | bool | HW |
 | Paxcounter | `paxcounter_enabled` | `enabled` | bool | |

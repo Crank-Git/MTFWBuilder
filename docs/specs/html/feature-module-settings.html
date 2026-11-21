@@ -212,7 +212,7 @@ body.rv-open .layout { padding-right:21rem; }
 <li>FR-module-settings-5 — <code>ConfigRequest</code> validates each new field. A boolean is "true" or
 </li>
 </ul>
-<p>"false". An unsigned number is a whole number in the range of its proto type. A Paxcounter threshold is a whole number in the int32 range, and it can be negative. An enum is a name of its proto enum in <code>@meshtastic/core</code> 2.6.7. The detection sensor name has at most 20 bytes.</p>
+<p>"false". An unsigned number is a whole number in the range of its proto type. A Paxcounter threshold is a whole number in the int32 range, and it can be negative. An enum is a name of its proto enum in <code>@meshtastic/core</code> 2.6.7. The detection sensor name has at most 19 bytes. The nanopb file <code>module_config.options</code> of protobufs v2.7.8 gives <code>output_vibra</code>, <code>output_buzzer</code> and <code>monitor_pin</code> <code>int_size:8</code>, so each one is a whole number from 0 to 255. <code>nag_timeout</code> has <code>int_size:16</code>, so <code>ringtone_nag_secs</code> is a whole number from 0 to 65535. Firmware <code>module_config.pb.h</code> declares <code>char name[20]</code>, and nanopb keeps one byte of it for the null terminator.</p>
 <ul>
 <li>FR-module-settings-6 — The generator writes no userPrefs key for a new field. The
 </li>
@@ -232,7 +232,7 @@ body.rv-open .layout { padding-right:21rem; }
 <li>FR-module-settings-9 — Push config sends the form field "Ringtone nag seconds"
 </li>
 </ul>
-<p>(<code>ringtone_nag_secs</code>) as <code>external_notification.nag_timeout</code>.</p>
+<p>(<code>ringtone_nag_secs</code>) as <code>external_notification.nag_timeout</code>. Push config sends <code>nag_timeout</code> only when the firmware version reads <code>USERPREFS_RINGTONE_NAG_SECS</code>, because the key scan disables the field otherwise.</p>
 <ul>
 <li>FR-module-settings-10 — A diff row that changes a pin or hardware field shows the
 </li>
@@ -313,8 +313,8 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><td>External notification</td><td><code>ext_notify_enabled</code></td><td><code>enabled</code></td><td>bool</td><td></td></tr>
 <tr><td>External notification</td><td><code>ext_notify_output_ms</code></td><td><code>output_ms</code></td><td>uint32</td><td></td></tr>
 <tr><td>External notification</td><td><code>ext_notify_output</code></td><td><code>output</code></td><td>uint32</td><td>HW</td></tr>
-<tr><td>External notification</td><td><code>ext_notify_output_vibra</code></td><td><code>output_vibra</code></td><td>uint32</td><td>HW</td></tr>
-<tr><td>External notification</td><td><code>ext_notify_output_buzzer</code></td><td><code>output_buzzer</code></td><td>uint32</td><td>HW</td></tr>
+<tr><td>External notification</td><td><code>ext_notify_output_vibra</code></td><td><code>output_vibra</code></td><td>uint8</td><td>HW</td></tr>
+<tr><td>External notification</td><td><code>ext_notify_output_buzzer</code></td><td><code>output_buzzer</code></td><td>uint8</td><td>HW</td></tr>
 <tr><td>External notification</td><td><code>ext_notify_active</code></td><td><code>active</code></td><td>bool</td><td>HW</td></tr>
 <tr><td>External notification</td><td><code>ext_notify_alert_message</code></td><td><code>alert_message</code></td><td>bool</td><td></td></tr>
 <tr><td>External notification</td><td><code>ext_notify_alert_message_vibra</code></td><td><code>alert_message_vibra</code></td><td>bool</td><td></td></tr>
@@ -324,7 +324,7 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><td>External notification</td><td><code>ext_notify_alert_bell_buzzer</code></td><td><code>alert_bell_buzzer</code></td><td>bool</td><td></td></tr>
 <tr><td>External notification</td><td><code>ext_notify_use_pwm</code></td><td><code>use_pwm</code></td><td>bool</td><td>HW</td></tr>
 <tr><td>External notification</td><td><code>ext_notify_use_i2s_as_buzzer</code></td><td><code>use_i2s_as_buzzer</code></td><td>bool</td><td>HW</td></tr>
-<tr><td>External notification</td><td>(<code>ringtone_nag_secs</code>, FR 9)</td><td><code>nag_timeout</code></td><td>uint32</td><td></td></tr>
+<tr><td>External notification</td><td>(<code>ringtone_nag_secs</code>, FR 9)</td><td><code>nag_timeout</code></td><td>uint16</td><td></td></tr>
 <tr><td>Neighbor info</td><td><code>neighbor_info_enabled</code></td><td><code>enabled</code></td><td>bool</td><td></td></tr>
 <tr><td>Neighbor info</td><td><code>neighbor_info_update_interval</code></td><td><code>update_interval</code></td><td>uint32 (seconds)</td><td></td></tr>
 <tr><td>Neighbor info</td><td><code>neighbor_info_transmit_over_lora</code></td><td><code>transmit_over_lora</code></td><td>bool</td><td></td></tr>
@@ -332,8 +332,8 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><td>Detection sensor</td><td><code>detection_sensor_minimum_broadcast_secs</code></td><td><code>minimum_broadcast_secs</code></td><td>uint32</td><td></td></tr>
 <tr><td>Detection sensor</td><td><code>detection_sensor_state_broadcast_secs</code></td><td><code>state_broadcast_secs</code></td><td>uint32</td><td></td></tr>
 <tr><td>Detection sensor</td><td><code>detection_sensor_send_bell</code></td><td><code>send_bell</code></td><td>bool</td><td></td></tr>
-<tr><td>Detection sensor</td><td><code>detection_sensor_name</code></td><td><code>name</code></td><td>string, ≤ 20 bytes</td><td></td></tr>
-<tr><td>Detection sensor</td><td><code>detection_sensor_monitor_pin</code></td><td><code>monitor_pin</code></td><td>uint32</td><td>HW</td></tr>
+<tr><td>Detection sensor</td><td><code>detection_sensor_name</code></td><td><code>name</code></td><td>string, ≤ 19 bytes</td><td></td></tr>
+<tr><td>Detection sensor</td><td><code>detection_sensor_monitor_pin</code></td><td><code>monitor_pin</code></td><td>uint8</td><td>HW</td></tr>
 <tr><td>Detection sensor</td><td><code>detection_sensor_trigger_type</code></td><td><code>detection_trigger_type</code></td><td>enum <code>TriggerType</code></td><td></td></tr>
 <tr><td>Detection sensor</td><td><code>detection_sensor_use_pullup</code></td><td><code>use_pullup</code></td><td>bool</td><td>HW</td></tr>
 <tr><td>Paxcounter</td><td><code>paxcounter_enabled</code></td><td><code>enabled</code></td><td>bool</td><td></td></tr>

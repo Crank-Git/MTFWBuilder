@@ -22,6 +22,7 @@ const READ_DROPPED = 'The connection dropped before the device sent its config.'
 // The build log mask uses the same text, so the operator sees one mask for each secret.
 const MASK = '***';
 const NOT_READ = '—';
+const PIN_WARNING = 'This changes a pin. Check that the profile fits this board.';
 // The profile list of admin keys is shorter than the device list, so the push removes the device key.
 const NO_KEY = '(none)';
 const CHANNEL_SLOTS = 8;
@@ -60,6 +61,18 @@ const BOOL = { profile: raw => raw === 'true', show: String };
 // The form asks whether TX is off, and the protobuf field says whether TX is on.
 const TX_DISABLED = { profile: raw => raw !== 'true', show: String };
 const UINT = { profile: raw => (/^[0-9]+$/.test(raw) ? Number(raw) : null), show: String };
+// Protobufs v2.7.8 `module_config.options` gives `nag_timeout` `int_size:16`, and a profile saved before the form
+// check can hold a larger value.
+const UINT16 = {
+  profile: raw => {
+    const value = UINT.profile(raw);
+    return value !== null && value <= 0xffff ? value : null;
+  },
+  show: String,
+  tooLarge: 'The firmware field holds at most 65535.',
+};
+// The Paxcounter thresholds are int32 fields, so a threshold can be negative.
+const INT = { profile: raw => (/^-?[0-9]+$/.test(raw) ? Number(raw) : null), show: String };
 const TEXT = { profile: raw => raw, show: String };
 const SECRET = { profile: raw => raw, show: () => MASK };
 // The generator writes the same POSIX TZ string into USERPREFS_TZ_STRING.
@@ -86,28 +99,31 @@ const DEGREES = {
 };
 
 /**
- * Return the value type of the `Protobuf.Config` enum `name`, for example `Config_LoRaConfig_RegionCode`.
+ * Return the value type of the enum `name` in the `Protobuf.<namespace>` module of core.
  *
- * The profile holds the C name of the value, and the device sends its number. Both become the value name.
+ * For example, `enumType('Config', 'Config_LoRaConfig_RegionCode')`.
+ * The profile holds the name of the value, and the device sends its number. Both become the value name.
+ * A `Config` value name in the profile has its C prefix, and a `ModuleConfig` value name has none.
  */
-function enumType(name) {
+function enumType(namespace, name) {
   const prefix = `meshtastic_${name}_`;
+  const values = context => context.protobuf[namespace][name];
   return {
     // A value name that core 2.6.7 does not have gives no number that the page can send.
     profile: (raw, context) => {
       const value = raw.startsWith(prefix) ? raw.slice(prefix.length) : raw;
-      return typeof context.protobuf.Config[name][value] === 'number' ? value : null;
+      return typeof values(context)[value] === 'number' ? value : null;
     },
-    wire: (value, context) => context.protobuf.Config[name][value],
+    wire: (value, context) => values(context)[value],
     // A device with newer protobufs can send a number that core 2.6.7 does not name.
-    device: (value, context) => context.protobuf.Config[name][value] ?? String(value),
+    device: (value, context) => values(context)[value] ?? String(value),
     show: String,
   };
 }
 
 // USERPREFS_FIXED_BLUETOOTH sets the FIXED_PIN pairing mode with the PIN (`NodeDB::installDefaultConfig`).
 const FIXED_PIN_MODE = {
-  ...enumType('Config_BluetoothConfig_PairingMode'),
+  ...enumType('Config', 'Config_BluetoothConfig_PairingMode'),
   profile: raw => (UINT.profile(raw) === null ? null : 'FIXED_PIN'),
 };
 
@@ -119,6 +135,13 @@ const WIFI = ['network_enabled', 'wifi_enabled'];
 const MQTT = ['network_enabled', 'mqtt_enabled'];
 const FIXED = ['gps_enabled', 'fixed_position'];
 
+const HW = true;
+
+/** Return the mapping table rows of the `ModuleConfig` section `name`, from `[form, field, type, hw]` lists. */
+function moduleRows(name, rows) {
+  return rows.map(([form, field, type, hw]) => ({ form, section: `moduleConfig.${name}`, field, type, hw }));
+}
+
 /**
  * The mapping table: each profile form field, with the protobuf field of @meshtastic/core 2.6.7 that holds it.
  *
@@ -127,27 +150,40 @@ const FIXED = ['gps_enabled', 'fixed_position'];
  * - `field` is the path of the protobuf field in the section, with protobuf-es names.
  * - `when` names the form switches that must be "true" for the generator to write the field.
  * - `slot` is the channel slot, which counts only when `channels_to_write` is above it.
+ * - `hw` marks a pin or hardware field, and its diff row shows the pin warning (FR-module-settings-10).
  *
  * A form field that push config does not send is in `NOT_PUSHED`.
  * `fixed_lat` and `fixed_lon` come after the position config: `set_fixed_position` sets `fixed_position`
  * (`AdminModule.cpp`), and a later position config replaces it.
  */
 export const FIELD_MAP = [
-  { form: 'device_role', section: 'config.device', field: 'role', type: enumType('Config_DeviceConfig_Role') },
+  {
+    form: 'device_role',
+    section: 'config.device',
+    field: 'role',
+    type: enumType('Config', 'Config_DeviceConfig_Role'),
+  },
   {
     form: 'device_rebroadcast_mode',
     section: 'config.device',
     field: 'rebroadcastMode',
-    type: enumType('Config_DeviceConfig_RebroadcastMode'),
+    type: enumType('Config', 'Config_DeviceConfig_RebroadcastMode'),
   },
   { form: 'node_info_broadcast_secs', section: 'config.device', field: 'nodeInfoBroadcastSecs', type: UINT },
   { form: 'tz_string', section: 'config.device', field: 'tzdef', type: TZ },
-  { form: 'button_pin', section: 'config.device', field: 'buttonGpio', type: UINT, when: ['button_pin_enabled'] },
+  {
+    form: 'button_pin',
+    section: 'config.device',
+    field: 'buttonGpio',
+    type: UINT,
+    when: ['button_pin_enabled'],
+    hw: HW,
+  },
   {
     form: 'gps_mode',
     section: 'config.position',
     field: 'gpsMode',
-    type: enumType('Config_PositionConfig_GpsMode'),
+    type: enumType('Config', 'Config_PositionConfig_GpsMode'),
     when: GPS,
   },
   { form: 'gps_update_interval', section: 'config.position', field: 'gpsUpdateInterval', type: UINT, when: GPS },
@@ -172,14 +208,14 @@ export const FIELD_MAP = [
     form: 'lora_region',
     section: 'config.lora',
     field: 'region',
-    type: enumType('Config_LoRaConfig_RegionCode'),
+    type: enumType('Config', 'Config_LoRaConfig_RegionCode'),
     when: LORA,
   },
   {
     form: 'lora_modem_preset',
     section: 'config.lora',
     field: 'modemPreset',
-    type: enumType('Config_LoRaConfig_ModemPreset'),
+    type: enumType('Config', 'Config_LoRaConfig_ModemPreset'),
     when: LORA,
   },
   { form: 'lora_channel_num', section: 'config.lora', field: 'channelNum', type: UINT, when: LORA },
@@ -230,6 +266,72 @@ export const FIELD_MAP = [
     field: 'airQualityInterval',
     type: UINT,
   },
+  ...moduleRows('serial', [
+    ['serial_enabled', 'enabled', BOOL],
+    ['serial_echo', 'echo', BOOL],
+    ['serial_rxd', 'rxd', UINT, HW],
+    ['serial_txd', 'txd', UINT, HW],
+    ['serial_baud', 'baud', enumType('ModuleConfig', 'ModuleConfig_SerialConfig_Serial_Baud')],
+    ['serial_timeout', 'timeout', UINT],
+    ['serial_mode', 'mode', enumType('ModuleConfig', 'ModuleConfig_SerialConfig_Serial_Mode')],
+    ['serial_override_console_serial_port', 'overrideConsoleSerialPort', BOOL, HW],
+  ]),
+  ...moduleRows('storeForward', [
+    ['store_forward_enabled', 'enabled', BOOL],
+    ['store_forward_heartbeat', 'heartbeat', BOOL],
+    ['store_forward_records', 'records', UINT],
+    ['store_forward_history_return_max', 'historyReturnMax', UINT],
+    ['store_forward_history_return_window', 'historyReturnWindow', UINT],
+    ['store_forward_is_server', 'isServer', BOOL],
+  ]),
+  ...moduleRows('rangeTest', [
+    ['range_test_enabled', 'enabled', BOOL],
+    ['range_test_sender', 'sender', UINT],
+    ['range_test_save', 'save', BOOL],
+  ]),
+  ...moduleRows('externalNotification', [
+    ['ext_notify_enabled', 'enabled', BOOL],
+    ['ext_notify_output_ms', 'outputMs', UINT],
+    ['ext_notify_output', 'output', UINT, HW],
+    ['ext_notify_output_vibra', 'outputVibra', UINT, HW],
+    ['ext_notify_output_buzzer', 'outputBuzzer', UINT, HW],
+    ['ext_notify_active', 'active', BOOL, HW],
+    ['ext_notify_alert_message', 'alertMessage', BOOL],
+    ['ext_notify_alert_message_vibra', 'alertMessageVibra', BOOL],
+    ['ext_notify_alert_message_buzzer', 'alertMessageBuzzer', BOOL],
+    ['ext_notify_alert_bell', 'alertBell', BOOL],
+    ['ext_notify_alert_bell_vibra', 'alertBellVibra', BOOL],
+    ['ext_notify_alert_bell_buzzer', 'alertBellBuzzer', BOOL],
+    ['ext_notify_use_pwm', 'usePwm', BOOL, HW],
+    ['ext_notify_use_i2s_as_buzzer', 'useI2sAsBuzzer', BOOL, HW],
+    // The owner ruling on #182 sends the build field "Ringtone nag seconds" as `nag_timeout` (FR-module-settings-9).
+    ['ringtone_nag_secs', 'nagTimeout', UINT16],
+  ]),
+  ...moduleRows('neighborInfo', [
+    ['neighbor_info_enabled', 'enabled', BOOL],
+    ['neighbor_info_update_interval', 'updateInterval', UINT],
+    ['neighbor_info_transmit_over_lora', 'transmitOverLora', BOOL],
+  ]),
+  ...moduleRows('detectionSensor', [
+    ['detection_sensor_enabled', 'enabled', BOOL],
+    ['detection_sensor_minimum_broadcast_secs', 'minimumBroadcastSecs', UINT],
+    ['detection_sensor_state_broadcast_secs', 'stateBroadcastSecs', UINT],
+    ['detection_sensor_send_bell', 'sendBell', BOOL],
+    ['detection_sensor_name', 'name', TEXT],
+    ['detection_sensor_monitor_pin', 'monitorPin', UINT, HW],
+    [
+      'detection_sensor_trigger_type',
+      'detectionTriggerType',
+      enumType('ModuleConfig', 'ModuleConfig_DetectionSensorConfig_TriggerType'),
+    ],
+    ['detection_sensor_use_pullup', 'usePullup', BOOL, HW],
+  ]),
+  ...moduleRows('paxcounter', [
+    ['paxcounter_enabled', 'enabled', BOOL],
+    ['paxcounter_update_interval', 'paxcounterUpdateInterval', UINT],
+    ['paxcounter_wifi_threshold', 'wifiThreshold', INT],
+    ['paxcounter_ble_threshold', 'bleThreshold', INT],
+  ]),
   { form: 'bluetooth_fixed_pin', section: 'config.bluetooth', field: 'fixedPin', type: UINT },
   { form: 'bluetooth_fixed_pin', section: 'config.bluetooth', field: 'mode', type: FIXED_PIN_MODE },
   ...[0, 1, 2].map(n => ({ form: `admin_key_${n}`, section: 'config.security', field: `adminKey.${n}`, type: ADMIN_KEY })),
@@ -272,7 +374,7 @@ export const NOT_PUSHED = [
   ...['node_info_reply_suppress_secs', 'event_mode', 'event_mode_hop_limit', 'event_block_position', 'oem_text',
     'oem_font_size', 'oem_image_width', 'oem_image_height', 'oem_image_data']
     .map(form => ({ form, reason: BUILD_ONLY })),
-  ...['canned_messages', 'ringtone_rtttl', 'ringtone_nag_secs'].map(form => ({ form, reason: NOT_MAPPED })),
+  ...['canned_messages', 'ringtone_rtttl'].map(form => ({ form, reason: NOT_MAPPED })),
 ];
 
 const SECTION_LABELS = {
@@ -282,6 +384,13 @@ const SECTION_LABELS = {
   'config.network': 'Network',
   'moduleConfig.mqtt': 'MQTT',
   'moduleConfig.telemetry': 'Telemetry',
+  'moduleConfig.serial': 'Serial',
+  'moduleConfig.storeForward': 'Store and forward',
+  'moduleConfig.rangeTest': 'Range test',
+  'moduleConfig.externalNotification': 'External notification',
+  'moduleConfig.neighborInfo': 'Neighbor info',
+  'moduleConfig.detectionSensor': 'Detection sensor',
+  'moduleConfig.paxcounter': 'Paxcounter',
   'config.bluetooth': 'Bluetooth',
   'config.security': 'Security',
   owner: 'Owner',
@@ -339,6 +448,7 @@ function diffRow(row, read, raw, context) {
     field: fieldLabel(row.field),
     device: current === undefined ? NOT_READ : row.type.show(current),
     profile: row.type.show(wanted),
+    warning: row.hw ? PIN_WARNING : null,
   };
 }
 
@@ -346,7 +456,7 @@ function diffRow(row, read, raw, context) {
  * Return the sections with a field where the device value differs from the profile value (FR-push-config-5).
  *
  * Each section is `{section, label, rows}`, in the order of the mapping table. Each row is `{form, field, device,
- * profile}`, with display text and with each secret as `***`.
+ * profile, warning}`, with display text and with each secret as `***`. `warning` is null for a row that is not `hw`.
  *
  * Parameters:
  * - `read`: the device read of `readDevice`.
@@ -377,6 +487,7 @@ export function diffSections(read, config, context) {
     field: `admin_key[${slot}]`,
     device: MASK,
     profile: NO_KEY,
+    warning: null,
   }));
   return [...sections.values()];
 }
@@ -411,13 +522,21 @@ function removedAdminKeys(read, config) {
   return count === 0 ? [] : Object.keys(found).map(Number).filter(slot => slot >= count && found[slot].length > 0);
 }
 
-/** Return the `{form, reason}` rows of `NOT_PUSHED` that the profile config `config` holds a value for. */
+/**
+ * Return the `{form, reason}` rows that push config does not send for the profile config `config`.
+ *
+ * The rows are the rows of `NOT_PUSHED` that `config` holds a value for, then each mapped value above the limit of a
+ * type with `tooLarge`.
+ */
 export function notPushed(config) {
-  return NOT_PUSHED.filter(row => filled(config[row.form]) && applies(row, config));
+  const tooLarge = FIELD_MAP.filter(row => row.type.tooLarge && filled(config[row.form]) && applies(row, config)
+    && row.type.profile(String(config[row.form])) === null)
+    .map(row => ({ form: row.form, reason: row.type.tooLarge }));
+  return [...NOT_PUSHED.filter(row => filled(config[row.form]) && applies(row, config)), ...tooLarge];
 }
 
-// A protobuf-es message keeps a nested plain object as it is, so the page sends plain objects only.
-// `create` in core then builds each message again from its fields.
+// A protobuf-es message keeps a nested plain object as it is, so the page sends a channel, the owner and the position
+// as plain objects. `create` in core then builds each message again from its fields.
 function plain(value) {
   if (value === null || typeof value !== 'object' || value instanceof Uint8Array) {
     return value;
@@ -453,6 +572,28 @@ function channelMessage(read, slot, context) {
 }
 
 /**
+ * Return the `Config` or `ModuleConfig` section `key` of the device read as a message of the section schema.
+ *
+ * `create` in core keeps a value that is already a message of the schema. A plain object loses `$unknown`, which
+ * holds the device fields that core 2.6.7 does not know, and the device then resets them. The profile sets only
+ * scalar and list fields in these sections, so the copy holds no nested plain object.
+ *
+ * Parameters:
+ * - `found`: the section of the device read, or undefined when the device sent no such section.
+ * - `root`: `config` or `moduleConfig`.
+ * - `key`: the case of the section, for example `rangeTest`.
+ * - `context`: `{protobuf, tzTable}`, as for `diffSections`.
+ */
+function configMessage(found, root, key, context) {
+  if (found === undefined) {
+    return {};
+  }
+  const schema = root === 'config' ? context.protobuf.Config.ConfigSchema
+    : context.protobuf.ModuleConfig.ModuleConfigSchema;
+  return { ...structuredClone(found), $typeName: schema.field[key].message.typeName };
+}
+
+/**
  * Return the admin call for one section of the diff: `{method, args}`, where `method` is the MeshDevice method.
  *
  * The device replaces the whole section, so the message holds the device values with the profile values on top.
@@ -469,6 +610,8 @@ export function sectionMessage(read, config, section, context) {
   let value;
   if (root === 'channels') {
     value = channelMessage(read, Number(key), context);
+  } else if (root === 'config' || root === 'moduleConfig') {
+    value = configMessage(read[root][key], root, key, context);
   } else {
     value = plain(key === undefined ? read[root] : read[root][key]) ?? {};
   }
@@ -632,6 +775,14 @@ function sectionElement(section, checked) {
   section.rows.forEach(diff => {
     const row = body.insertRow();
     [diff.field, diff.device, diff.profile].forEach(text => { row.insertCell().textContent = text; });
+    if (diff.warning) {
+      const warning = body.insertRow();
+      warning.className = 'table-warning';
+      warning.dataset.warning = diff.form;
+      const cell = warning.insertCell();
+      cell.colSpan = 3;
+      cell.textContent = diff.warning;
+    }
   });
   box.append(check, table);
   return box;

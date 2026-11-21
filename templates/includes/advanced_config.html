@@ -85,7 +85,7 @@
                             </fieldset>
                             <fieldset data-userprefs-key="USERPREFS_RINGTONE_NAG_SECS"{{ key_attrs("USERPREFS_RINGTONE_NAG_SECS") }}>
                                 <label for="ringtoneNagSecs" class="form-label">Ringtone Duration</label>
-                                <input type="number" class="form-control" id="ringtoneNagSecs" name="ringtone_nag_secs" min="0" placeholder="15">
+                                <input type="number" class="form-control" id="ringtoneNagSecs" name="ringtone_nag_secs" min="0" max="65535" placeholder="15">
                                 <div id="error-ringtone_nag_secs" class="field-error invalid-feedback d-block"></div>
                                 <div class="form-text text-muted">The time in seconds that the ringtone plays for each alert. <code class="small">USERPREFS_RINGTONE_NAG_SECS</code></div>
                             </fieldset>

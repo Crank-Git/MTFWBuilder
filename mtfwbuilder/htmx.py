@@ -45,7 +45,8 @@ def _field_error(error: dict[str, Any]) -> dict[str, str]:
         loc = loc[1:]
     field = ".".join(loc)
     name = re.sub(r"^(channel_\d)\.(\w+)$", r"\1[\2]", field)
-    return {"field": field, "name": name, "message": error["msg"]}
+    # Pydantic puts "Value error, " before the text of a ValueError, and the operator needs only the text.
+    return {"field": field, "name": name, "message": error["msg"].removeprefix("Value error, ")}
 
 
 async def validation_error_response(request: Request, exc: RequestValidationError) -> Response:

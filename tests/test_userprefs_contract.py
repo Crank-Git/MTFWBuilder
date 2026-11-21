@@ -6,7 +6,16 @@ from pathlib import Path
 
 import pytest
 
-from mtfwbuilder.models import CHANNEL_SLOTS, MESH_BEACON_TARGETS, ChannelConfig, ConfigRequest
+from mtfwbuilder.models import (
+    CHANNEL_SLOTS,
+    MESH_BEACON_TARGETS,
+    MODULE_BOOL_FIELDS,
+    MODULE_ENUMS,
+    MODULE_FIELDS,
+    MODULE_NUMBER_LIMITS,
+    ChannelConfig,
+    ConfigRequest,
+)
 from mtfwbuilder.services.jsonc_generator import generate_jsonc
 from mtfwbuilder.services.userprefs_keys import read_keys
 
@@ -113,6 +122,11 @@ def full_config() -> dict[str, str]:
         data[f"channel_{slot}[uplink_enabled]"] = "true"
         data[f"channel_{slot}[downlink_enabled]"] = "true"
         data[f"channel_{slot}[muted]"] = "true"
+    # Feature module-settings: each module field is set, so the contract also checks that it writes no key.
+    data |= dict.fromkeys(MODULE_BOOL_FIELDS, "true")
+    data |= {field: str(high) for field, (_, high) in MODULE_NUMBER_LIMITS.items()}
+    data |= {field: values[-1] for field, values in MODULE_ENUMS.items()}
+    data["detection_sensor_name"] = "Door"
     return data
 
 
@@ -137,6 +151,11 @@ def test_full_config_sets_every_request_field():
 
 def test_generator_writes_only_keys_the_firmware_reads():
     assert_firmware_reads(written_keys(full_config()))
+
+
+def test_module_fields_write_no_userprefs_key():
+    without_modules = {key: value for key, value in full_config().items() if key not in MODULE_FIELDS}
+    assert written_keys(full_config()) == written_keys(without_modules)
 
 
 def test_contract_fails_on_the_device_name_key():

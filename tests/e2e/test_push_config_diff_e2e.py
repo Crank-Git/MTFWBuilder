@@ -25,6 +25,7 @@ WIFI_PSK = "hunter2-wifi"
 MQTT_PASSWORD = "mqtt-pass-77"
 
 # A device that runs LoRa on US / MEDIUM_FAST with two channels, and the owner "Team A Lead".
+# A read of core 2.6.7 holds each list field, and core cannot encode a message with a list field that is missing.
 DEVICE = {
     "config": {
         "device": {"role": 0, "rebroadcastMode": 0, "nodeInfoBroadcastSecs": 10800, "tzdef": "", "buttonGpio": 0},
@@ -36,6 +37,7 @@ DEVICE = {
             "txPower": 0,
             "txEnabled": True,
             "configOkToMqtt": False,
+            "ignoreIncoming": [],
         },
         "network": {"wifiEnabled": True, "wifiSsid": "fieldnet", "wifiPsk": "device-wifi", "ipv6Enabled": False},
     },
@@ -66,7 +68,8 @@ SECTIONS_JS = """() => [...document.querySelectorAll('#push-diff-sections [data-
   section: section.dataset.section,
   label: section.querySelector('label').textContent,
   checked: section.querySelector('input[type=checkbox]').checked,
-  rows: [...section.querySelectorAll('tbody tr')].map(row => [...row.cells].map(cell => cell.textContent)),
+  rows: [...section.querySelectorAll('tbody tr:not([data-warning])')]
+    .map(row => [...row.cells].map(cell => cell.textContent)),
 }))"""
 
 
@@ -250,6 +253,7 @@ def test_no_page_request_to_the_server_holds_device_data(page: Page, live_server
 BOOL = ("true", True, False)
 NOT_BOOL = ("true", False, True)
 UINT = ("120", 120, 60)
+INT = ("-80", -80, 0)
 TEXT = ("alpha", "alpha", "beta")
 SECRET = ("s3cret-alpha", "s3cret-alpha", "s3cret-beta")
 PSK = (base64.b64encode(CHANNEL_0_KEY).decode(), {"$bytes": list(CHANNEL_0_KEY)}, {"$bytes": [1]})
@@ -310,6 +314,53 @@ MAPPING = [
     ("telemetry_environment_screen_enabled", "moduleConfig.telemetry", "environmentScreenEnabled", BOOL),
     ("telemetry_air_quality_enabled", "moduleConfig.telemetry", "airQualityEnabled", BOOL),
     ("telemetry_air_quality_interval", "moduleConfig.telemetry", "airQualityInterval", UINT),
+    ("serial_enabled", "moduleConfig.serial", "enabled", BOOL),
+    ("serial_echo", "moduleConfig.serial", "echo", BOOL),
+    ("serial_rxd", "moduleConfig.serial", "rxd", UINT),
+    ("serial_txd", "moduleConfig.serial", "txd", UINT),
+    ("serial_baud", "moduleConfig.serial", "baud", ("BAUD_9600", 7, 0)),
+    ("serial_timeout", "moduleConfig.serial", "timeout", UINT),
+    ("serial_mode", "moduleConfig.serial", "mode", ("NMEA", 4, 0)),
+    ("serial_override_console_serial_port", "moduleConfig.serial", "overrideConsoleSerialPort", BOOL),
+    ("store_forward_enabled", "moduleConfig.storeForward", "enabled", BOOL),
+    ("store_forward_heartbeat", "moduleConfig.storeForward", "heartbeat", BOOL),
+    ("store_forward_records", "moduleConfig.storeForward", "records", UINT),
+    ("store_forward_history_return_max", "moduleConfig.storeForward", "historyReturnMax", UINT),
+    ("store_forward_history_return_window", "moduleConfig.storeForward", "historyReturnWindow", UINT),
+    ("store_forward_is_server", "moduleConfig.storeForward", "isServer", BOOL),
+    ("range_test_enabled", "moduleConfig.rangeTest", "enabled", BOOL),
+    ("range_test_sender", "moduleConfig.rangeTest", "sender", UINT),
+    ("range_test_save", "moduleConfig.rangeTest", "save", BOOL),
+    ("ext_notify_enabled", "moduleConfig.externalNotification", "enabled", BOOL),
+    ("ext_notify_output_ms", "moduleConfig.externalNotification", "outputMs", UINT),
+    ("ext_notify_output", "moduleConfig.externalNotification", "output", UINT),
+    ("ext_notify_output_vibra", "moduleConfig.externalNotification", "outputVibra", UINT),
+    ("ext_notify_output_buzzer", "moduleConfig.externalNotification", "outputBuzzer", UINT),
+    ("ext_notify_active", "moduleConfig.externalNotification", "active", BOOL),
+    ("ext_notify_alert_message", "moduleConfig.externalNotification", "alertMessage", BOOL),
+    ("ext_notify_alert_message_vibra", "moduleConfig.externalNotification", "alertMessageVibra", BOOL),
+    ("ext_notify_alert_message_buzzer", "moduleConfig.externalNotification", "alertMessageBuzzer", BOOL),
+    ("ext_notify_alert_bell", "moduleConfig.externalNotification", "alertBell", BOOL),
+    ("ext_notify_alert_bell_vibra", "moduleConfig.externalNotification", "alertBellVibra", BOOL),
+    ("ext_notify_alert_bell_buzzer", "moduleConfig.externalNotification", "alertBellBuzzer", BOOL),
+    ("ext_notify_use_pwm", "moduleConfig.externalNotification", "usePwm", BOOL),
+    ("ext_notify_use_i2s_as_buzzer", "moduleConfig.externalNotification", "useI2sAsBuzzer", BOOL),
+    ("ringtone_nag_secs", "moduleConfig.externalNotification", "nagTimeout", UINT),
+    ("neighbor_info_enabled", "moduleConfig.neighborInfo", "enabled", BOOL),
+    ("neighbor_info_update_interval", "moduleConfig.neighborInfo", "updateInterval", ("14400", 14400, 21600)),
+    ("neighbor_info_transmit_over_lora", "moduleConfig.neighborInfo", "transmitOverLora", BOOL),
+    ("detection_sensor_enabled", "moduleConfig.detectionSensor", "enabled", BOOL),
+    ("detection_sensor_minimum_broadcast_secs", "moduleConfig.detectionSensor", "minimumBroadcastSecs", UINT),
+    ("detection_sensor_state_broadcast_secs", "moduleConfig.detectionSensor", "stateBroadcastSecs", UINT),
+    ("detection_sensor_send_bell", "moduleConfig.detectionSensor", "sendBell", BOOL),
+    ("detection_sensor_name", "moduleConfig.detectionSensor", "name", TEXT),
+    ("detection_sensor_monitor_pin", "moduleConfig.detectionSensor", "monitorPin", UINT),
+    ("detection_sensor_trigger_type", "moduleConfig.detectionSensor", "detectionTriggerType", ("RISING_EDGE", 3, 0)),
+    ("detection_sensor_use_pullup", "moduleConfig.detectionSensor", "usePullup", BOOL),
+    ("paxcounter_enabled", "moduleConfig.paxcounter", "enabled", BOOL),
+    ("paxcounter_update_interval", "moduleConfig.paxcounter", "paxcounterUpdateInterval", UINT),
+    ("paxcounter_wifi_threshold", "moduleConfig.paxcounter", "wifiThreshold", INT),
+    ("paxcounter_ble_threshold", "moduleConfig.paxcounter", "bleThreshold", INT),
     ("bluetooth_fixed_pin", "config.bluetooth", "fixedPin", UINT),
     ("bluetooth_fixed_pin", "config.bluetooth", "mode", PAIRING_MODE),
     *((f"admin_key_{n}", "config.security", f"adminKey.{n}", ADMIN_KEY) for n in range(3)),
@@ -436,6 +487,13 @@ def test_enum_value_that_core_does_not_name_gives_no_diff_row(table_page):
     raw = "meshtastic_Config_DeviceConfig_Role_NEWER_ROLE"
 
     result = table_page.evaluate(MAPPING_JS, ["device_role", None, raw, 0, 1, SWITCHES_ON])
+
+    assert (result["same"], result["other"]) == (0, 0)
+
+
+def test_nag_timeout_above_the_uint16_range_gives_no_diff_row(table_page):
+    # A profile saved before the 0 to 65535 check can hold a larger value, and `nag_timeout` has `int_size:16`.
+    result = table_page.evaluate(MAPPING_JS, ["ringtone_nag_secs", None, "65536", 15, 15, SWITCHES_ON])
 
     assert (result["same"], result["other"]) == (0, 0)
 
