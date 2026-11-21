@@ -2,7 +2,7 @@
 id: frontend-htmx
 feature: Frontend on htmx
 epic: "Epic 3: Frontend on htmx"
-status: issued
+status: built
 issues: [22, 23, 24, 25, 26, 27]
 mockups: [mockups/01-build-page.html]
 ---

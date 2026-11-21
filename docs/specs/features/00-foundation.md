@@ -55,7 +55,7 @@ only the gaps. Items that exist already are not rebuilt.
   The `.gitignore` pattern `firmware/` (line 97) changes to `/firmware/`, so git tracks
   the fixture.
 - FR-foundation-10 — A smoke test starts the app with httpx and gets 200 from `/`,
-  `/firmware-builder` and `/admin`.
+  `/firmware-builder` and `/admin`. (Since Epic 3, `/firmware-builder` returns 308 to `/`; the smoke test checks `/` and `/admin`.)
 - FR-foundation-11 — The repository has a `LICENSE` file with the GPL-3.0 text.
 - FR-foundation-12 — `pyproject.toml` declares `license = "GPL-3.0-or-later"` and the
   matching classifier.
