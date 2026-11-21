@@ -5,6 +5,7 @@ The build keeps its build status and log lines in memory for the progress stream
 """
 
 import asyncio
+import fnmatch
 import glob
 import json
 import logging
@@ -15,9 +16,10 @@ import shutil
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import quote
 
 from mtfwbuilder.config import Settings
-from mtfwbuilder.models import BuildStatus
+from mtfwbuilder.models import Artifact, BuildStatus
 from mtfwbuilder.services.device_registry import DeviceVariant
 
 logger = logging.getLogger("mtfwbuilder.build")
@@ -45,8 +47,7 @@ class BuildContext:
     config_content: str
     settings: Settings
     build_dir: Path = field(default_factory=Path)
-    firmware_path: Path | None = None
-    factory_path: Path | None = None
+    artifacts: list[Artifact] = field(default_factory=list)
     build_log: list[str] = field(default_factory=list)
     status: str = "queued"
     message: str = ""
@@ -188,6 +189,9 @@ async def progress_events(ctx: BuildContext):
         status = ctx.status_event()
         if status != sent_status:
             sent_status = status
+            # A page closes the progress stream on `complete`, so the artifact list goes first.
+            if ctx.status == "complete":
+                yield {"event": "artifacts", "data": json.dumps([a.model_dump() for a in ctx.artifacts])}
             yield {"event": "status", "data": status}
         for line in ctx.build_log[log_index:]:
             yield {"event": "log", "data": json.dumps({"line": line})}
@@ -211,7 +215,7 @@ async def run_build(ctx: BuildContext) -> None:
                 "failed", message="Build failed. See build log for details.", error=_error_summary(ctx, exit_code)
             )
             return
-        _extract_firmware(ctx)
+        _collect_artifacts(ctx)
     except TimeoutError:
         error_msg = f"Build timed out after {ctx.settings.build_timeout_seconds // 60} minutes"
         logger.error(f"Build {ctx.build_id}: {error_msg}")
@@ -222,7 +226,7 @@ async def run_build(ctx: BuildContext) -> None:
         logger.error(f"Build {ctx.build_id} failed: {e}")
         ctx.set_status("failed", error=str(e))
         return
-    download_url = f"/api/v1/download-firmware/{ctx.build_id}?variant={ctx.variant.id}"
+    download_url = artifact_url(ctx.build_id, primary_artifact(ctx.artifacts).name)
     ctx.set_status("complete", message="Build complete!", download_url=download_url)
 
 
@@ -316,43 +320,60 @@ def _parse_progress(line: str) -> str | None:
     return None
 
 
-def _find_artifact(pio_build_dir: Path, env_name: str, extension: str) -> Path | None:
-    """Return the upstream `firmware-<env>-<version>.<extension>` file, or None when pio wrote none.
+# The artifact kind for each upstream file name pattern; the first match decides the kind.
+# Upstream `bin/platformio-pre.py` sets `PROGNAME = firmware-<env>-<version>` (meshtastic/firmware PR #8248).
+ARTIFACT_PATTERNS = (
+    ("firmware-{env}-*.factory.bin", "factory"),
+    ("firmware-{env}-*.bin", "app"),
+    ("firmware-{env}-*.uf2", "uf2"),
+    ("firmware-{env}-*.hex", "hex"),
+    ("firmware-{env}-*.zip", "ota-zip"),
+    ("littlefs-{env}-*.bin", "littlefs"),
+    ("*.mt.json", "manifest"),
+)
+# The ESP32 factory artifact is the preferred download, because it does a full install.
+PRIMARY_KINDS = ("factory", "uf2", "app", "hex")
 
-    Upstream `bin/platformio-pre.py` sets `PROGNAME = firmware-<env>-<version>` (meshtastic/firmware PR #8248).
+
+def artifact_kind(name: str, env_name: str) -> str | None:
+    """Return the artifact kind of the file `name` in `.pio/build/<env_name>/`, or None for another file."""
+    env = glob.escape(env_name)
+    for pattern, kind in ARTIFACT_PATTERNS:
+        if fnmatch.fnmatchcase(name, pattern.format(env=env)):
+            return kind
+    return None
+
+
+def primary_artifact(artifacts: list[Artifact]) -> Artifact | None:
+    """Return the artifact that a single download sends, or None when the build has no firmware artifact."""
+    for kind in PRIMARY_KINDS:
+        for artifact in artifacts:
+            if artifact.kind == kind:
+                return artifact
+    return None
+
+
+def artifact_url(build_id: str, name: str) -> str:
+    return f"/api/v1/builds/{build_id}/artifacts/{quote(name)}"
+
+
+def _collect_artifacts(ctx: BuildContext) -> None:
+    """Copy each upstream artifact of the build to the build directory, and set `ctx.artifacts`.
+
+    Raises `FileNotFoundError` when pio wrote no firmware artifact.
     """
-    pattern = str(pio_build_dir / f"firmware-{glob.escape(env_name)}-*.{extension}")
-    # The `.bin` pattern also matches the `.factory.bin` file of ESP32.
-    matches = sorted(p for p in glob.glob(pattern) if extension == "factory.bin" or not p.endswith(".factory.bin"))
-    return Path(matches[0]) if matches else None
-
-
-def _extract_firmware(ctx: BuildContext) -> None:
-    """Copy the primary artifact, and the ESP32 factory artifact, to the build directory.
-
-    The copies keep the names `firmware.<format>` and `firmware.factory.bin` that the download route reads.
-    Raises `FileNotFoundError` when pio wrote no primary artifact.
-    """
-    fmt = ctx.variant.firmware_format
     pio_build_dir = ctx.settings.firmware_dir / ".pio" / "build" / ctx.variant.id
-
-    source_path = _find_artifact(pio_build_dir, ctx.variant.id, fmt)
-    if source_path is None:
-        raise FileNotFoundError(f"Build completed but no firmware-{ctx.variant.id}-*.{fmt} found in {pio_build_dir}")
-
-    firmware_filename = f"firmware.{fmt}"
-    dest = ctx.build_dir / firmware_filename
-    shutil.copy2(str(source_path), str(dest))
-    ctx.firmware_path = dest
-    logger.info(f"Build {ctx.build_id}: firmware copied to {dest}")
-
-    if ctx.variant.has_factory_binary:
-        factory_source = _find_artifact(pio_build_dir, ctx.variant.id, "factory.bin")
-        if factory_source is not None:
-            factory_dest = ctx.build_dir / "firmware.factory.bin"
-            shutil.copy2(str(factory_source), str(factory_dest))
-            ctx.factory_path = factory_dest
-            logger.info(f"Build {ctx.build_id}: factory binary copied")
+    artifacts = []
+    for path in sorted(pio_build_dir.iterdir()):
+        kind = artifact_kind(path.name, ctx.variant.id)
+        if kind is None or not path.is_file():
+            continue
+        shutil.copy2(path, ctx.build_dir / path.name)
+        artifacts.append(Artifact(name=path.name, size=path.stat().st_size, kind=kind))
+    if primary_artifact(artifacts) is None:
+        raise FileNotFoundError(f"Build completed but no firmware-{ctx.variant.id}-* artifact found in {pio_build_dir}")
+    ctx.artifacts = artifacts
+    logger.info(f"Build {ctx.build_id}: {len(artifacts)} artifacts copied to {ctx.build_dir}")
 
     # Clean up sensitive files from firmware tree
     _scrub_firmware_tree(ctx)
