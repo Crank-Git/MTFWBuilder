@@ -154,8 +154,8 @@ MODULE_ENUMS = {
         "EITHER_EDGE_ACTIVE_HIGH",
     ),
 }
-# Feature module-settings sets this limit for `DetectionSensorConfig.name`.
-MAX_DETECTION_SENSOR_NAME_BYTES = 20
+# Upstream `module_config.pb.h` declares `char name[20]`, and nanopb keeps one byte for the null terminator.
+MAX_DETECTION_SENSOR_NAME_BYTES = 19
 MODULE_FIELDS = (*MODULE_BOOL_FIELDS, *MODULE_NUMBER_LIMITS, *MODULE_ENUMS, "detection_sensor_name")
 
 

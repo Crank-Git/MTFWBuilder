@@ -186,13 +186,13 @@ async def test_serial_mode_rejects_a_mode_that_core_2_6_7_does_not_hold(client, 
     await assert_rejected(client, "serial_mode", value)
 
 
-@pytest.mark.parametrize("value", ["a" * 20, "é" * 10])
-async def test_detection_sensor_name_accepts_20_bytes(client, value):
+@pytest.mark.parametrize("value", ["a" * 19, "é" * 9 + "a"])
+async def test_detection_sensor_name_accepts_19_bytes(client, value):
     await assert_accepted(client, "detection_sensor_name", value)
 
 
-@pytest.mark.parametrize("value", ["a" * 21, "é" * 10 + "a"])
-async def test_detection_sensor_name_rejects_21_bytes(client, value):
+@pytest.mark.parametrize("value", ["a" * 20, "é" * 10])
+async def test_detection_sensor_name_rejects_20_bytes(client, value):
     await assert_rejected(client, "detection_sensor_name", value)
 
 
