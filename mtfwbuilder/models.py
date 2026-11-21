@@ -96,6 +96,8 @@ MODULE_BOOL_FIELDS = (
 )
 # Protobufs v2.7.8 `module_config.options` gives `output_vibra`, `output_buzzer` and `monitor_pin` `int_size:8`.
 MAX_UINT8 = 2**8 - 1
+# The same file gives `nag_timeout` `int_size:16`.
+MAX_UINT16 = 2**16 - 1
 MIN_INT32 = -(2**31)
 MAX_INT32 = 2**31 - 1
 # Upstream `src/modules/AdminModule.cpp` replaces a neighbor info interval below 14400 seconds with 21600.
@@ -496,11 +498,19 @@ class ConfigRequest(_UserPrefsFields):
         """Return the value with its C prefix, if the protobufs enum of the field holds it."""
         return _ENUM_FIELDS[info.field_name].c_value(value) if value else value
 
-    @field_validator("button_pin", "event_mode", "node_info_reply_suppress_secs", "ringtone_nag_secs")
+    @field_validator("button_pin", "event_mode", "node_info_reply_suppress_secs")
     @classmethod
     def _check_digits(cls, value: str | None) -> str | None:
         if value and not _is_whole_number(value):
             raise ValueError("the value is not a whole number")
+        return value
+
+    @field_validator("ringtone_nag_secs")
+    @classmethod
+    def _check_nag_secs(cls, value: str | None) -> str | None:
+        # The firmware stores the value in the uint16 `nag_timeout`, for a build and for a push.
+        if value and not (_is_whole_number(value) and int(value) <= MAX_UINT16):
+            raise ValueError(f"the value is not a whole number from 0 to {MAX_UINT16}")
         return value
 
     @field_validator("lora_tx_power")
