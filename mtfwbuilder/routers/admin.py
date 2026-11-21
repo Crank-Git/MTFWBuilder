@@ -70,7 +70,9 @@ async def update_firmware_route(request: Request):
     # Run firmware update in a thread (blocking I/O)
     loop = asyncio.get_event_loop()
     try:
-        success = await loop.run_in_executor(None, update_firmware, settings)
+        # The update replaces the firmware source, so it waits for the running build and blocks the next one.
+        async with request.app.state.build_queue.firmware_lock:
+            success = await loop.run_in_executor(None, update_firmware, settings)
     except Exception as e:
         logger.error(f"Firmware update error: {e}")
         return {"success": False, "error": str(e)}
@@ -85,5 +87,5 @@ async def update_firmware_route(request: Request):
 async def cleanup_route(request: Request):
     """Manually trigger build cleanup (admin only)."""
     settings = request.app.state.settings
-    removed = cleanup_old_builds(settings)
+    removed = cleanup_old_builds(settings, keep=request.app.state.build_queue.unended_build_ids())
     return {"success": True, "message": f"Removed {removed} old build directories."}

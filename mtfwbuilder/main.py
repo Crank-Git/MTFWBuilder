@@ -1,10 +1,12 @@
 """FastAPI application factory and lifespan."""
 
+import asyncio
 import json
 import logging
 import os
 from contextlib import asynccontextmanager
 
+import aiosqlite
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -12,13 +14,14 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from mtfwbuilder.config import load_settings
-from mtfwbuilder.database import init_db
+from mtfwbuilder.database import fail_unended_builds, init_db
 from mtfwbuilder.rate_limit import limiter
 from mtfwbuilder.routers.admin import router as admin_router
 from mtfwbuilder.routers.config_generator import router as config_router
 from mtfwbuilder.routers.firmware_builder import router as firmware_router
 from mtfwbuilder.routers.pages import router as pages_router
 from mtfwbuilder.services.build_service import BuildQueue
+from mtfwbuilder.services.cleanup_service import cleanup_every_interval, scrub_after_restart
 from mtfwbuilder.services.device_registry import DeviceRegistry
 
 
@@ -64,6 +67,13 @@ async def lifespan(app: FastAPI):
     await init_db(settings)
     logger.info(f"Database initialized at {settings.database_path}")
 
+    # The build queue is in memory, so a build that had not ended when the process stopped can never end.
+    async with aiosqlite.connect(settings.database_path) as db:
+        failed = await fail_unended_builds(db, "Server restarted")
+    if failed:
+        logger.warning(f"Marked {failed} builds failed after a restart")
+    scrub_after_restart(settings.firmware_dir)
+
     # Load device registry
     registry = DeviceRegistry(settings.devices_file)
     app.state.device_registry = registry
@@ -73,9 +83,12 @@ async def lifespan(app: FastAPI):
     build_queue.start()
     app.state.build_queue = build_queue
     logger.info("Build queue started")
+    cleanup_task = asyncio.create_task(cleanup_every_interval(settings, build_queue.unended_build_ids))
 
     yield
 
+    cleanup_task.cancel()
+    await asyncio.gather(cleanup_task, return_exceptions=True)
     await build_queue.stop()
     logger.info("Shutting down MTFWBuilder")
 

@@ -85,7 +85,12 @@ def _make_old(path, age_seconds):
 
 async def test_init_db_adds_config_hash_and_firmware_version_to_an_old_builds_table(settings):
     async with aiosqlite.connect(settings.database_path) as db:
-        await db.execute("CREATE TABLE builds (id TEXT PRIMARY KEY, variant TEXT NOT NULL, status TEXT)")
+        await db.execute(
+            "CREATE TABLE builds (id TEXT PRIMARY KEY, variant TEXT NOT NULL, architecture TEXT NOT NULL, "
+            "firmware_format TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'queued', firmware_path TEXT, "
+            "build_log TEXT, error_message TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+            "completed_at TIMESTAMP)"
+        )
         await db.commit()
 
     await init_db(settings)

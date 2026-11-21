@@ -1,7 +1,7 @@
 """Tests for build service and firmware routes."""
 
 import json
-import time
+import os
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -101,10 +101,10 @@ class TestCleanupService:
         await cleanup_build_directory(temp_dir / "nonexistent")
 
     def test_cleanup_old_builds_removes_expired(self, temp_dir):
-        # Create an "old" build dir (timestamp 0)
-        old_build = temp_dir / "build_1000000_123"
+        old_build = temp_dir / ("0" * 32)
         old_build.mkdir()
         (old_build / "firmware.bin").write_bytes(b"\x00")
+        os.utime(old_build, (1_000_000, 1_000_000))
 
         settings = Settings(temp_dir=temp_dir, build_max_age_seconds=1)
 
@@ -113,7 +113,7 @@ class TestCleanupService:
         assert not old_build.exists()
 
     def test_cleanup_old_builds_keeps_recent(self, temp_dir):
-        recent = temp_dir / f"build_{int(time.time())}_123"
+        recent = temp_dir / ("1" * 32)
         recent.mkdir()
 
         settings = Settings(temp_dir=temp_dir, build_max_age_seconds=3600)
