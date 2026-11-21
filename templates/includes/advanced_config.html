@@ -18,6 +18,7 @@
                                 <i class="bi bi-key-fill me-1"></i>Generate
                             </button>
                         </div>
+                        <div id="error-admin_key_0" class="field-error invalid-feedback d-block"></div>
                         <div class="form-text text-muted">32-byte key in base64, hex or { 0x.. } format</div>
                     </div>
                     <div class="mb-3">
@@ -28,6 +29,7 @@
                                 <i class="bi bi-key-fill me-1"></i>Generate
                             </button>
                         </div>
+                        <div id="error-admin_key_1" class="field-error invalid-feedback d-block"></div>
                         <div class="form-text text-muted">32-byte key in base64, hex or { 0x.. } format</div>
                     </div>
                     <div class="mb-3">
@@ -38,6 +40,7 @@
                                 <i class="bi bi-key-fill me-1"></i>Generate
                             </button>
                         </div>
+                        <div id="error-admin_key_2" class="field-error invalid-feedback d-block"></div>
                         <div class="form-text text-muted">32-byte key in base64, hex or { 0x.. } format</div>
                     </div>
                 </div>
@@ -56,25 +59,30 @@
                         <div class="col-md-6">
                             <label for="oemText" class="form-label">OEM Text</label>
                             <input type="text" class="form-control" id="oemText" name="oem_text" placeholder="Caterham Car Club">
+                            <div id="error-oem_text" class="field-error invalid-feedback d-block"></div>
                         </div>
                         <div class="col-md-6">
                             <label for="oemFontSize" class="form-label">OEM Font Size</label>
                             <input type="number" class="form-control" id="oemFontSize" name="oem_font_size" value="0">
+                            <div id="error-oem_font_size" class="field-error invalid-feedback d-block"></div>
                         </div>
                     </div>
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label for="oemImageWidth" class="form-label">OEM Image Width</label>
                             <input type="number" class="form-control" id="oemImageWidth" name="oem_image_width" placeholder="50">
+                            <div id="error-oem_image_width" class="field-error invalid-feedback d-block"></div>
                         </div>
                         <div class="col-md-6">
                             <label for="oemImageHeight" class="form-label">OEM Image Height</label>
                             <input type="number" class="form-control" id="oemImageHeight" name="oem_image_height" placeholder="28">
+                            <div id="error-oem_image_height" class="field-error invalid-feedback d-block"></div>
                         </div>
                     </div>
                     <div class="mb-3">
                         <label for="oemImageData" class="form-label">OEM Image Data</label>
                         <textarea class="form-control" id="oemImageData" name="oem_image_data" rows="4" placeholder="{ 0x00, 0x00, 0xF0, ... }"></textarea>
+                        <div id="error-oem_image_data" class="field-error invalid-feedback d-block"></div>
                     </div>
                 </div>
             </div>
@@ -92,7 +100,9 @@
                         <div class="col-md-6">
                             <label for="buttonPin" class="form-label">Button Pin</label>
                             <input type="text" class="form-control" id="buttonPin" name="button_pin" placeholder="36">
+                            <div id="error-button_pin" class="field-error invalid-feedback d-block"></div>
                             <div class="form-check mt-2">
+                                <input type="hidden" name="button_pin_enabled" value="false">
                                 <input class="form-check-input" type="checkbox" id="buttonPinEnabled" name="button_pin_enabled" value="true">
                                 <label class="form-check-label" for="buttonPinEnabled">Enable Button Pin</label>
                             </div>
@@ -104,6 +114,7 @@
                                 <option value="1">Normal</option>
                                 <option value="2">Enhanced</option>
                             </select>
+                            <div id="error-event_mode" class="field-error invalid-feedback d-block"></div>
                         </div>
                     </div>
                 </div>

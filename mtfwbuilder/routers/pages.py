@@ -1,32 +1,25 @@
 """HTML page routes — serves Jinja2 templates."""
 
 from fastapi import APIRouter, Request
+from fastapi.responses import RedirectResponse
 
 router = APIRouter(tags=["pages"])
 
 
 @router.get("/")
 async def index(request: Request):
-    """Render the main configuration generator page."""
+    """Render the build page: the config form, the variant picker and the Build control."""
     templates = request.app.state.templates
-    return templates.TemplateResponse(request, "index.html", {"title": "Build"})
+    manufacturers: dict[str, list] = {}
+    for variant in request.app.state.device_registry.all_variants:
+        manufacturers.setdefault(variant.manufacturer, []).append(variant)
+    return templates.TemplateResponse(request, "index.html", {"title": "Build", "manufacturers": manufacturers})
 
 
 @router.get("/firmware-builder")
-async def firmware_builder(request: Request):
-    """Render the firmware builder page with supported device variants."""
-    templates = request.app.state.templates
-    registry = request.app.state.device_registry
+async def firmware_builder() -> RedirectResponse:
+    """Redirect the old firmware builder page to the build page.
 
-    variants = [{"id": v.id, "name": v.name, "manufacturer": v.manufacturer} for v in registry.all_variants]
-    manufacturers = {}
-    for v in registry.all_variants:
-        if v.manufacturer not in manufacturers:
-            manufacturers[v.manufacturer] = []
-        manufacturers[v.manufacturer].append({"id": v.id, "name": v.name, "manufacturer": v.manufacturer})
-
-    return templates.TemplateResponse(
-        request,
-        "firmware_builder.html",
-        {"variants": variants, "manufacturers": manufacturers},
-    )
+    308 keeps old bookmarks working (FR-frontend-htmx-4).
+    """
+    return RedirectResponse("/", status_code=308)

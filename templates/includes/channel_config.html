@@ -8,6 +8,7 @@
             <option value="2">2</option>
             <option value="3" selected>3</option>
         </select>
+        <div id="error-channels_to_write" class="field-error invalid-feedback d-block"></div>
     </div>
     
     <div id="channelTabs" class="mb-4">
@@ -30,6 +31,7 @@
                         <div class="col-md-6">
                             <label for="channel0Name" class="form-label">Channel Name</label>
                             <input type="text" class="form-control" id="channel0Name" name="channel_0[name]" placeholder="Primary">
+                            <div id="error-channel_0.name" class="field-error invalid-feedback d-block"></div>
                         </div>
                         <div class="col-md-6">
                             <label for="channel0Precision" class="form-label">Position Precision</label>
@@ -44,6 +46,7 @@
                                 <option value="20">20 - Maximum (~9in accuracy)</option>
                                 <option value="32">32 - FULL PRECISION (~2.3ft accuracy)</option>
                             </select>
+                            <div id="error-channel_0.precision" class="field-error invalid-feedback d-block"></div>
                             <div class="form-text text-muted">Higher precision uses more bandwidth</div>
                         </div>
                     </div>
@@ -56,18 +59,21 @@
                                     <i class="bi bi-key-fill me-1"></i>Generate
                                 </button>
                             </div>
-                            <div class="form-text text-muted">32-byte key in C-style hex format</div>
+                            <div id="error-channel_0.psk" class="field-error invalid-feedback d-block"></div>
+                            <div class="form-text text-muted">Base64 or hex. The key is 0, 1, 16 or 32 bytes.</div>
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-md-6">
                             <div class="form-check form-switch">
+                                <input type="hidden" name="channel_0[uplink_enabled]" value="false">
                                 <input class="form-check-input" type="checkbox" id="channel0Uplink" name="channel_0[uplink_enabled]" value="true" checked>
                                 <label class="form-check-label" for="channel0Uplink">Uplink Enabled</label>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-check form-switch">
+                                <input type="hidden" name="channel_0[downlink_enabled]" value="false">
                                 <input class="form-check-input" type="checkbox" id="channel0Downlink" name="channel_0[downlink_enabled]" value="true">
                                 <label class="form-check-label" for="channel0Downlink">Downlink Enabled</label>
                             </div>
@@ -83,6 +89,7 @@
                         <div class="col-md-6">
                             <label for="channel1Name" class="form-label">Channel Name</label>
                             <input type="text" class="form-control" id="channel1Name" name="channel_1[name]" placeholder="NodeChat">
+                            <div id="error-channel_1.name" class="field-error invalid-feedback d-block"></div>
                         </div>
                         <div class="col-md-6">
                             <label for="channel1Precision" class="form-label">Position Precision</label>
@@ -97,6 +104,7 @@
                                 <option value="20">20 - Maximum (~9in accuracy)</option>
                                 <option value="32">32 - FULL PRECISION (~2.3ft accuracy)</option>
                             </select>
+                            <div id="error-channel_1.precision" class="field-error invalid-feedback d-block"></div>
                             <div class="form-text text-muted">Higher precision uses more bandwidth</div>
                         </div>
                     </div>
@@ -109,18 +117,21 @@
                                     <i class="bi bi-key-fill me-1"></i>Generate
                                 </button>
                             </div>
-                            <div class="form-text text-muted">32-byte key in C-style hex format</div>
+                            <div id="error-channel_1.psk" class="field-error invalid-feedback d-block"></div>
+                            <div class="form-text text-muted">Base64 or hex. The key is 0, 1, 16 or 32 bytes.</div>
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-md-6">
                             <div class="form-check form-switch">
+                                <input type="hidden" name="channel_1[uplink_enabled]" value="false">
                                 <input class="form-check-input" type="checkbox" id="channel1Uplink" name="channel_1[uplink_enabled]" value="true">
                                 <label class="form-check-label" for="channel1Uplink">Uplink Enabled</label>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-check form-switch">
+                                <input type="hidden" name="channel_1[downlink_enabled]" value="false">
                                 <input class="form-check-input" type="checkbox" id="channel1Downlink" name="channel_1[downlink_enabled]" value="true">
                                 <label class="form-check-label" for="channel1Downlink">Downlink Enabled</label>
                             </div>
@@ -136,6 +147,7 @@
                         <div class="col-md-6">
                             <label for="channel2Name" class="form-label">Channel Name</label>
                             <input type="text" class="form-control" id="channel2Name" name="channel_2[name]" placeholder="YardSale">
+                            <div id="error-channel_2.name" class="field-error invalid-feedback d-block"></div>
                         </div>
                         <div class="col-md-6">
                             <label for="channel2Precision" class="form-label">Position Precision</label>
@@ -150,6 +162,7 @@
                                 <option value="20">20 - Maximum (~9in accuracy)</option>
                                 <option value="32">32 - FULL PRECISION (~2.3ft accuracy)</option>
                             </select>
+                            <div id="error-channel_2.precision" class="field-error invalid-feedback d-block"></div>
                             <div class="form-text text-muted">Higher precision uses more bandwidth</div>
                         </div>
                     </div>
@@ -162,18 +175,21 @@
                                     <i class="bi bi-key-fill me-1"></i>Generate
                                 </button>
                             </div>
-                            <div class="form-text text-muted">32-byte key in C-style hex format</div>
+                            <div id="error-channel_2.psk" class="field-error invalid-feedback d-block"></div>
+                            <div class="form-text text-muted">Base64 or hex. The key is 0, 1, 16 or 32 bytes.</div>
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-md-6">
                             <div class="form-check form-switch">
+                                <input type="hidden" name="channel_2[uplink_enabled]" value="false">
                                 <input class="form-check-input" type="checkbox" id="channel2Uplink" name="channel_2[uplink_enabled]" value="true">
                                 <label class="form-check-label" for="channel2Uplink">Uplink Enabled</label>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-check form-switch">
+                                <input type="hidden" name="channel_2[downlink_enabled]" value="false">
                                 <input class="form-check-input" type="checkbox" id="channel2Downlink" name="channel_2[downlink_enabled]" value="true">
                                 <label class="form-check-label" for="channel2Downlink">Downlink Enabled</label>
                             </div>

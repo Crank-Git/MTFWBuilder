@@ -144,6 +144,11 @@ Key endpoints:
 The three config routes validate the body with `ConfigRequest`. An invalid body returns
 422 with field errors, for example `channel_0.psk`.
 
+`/api/v1/preview` and `/api/v1/download` also take a form body with the config fields,
+for example `channel_0[psk]`. When the request has the header `HX-Request: true`, the
+preview returns an HTML fragment, and a 422 returns a fragment with the field errors.
+Every other request gets JSON.
+
 ## Docker
 
 ### Development
