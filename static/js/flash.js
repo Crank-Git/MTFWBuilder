@@ -186,6 +186,10 @@
         lastError = error;
         // The next attempt opens the port again, so this attempt must close it.
         await disconnect(transport);
+        // Each attempt syncs at the ROM rate of 115200, so a sync failure repeats at the lower rate.
+        if (String(error && error.message).includes(SYNC_FAILURE)) {
+          break;
+        }
       }
     }
     throw lastError;
@@ -210,7 +214,8 @@
       el('flash-error-text').textContent = message.includes(SYNC_FAILURE) ? NO_ESP32 : message;
       el('flash-manual').hidden = !plan;
       el('flash-command').textContent = plan ? manualCommand(mode, plan) : '';
-      showState(panel, ['flash-error']);
+      // The mode choice stays, so the operator can select Full install when an error advises it.
+      showState(panel, ['flash-error', 'flash-ready']);
     }
 
     async function run() {

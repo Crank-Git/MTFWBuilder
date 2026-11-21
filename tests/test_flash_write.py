@@ -265,6 +265,20 @@ def test_sync_failure_shows_no_esp32_found_and_writes_nothing():
     assert "flash-retry" in result["shown"]
 
 
+def test_sync_failure_does_not_retry_at_115200():
+    # esptool-js syncs at the ROM rate of 115200 in each attempt, so a second attempt cannot find a chip.
+    log = run(mode="update", syncFail=True)["log"]
+
+    assert [event for event in log if event.startswith("loader:new")] == ["loader:new:921600:true"]
+
+
+def test_error_state_keeps_the_mode_choice_so_the_operator_can_select_full_install():
+    result = run(mode="update", deviceTable=[[0x9000, 0x5000]])
+
+    assert "flash-error" in result["shown"]
+    assert {"flash-mode-full", "flash-start"} <= set(result["shown"])
+
+
 # Edge case: the operator unplugs the device during a write. Spec flow step 8: error, Retry, esptool.py command.
 
 
