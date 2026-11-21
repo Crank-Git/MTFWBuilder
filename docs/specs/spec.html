@@ -258,6 +258,8 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><td>time zone</td><td>noun</td><td>An IANA tz database name, for example <code>America/New_York</code>. The form sends a time zone.</td><td>timezone, tz name</td></tr>
 <tr><td>POSIX TZ string</td><td>noun</td><td>The <code>TZ</code> value that the firmware gives to <code>setenv</code>, for example <code>EST5EDT,M3.2.0,M11.1.0</code>.</td><td>tz string, timezone string</td></tr>
 <tr><td>Web Serial</td><td>noun</td><td>The browser API that opens a USB serial port from a page.</td><td>WebUSB</td></tr>
+<tr><td>ES module</td><td>noun</td><td>A JavaScript file that the browser loads with <code>import</code>. The project vendors ES modules in <code>static/vendor/</code>.</td><td>ESM bundle, module (alone)</td></tr>
+<tr><td>import map</td><td>noun</td><td>A <code>&lt;script type="importmap"&gt;</code> element that maps a bare import name to a URL.</td><td>module map</td></tr>
 <tr><td>SSE</td><td>noun</td><td>Server-Sent Events: a one-way HTTP stream from server to browser.</td><td>websocket</td></tr>
 </table></div>
 <h2 id="goals">Goals</h2>
@@ -392,7 +394,7 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><td>Web server</td><td>FastAPI + uvicorn, one process (<code>--workers 1</code>)</td><td>Built. Async builds and SSE. One process keeps the build queue in memory without a broker.</td></tr>
 <tr><td>Pages</td><td>Jinja2 templates + htmx 2 + htmx SSE extension, Bootstrap 5.3</td><td>Chosen in the interview: no JavaScript build step. htmx is loaded today but not used. ADR 0002.</td></tr>
 <tr><td>Browser flashing</td><td>ESP Web Tools 10.x / esptool-js 0.7 (Apache-2.0), vendored</td><td>Apache-2.0 is compatible with GPL-3.0. The official Web Flasher uses esptool-js.</td></tr>
-<tr><td>Push config</td><td><code>@meshtastic/core</code> + <code>@meshtastic/transport-web-serial</code> (GPL-3.0, JSR), or <code>meshtastic-sdk</code> JS when it reaches 0.3.0</td><td>The only maintained client libraries. Choice deferred to a spike in Epic 12.</td></tr>
+<tr><td>Push config</td><td><code>@meshtastic/core</code> 2.6.7 + <code>@meshtastic/transport-web-serial</code> 0.2.5 + <code>@meshtastic/transport-web-bluetooth</code> 0.1.5 (GPL-3.0-only, npm), vendored as esm.sh builds</td><td><code>meshtastic-sdk</code> has no JS release. ADR 0008.</td></tr>
 <tr><td>Data store</td><td>SQLite through aiosqlite</td><td>Built (schema only). Zero setup for a self-hoster. ADR 0003.</td></tr>
 <tr><td>Firmware build</td><td>PlatformIO Core 6.2 (<code>pioarduino</code> core for ESP32 on firmware 2.8)</td><td>Upstream build system. Source: <code>meshtastic/gh-action-firmware</code>.</td></tr>
 <tr><td>Packaging</td><td><code>pyproject.toml</code> + hatchling, uv + <code>uv.lock</code> (Epic 4)</td><td>Interview choice (stack modernization).</td></tr>
@@ -662,10 +664,10 @@ body.rv-open .layout { padding-right:21rem; }
 </ul>
 <p>without notice. Mitigation: contract tests against the fixture firmware source, and a scheduled CI job against upstream <code>develop</code>.</p>
 <ul>
-<li><strong>JS client library in flux.</strong> <code>meshtastic/js</code> is archived. <code>meshtastic-sdk</code> JS is
+<li><strong>JS client library in flux.</strong> <code>meshtastic/js</code> is archived, and upstream publishes no
 </li>
 </ul>
-<p>"snapshot only until 0.3.0". Epic 12 starts with a spike to choose.</p>
+<p><code>@meshtastic/core</code> after 2.6.7. Its protobufs are 2.7.8. <code>meshtastic-sdk</code> has no JS release. ADR 0008 records the choice and the gaps.</p>
 <ul>
 <li><strong>Disk use.</strong> Each firmware version plus its toolchains uses several GB. Mitigation: an
 </li>

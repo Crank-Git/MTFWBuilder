@@ -98,12 +98,13 @@ Mockup: [08-push-config](../mockups/08-push-config.html).
 ## Behaviour rules
 
 - AdminMessage reference: protobufs `meshtastic/admin.proto` at tag `v2.8.3`.
-- Library candidates (checked 2026-11-21):
-  - `@meshtastic/core` 2.6.6, `@meshtastic/transport-web-serial` 0.2.5,
-    `@meshtastic/transport-web-bluetooth` 0.1.2 on https://jsr.io/@meshtastic. GPL-3.0.
-    The source repo `meshtastic/js` is archived.
-  - `meshtastic-sdk` (https://github.com/meshtastic/meshtastic-sdk), Kotlin Multiplatform,
-    GPL-3.0. Its JS build is "snapshot only until 0.3.0".
+- Library: `@meshtastic/core` 2.6.7, `@meshtastic/transport-web-serial` 0.2.5 and
+  `@meshtastic/transport-web-bluetooth` 0.1.5 from npm, GPL-3.0-only (ADR 0008).
+  The page loads them from `static/vendor/` as three esm.sh builds with an import map.
+- The core build carries protobufs 2.7.8. It has no `ModuleConfig` fields
+  `statusmessage` and `traffic_management` (ADR 0008).
+- `meshtastic-sdk` (https://github.com/meshtastic/meshtastic-sdk) has no JS release, so
+  the project does not use it (ADR 0008).
 - Web Bluetooth: Chrome and Edge on desktop and Android.
 
 ## Data touched
@@ -137,5 +138,6 @@ Pushes to many devices at once. Push over TCP/HTTP.
 
 ## Open questions
 
-- Which library: decided by the spike in FR-push-config-1. Not blocking: the epic is
-  last.
+- Which library: decided by the spike in FR-push-config-1 (ADR 0008).
+- FR-push-config-2 says "one prebuilt ES module". ADR 0008 vendors three ES modules.
+  The owner rules on the layout (#71).

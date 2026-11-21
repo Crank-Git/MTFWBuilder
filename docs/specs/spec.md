@@ -140,6 +140,8 @@ the header of `userPrefs.jsonc` in `meshtastic/firmware` `develop@fe89ac1`.
 | time zone | noun | An IANA tz database name, for example `America/New_York`. The form sends a time zone. | timezone, tz name |
 | POSIX TZ string | noun | The `TZ` value that the firmware gives to `setenv`, for example `EST5EDT,M3.2.0,M11.1.0`. | tz string, timezone string |
 | Web Serial | noun | The browser API that opens a USB serial port from a page. | WebUSB |
+| ES module | noun | A JavaScript file that the browser loads with `import`. The project vendors ES modules in `static/vendor/`. | ESM bundle, module (alone) |
+| import map | noun | A `<script type="importmap">` element that maps a bare import name to a URL. | module map |
 | SSE | noun | Server-Sent Events: a one-way HTTP stream from server to browser. | websocket |
 
 ## Goals
@@ -252,7 +254,7 @@ the database is not used (see `features/02-firmware-builder.md`).
 | Web server | FastAPI + uvicorn, one process (`--workers 1`) | Built. Async builds and SSE. One process keeps the build queue in memory without a broker. |
 | Pages | Jinja2 templates + htmx 2 + htmx SSE extension, Bootstrap 5.3 | Chosen in the interview: no JavaScript build step. htmx is loaded today but not used. ADR 0002. |
 | Browser flashing | ESP Web Tools 10.x / esptool-js 0.7 (Apache-2.0), vendored | Apache-2.0 is compatible with GPL-3.0. The official Web Flasher uses esptool-js. |
-| Push config | `@meshtastic/core` + `@meshtastic/transport-web-serial` (GPL-3.0, JSR), or `meshtastic-sdk` JS when it reaches 0.3.0 | The only maintained client libraries. Choice deferred to a spike in Epic 12. |
+| Push config | `@meshtastic/core` 2.6.7 + `@meshtastic/transport-web-serial` 0.2.5 + `@meshtastic/transport-web-bluetooth` 0.1.5 (GPL-3.0-only, npm), vendored as esm.sh builds | `meshtastic-sdk` has no JS release. ADR 0008. |
 | Data store | SQLite through aiosqlite | Built (schema only). Zero setup for a self-hoster. ADR 0003. |
 | Firmware build | PlatformIO Core 6.2 (`pioarduino` core for ESP32 on firmware 2.8) | Upstream build system. Source: `meshtastic/gh-action-firmware`. |
 | Packaging | `pyproject.toml` + hatchling, uv + `uv.lock` (Epic 4) | Interview choice (stack modernization). |
@@ -494,8 +496,9 @@ Planned: a test fixture holds a small firmware source subset (a few variant
 - **Upstream churn.** Upstream changes userPrefs keys, artifact names and toolchains
   without notice. Mitigation: contract tests against the fixture firmware source, and a
   scheduled CI job against upstream `develop`.
-- **JS client library in flux.** `meshtastic/js` is archived. `meshtastic-sdk` JS is
-  "snapshot only until 0.3.0". Epic 12 starts with a spike to choose.
+- **JS client library in flux.** `meshtastic/js` is archived, and upstream publishes no
+  `@meshtastic/core` after 2.6.7. Its protobufs are 2.7.8. `meshtastic-sdk` has no JS
+  release. ADR 0008 records the choice and the gaps.
 - **Disk use.** Each firmware version plus its toolchains uses several GB. Mitigation: an
   admin removes firmware versions from the firmware sources page.
 - **ESP32 2.8 toolchain.** Firmware 2.8 uses the pioarduino platform and fetches ESP-IDF

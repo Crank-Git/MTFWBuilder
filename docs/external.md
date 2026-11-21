@@ -50,6 +50,8 @@ entry stays on disk after the last use. With `MTFW_CACHE_ENABLED=false`, a build
 | api.meshtastic.org | Stable/alpha firmware list (`GET /github/firmware/list`) | No published docs. Shape from `meshtastic/web-flasher` `types/api.ts`. |
 | meshtastic/firmware | Firmware source | https://github.com/meshtastic/firmware |
 | meshtastic/protobufs | Enum and config reference | https://github.com/meshtastic/protobufs |
+| npm registry (`@meshtastic/core`, `@meshtastic/transport-web-serial`, `@meshtastic/transport-web-bluetooth`) | Push config library versions and tarball SHA-1 values | https://registry.npmjs.org/@meshtastic%2Fcore. ADR 0008. |
+| esm.sh | Source of the vendored push config ES modules. A maintainer downloads them once; the pages never load from it. | https://github.com/esm-dev/esm.sh. ADR 0008 holds the URLs and SHA-256 values. |
 
 ## Support
 
