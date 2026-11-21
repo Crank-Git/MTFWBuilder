@@ -32,7 +32,7 @@ Settings read `config.yaml` first, then `MTFW_<FIELD>` environment variables
 | `MTFW_INSTALL_TIMEOUT_SECONDS` | Time limit of `pio pkg install` in a firmware install, default 3600 | built |
 | `MTFW_CACHE_ENABLED`, `MTFW_CACHE_TTL_SECONDS` | Build cache | planned, feature 14 |
 | `MTFW_MAX_FLEET_SIZE` | Fleet size limit | planned, feature 14 |
-| `GITHUB_TOKEN` | Optional. Raises the GitHub API rate limit for firmware lists and source downloads | built for installs; firmware lists in feature 09 |
+| `GITHUB_TOKEN` | Optional. Raises the GitHub API rate limit for firmware lists and source downloads | built |
 | `PLATFORMIO_FORCE_COLOR`, `PLATFORMIO_NO_ANSI` | Set by the build for `pio` | built |
 | `PLATFORMIO_CORE_DIR` | PlatformIO toolchain directory (Docker volume) | planned, feature 08 |
 
@@ -41,7 +41,7 @@ Settings read `config.yaml` first, then `MTFW_<FIELD>` environment variables
 | Service | Use | Docs |
 |---|---|---|
 | GitHub REST API (releases) | Firmware version list and zipball | https://docs.github.com/en/rest/releases/releases |
-| api.meshtastic.org | Stable/alpha firmware list | No published docs. Used by `meshtastic/web-flasher`. |
+| api.meshtastic.org | Stable/alpha firmware list (`GET /github/firmware/list`) | No published docs. Shape from `meshtastic/web-flasher` `types/api.ts`. |
 | meshtastic/firmware | Firmware source | https://github.com/meshtastic/firmware |
 | meshtastic/protobufs | Enum and config reference | https://github.com/meshtastic/protobufs |
 

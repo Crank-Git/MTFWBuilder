@@ -79,6 +79,15 @@ entry keeps only `tag_name`, `name`, `prerelease`, `draft`, `published_at` and
 `zipball_url`. It holds a revoked alpha (`v2.8.2.4c89b69`) with the same version numbers as
 the newest alpha (`v2.8.2.d5f1619`). The install tests read it in place of the GitHub API.
 
+## Firmware list
+
+`firmware_list.json` is the response of
+`GET https://api.meshtastic.org/github/firmware/list`, retrieved 2026-11-21. Each entry keeps
+only `id`, `title`, `page_url` and `zip_url`, and `pullRequests` keeps its first 2 entries.
+The API has no published docs. `meshtastic/web-flasher` (`types/api.ts`, commit
+`6b3b347`) gives the shape `FirmwareReleases`. The response holds no release date and no
+revoked alpha. The catalog tests read it in place of the API.
+
 ## License
 
 The upstream firmware is GPL-3.0. This project is GPL-3.0-or-later (ADR 0004), so it

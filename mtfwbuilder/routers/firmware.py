@@ -1,5 +1,6 @@
-"""Firmware version routes: the installed firmware sources, and the install and the removal of firmware versions."""
+"""Firmware version routes: the installed and the upstream firmware versions, and their install and removal."""
 
+import asyncio
 import logging
 
 import requests
@@ -8,8 +9,9 @@ from sse_starlette.sse import EventSourceResponse
 
 from mtfwbuilder.auth import require_admin
 from mtfwbuilder.database import list_firmware_sources
-from mtfwbuilder.models import FirmwareSource, InstallRequest
+from mtfwbuilder.models import AvailableFirmwareVersions, FirmwareSource, InstallRequest
 from mtfwbuilder.services import firmware_updater
+from mtfwbuilder.services.firmware_catalog import CatalogUnavailable
 
 logger = logging.getLogger("mtfwbuilder.firmware_versions")
 
@@ -20,6 +22,19 @@ router = APIRouter(prefix="/api/v1/firmware", tags=["firmware versions"])
 async def list_installed(request: Request):
     """Return the installed firmware versions, the newest installed first."""
     return await list_firmware_sources(request.app.state.settings.database_path)
+
+
+@router.get("/available", response_model=AvailableFirmwareVersions, dependencies=[Depends(require_admin)])
+async def available(request: Request):
+    """Return the upstream stable and alpha firmware versions, from api.meshtastic.org or else from GitHub.
+
+    Returns 502 when both upstreams fail.
+    """
+    try:
+        return await asyncio.to_thread(request.app.state.firmware_catalog.available)
+    except CatalogUnavailable as e:
+        logger.error(f"No upstream firmware list: {e}")
+        raise HTTPException(status_code=502, detail="Cannot reach api.meshtastic.org or GitHub.") from e
 
 
 @router.post("/install", status_code=202, dependencies=[Depends(require_admin)])
