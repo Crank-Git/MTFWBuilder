@@ -33,7 +33,7 @@ The project uses `@meshtastic/core` 2.6.7, `@meshtastic/transport-web-serial` 0.
 
 #72 vendors three ES modules. Each comes from esm.sh, at `target=es2022`:
 
-| File in `static/vendor/` | Source URL | Size | SHA-256 |
+| File in `static/vendor/meshtastic/` | Source URL | Size | SHA-256 |
 |---|---|---|---|
 | `meshtastic-core-2.6.7.mjs` | https://esm.sh/@meshtastic/core@2.6.7/es2022/core.bundle.mjs | 255,589 | `81958cacb658d8da946c207ff90db5ab5c0ec07191fce66a3ced379a29e39864` |
 | `meshtastic-transport-web-serial-0.2.5.mjs` | https://esm.sh/@meshtastic/transport-web-serial@0.2.5/X-ZUBtZXNodGFzdGljL2NvcmU/es2022/transport-web-serial.bundle.mjs | 3,154 | `ecca82a550bac1577fd060d75c8a45ea9fcb54b1b88b4f034ee227a947bed88f` |
@@ -45,7 +45,7 @@ The page resolves `@meshtastic/core` with an import map before its module script
 
 ```html
 <script type="importmap">
-  {"imports": {"@meshtastic/core": "/static/vendor/meshtastic-core-2.6.7.mjs"}}
+  {"imports": {"@meshtastic/core": "/static/vendor/meshtastic/meshtastic-core-2.6.7.mjs"}}
 </script>
 ```
 
@@ -55,8 +55,8 @@ The import map gives the page and both transports one copy of the core module. C
 
 1. Download each URL with `curl -sL`.
 2. Compare the SHA-256 with the table. If a hash differs, stop and ask.
-3. Copy each file to `static/vendor/` under the name in the table, without changes.
-4. Add the three files and the npm tarball SHA-1 values to `static/vendor/README.md`.
+3. Copy each file to `static/vendor/meshtastic/` under the name in the table, without changes.
+4. Add the three files and the npm tarball SHA-1 values to `static/vendor/meshtastic/README.md`.
 
 | Package | Tarball SHA-1 |
 |---|---|
