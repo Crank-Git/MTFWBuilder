@@ -219,7 +219,8 @@ class ConfigRequest(_UserPrefsFields):
     def _check_managed_mode(cls, value: str | None, info: ValidationInfo) -> str | None:
         """Reject managed mode without an admin key, with the managed-mode message.
 
-        Without an admin key, a managed device rejects every config change, and only a factory reset recovers it.
+        Upstream `src/mesh/NodeDB.cpp` notes that a managed device without an admin key accepts no config change.
+        Only a factory reset then recovers it.
         """
         if value == "true" and not any(info.data.get(f) for f in ("admin_key_0", "admin_key_1", "admin_key_2")):
             raise ValueError(MANAGED_MODE_MESSAGE)
