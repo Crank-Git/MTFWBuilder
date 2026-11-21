@@ -110,7 +110,7 @@ def _match_saved(devices: list[FleetDevice], saved: dict[int, tuple[str, str | N
     claimed = set(matches)
     by_label = {label: device_id for device_id, (label, _) in saved.items() if device_id not in claimed}
     for index, device in enumerate(devices):
-        if matches[index] is None and device.id is None:
+        if matches[index] is None:
             matches[index] = by_label.pop(device.label, None)
     return matches
 

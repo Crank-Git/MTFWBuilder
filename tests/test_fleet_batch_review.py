@@ -454,17 +454,20 @@ async def test_put_devices_matches_a_renamed_row_by_its_id_and_keeps_its_admin_k
     assert devices[0]["has_admin_key"] is True
 
 
-async def test_put_devices_with_an_id_of_another_fleet_makes_a_new_fleet_device(client):
+async def test_put_devices_matches_an_id_only_inside_its_own_fleet(client):
     first = await _editor_fleet(client)
     second = await _editor_fleet(client, "Other")
-    other_id = (await client.put(f"/api/v1/fleets/{first}/devices", json={"devices": [{"label": "a"}]})).json()[
-        "devices"
-    ][0]["id"]
+    put_first = await client.put(f"/api/v1/fleets/{first}/devices", json={"devices": [{"label": "a"}]})
+    put_second = await client.put(f"/api/v1/fleets/{second}/devices", json={"devices": [{"label": "y"}]})
+    other_id, own_id = put_first.json()["devices"][0]["id"], put_second.json()["devices"][0]["id"]
 
-    response = await client.put(f"/api/v1/fleets/{second}/devices", json={"devices": [{"id": other_id, "label": "x"}]})
+    rows = [{"id": own_id, "label": "y-renamed"}, {"id": other_id, "label": "x"}]
+    response = await client.put(f"/api/v1/fleets/{second}/devices", json={"devices": rows})
 
-    assert response.json()["devices"][0]["id"] != other_id
-    assert (await client.get(f"/api/v1/fleets/{first}")).json()["devices"][0]["label"] == "a"
+    devices = response.json()["devices"]
+    assert (devices[0]["id"], devices[0]["label"]) == (own_id, "y-renamed")
+    assert devices[1]["id"] not in (own_id, other_id)
+    assert [device["label"] for device in (await client.get(f"/api/v1/fleets/{first}")).json()["devices"]] == ["a"]
 
 
 async def test_the_device_routes_of_the_page_return_no_admin_key_to_an_admin_session(client, settings):

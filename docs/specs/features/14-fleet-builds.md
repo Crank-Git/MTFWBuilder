@@ -135,8 +135,8 @@ keeps the fleet run URL, the same as the URL of a single build.
 - A fleet run of an admin session uses the stored secrets of the profile, so it needs the
   CSRF token.
 - A fleet device id stays the same after a save. The fleet editor sends the id of each
-  saved row, so a renamed label keeps its fleet device. A row without an id gets the
-  saved fleet device with the same label.
+  saved row, so a renamed label keeps its fleet device. A row without the id of a saved
+  fleet device of the fleet gets the saved fleet device with the same label.
 - A label is unique in a fleet and holds at most 64 characters.
 - A fleet device position needs both `lat` and `lon`. One coordinate alone is a row
   error.
