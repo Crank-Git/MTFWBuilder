@@ -14,7 +14,7 @@ _BYTE_LIST = re.compile(r"\{\s*(0x[0-9a-fA-F]{1,2}(?:\s*,\s*0x[0-9a-fA-F]{1,2})*
 def decode_key(value: str) -> bytes:
     """Return the bytes of a key in hex, `{ 0x.. }` or base64 form.
 
-    Hex is tried before base64. A base64 key of 16 or 32 bytes ends in `=`, so it is never hex.
+    The function tries hex before base64. A base64 key of 16 or 32 bytes ends in `=`, so it never matches hex.
 
     Raises:
         ValueError: The value is not in one of the three forms.
