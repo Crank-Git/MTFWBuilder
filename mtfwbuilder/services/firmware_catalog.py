@@ -20,6 +20,8 @@ MESHTASTIC_LIST_URL = "https://api.meshtastic.org/github/firmware/list"
 # The admin page waits for the list, so a slow upstream fails fast and the fallback runs.
 TIMEOUT_SECONDS = 10
 CHANNELS = ("stable", "alpha")
+# Each admin page load reads the list, and a cache keeps the requests below the anonymous GitHub rate limit.
+CACHE_SECONDS = 300
 
 
 class CatalogUnavailable(ReleaseNotFound):
@@ -70,13 +72,12 @@ def _from_github() -> dict:
 
 
 class FirmwareCatalog:
-    """Give the upstream firmware versions, and keep the last list in memory for `cache_seconds`.
+    """Give the upstream firmware versions, and keep the last list in memory for `CACHE_SECONDS`.
 
     The methods make blocking requests, so an async caller runs them in a worker thread.
     """
 
-    def __init__(self, cache_seconds: float = 300, clock: Callable[[], float] = time.monotonic):
-        self.cache_seconds = cache_seconds
+    def __init__(self, clock: Callable[[], float] = time.monotonic):
         self.clock = clock
         self._lock = threading.Lock()
         self._cached: dict | None = None
@@ -90,7 +91,7 @@ class FirmwareCatalog:
         """
         # The lock keeps two threads with an expired cache to one upstream request.
         with self._lock:
-            if self._cached is not None and self.clock() - self._cached_at < self.cache_seconds:
+            if self._cached is not None and self.clock() - self._cached_at < CACHE_SECONDS:
                 return self._cached
             try:
                 result = _from_meshtastic()

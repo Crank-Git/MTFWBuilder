@@ -190,9 +190,9 @@ def test_both_upstreams_failed_raises_catalog_unavailable(upstream):
         FirmwareCatalog().available()
 
 
-def test_list_is_cached_for_the_cache_time(upstream):
+def test_list_is_cached_for_300_seconds(upstream):
     now = [1000.0]
-    catalog = FirmwareCatalog(cache_seconds=300, clock=lambda: now[0])
+    catalog = FirmwareCatalog(clock=lambda: now[0])
 
     catalog.available()
     now[0] += 299
