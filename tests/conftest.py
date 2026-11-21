@@ -1,5 +1,6 @@
 """Shared test fixtures."""
 
+import asyncio
 import os
 import tempfile
 from pathlib import Path
@@ -9,16 +10,21 @@ import yaml
 
 from mtfwbuilder.auth import CSRF_COOKIE, SESSION_COOKIE, create_session_token, csrf_token
 from mtfwbuilder.config import _hash_password, load_settings
+from mtfwbuilder.database import init_db, record_firmware_source
 from mtfwbuilder.main import create_app
 from mtfwbuilder.rate_limit import configure_rate_limits, limiter
 from mtfwbuilder.services.build_service import BuildQueue
 from mtfwbuilder.services.device_registry import DeviceRegistry
+from mtfwbuilder.services.firmware_catalog import FirmwareCatalog
+from mtfwbuilder.services.firmware_updater import FirmwareInstalls
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # A local config.yaml often sets another password, so the tests own theirs.
 ADMIN_PASSWORD = "test-admin-password"
 SECRET_KEY = "test-secret-key"
+# The firmware version of the firmware fixture and of the fake `pio`.
+FIRMWARE_VERSION = "v2.7.26.54e0d8d"
 
 # bcrypt is slow by design, so the suite hashes the password once.
 _ADMIN_PASSWORD_HASH = _hash_password(ADMIN_PASSWORD)
@@ -104,14 +110,38 @@ def app(settings):
 
     The build queue has no build workers. A test that needs them calls `build_queue.start()`.
     """
+    # A test app has no lifespan, and a build request reads the `firmware_sources` table.
+    asyncio.run(init_db(settings))
     app = create_app()
     app.state.settings = settings
     configure_rate_limits(settings)
     app.state.device_registry = DeviceRegistry(settings.devices_file)
     app.state.build_queue = BuildQueue(settings)
+    app.state.firmware_catalog = FirmwareCatalog()
+    app.state.firmware_installs = FirmwareInstalls(
+        settings, app.state.build_queue, resolver=app.state.firmware_catalog.resolve
+    )
     # The rate limit counts across tests, so each test starts with an empty count.
     limiter.reset()
     return app
+
+
+@pytest.fixture
+def firmware_source(settings):
+    """Return the directory `<firmware_dir>/<tag>/` of one installed firmware source, after its record is written."""
+    source_dir = settings.firmware_dir / FIRMWARE_VERSION
+    source_dir.mkdir(parents=True)
+    asyncio.run(init_db(settings))
+    record = {
+        "version": FIRMWARE_VERSION,
+        "channel": "stable",
+        "path": str(source_dir),
+        "installed_at": "2026-11-01T00:00:00+00:00",
+        "size_bytes": 0,
+        "status": "ready",
+    }
+    record_firmware_source(settings.database_path, record)
+    return source_dir
 
 
 @pytest.fixture

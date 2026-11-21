@@ -1,6 +1,7 @@
 """Pydantic models for request/response validation."""
 
 import re
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
@@ -445,3 +446,53 @@ class FilePreviewResponse(BaseModel):
     checks: dict | None = None
     filename: str | None = None
     error: str | None = None
+
+
+class FirmwareSource(BaseModel):
+    """One installed firmware version, as `GET /api/v1/firmware` lists it."""
+
+    version: str
+    channel: Literal["stable", "alpha", "pinned"]
+    installed_at: datetime
+    size_bytes: int
+    status: str
+
+
+class AvailableFirmwareVersion(BaseModel):
+    """One upstream firmware version. `date` is None when the list comes from api.meshtastic.org."""
+
+    tag: str
+    title: str
+    date: str | None
+    revoked: bool
+
+
+class AvailableFirmwareVersions(BaseModel):
+    """The body of `GET /api/v1/firmware/available`: the upstream lists, each newest first."""
+
+    source: Literal["api.meshtastic.org", "github"]
+    stable: list[AvailableFirmwareVersion]
+    alpha: list[AvailableFirmwareVersion]
+
+
+class InstallRequest(BaseModel):
+    """The body of `POST /api/v1/firmware/install`: one channel or one exact tag."""
+
+    channel: Literal["stable", "alpha"] | None = None
+    # The tag is also a directory name, so the pattern keeps a path separator out of it.
+    tag: str | None = Field(default=None, pattern=r"^v\d+\.\d+\.\d+\.[0-9a-f]{7}$")
+
+    @model_validator(mode="after")
+    def _one_of_channel_and_tag(self):
+        if (self.channel is None) == (self.tag is None):
+            raise ValueError("Give one of channel and tag")
+        return self
+
+
+class InstallStatus(BaseModel):
+    """SSE event for install progress."""
+
+    install_id: str
+    version: str
+    status: Literal["queued", "downloading", "extracting", "installing packages", "ready", "failed"]
+    error: str = ""

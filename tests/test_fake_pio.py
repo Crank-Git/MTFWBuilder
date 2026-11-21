@@ -101,3 +101,14 @@ def test_fake_rejects_an_unknown_env_name(firmware_dir):
     result = _run(firmware_dir, "heltec_v3")
     assert result.returncode == 1
     assert "Unknown environment names 'heltec_v3'" in result.stdout
+
+
+def test_fake_writes_the_version_of_fake_pio_version_in_the_artifact_names(firmware_dir):
+    # Upstream reads the firmware version from the firmware source, so each firmware source gives its own names.
+    (firmware_dir / ".fake-pio-version").write_text("2.8.2.d5f1619\n")
+    result = _run(firmware_dir, "pico")
+    assert result.returncode == 0, result.stdout
+    assert _artifacts(firmware_dir, "pico") == [
+        "firmware-pico-2.8.2.d5f1619.mt.json",
+        "firmware-pico-2.8.2.d5f1619.uf2",
+    ]

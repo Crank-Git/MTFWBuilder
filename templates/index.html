@@ -42,7 +42,7 @@
         <div class="alert alert-warning">The build needs JavaScript. Without JavaScript, you can download the userPrefs file only.</div>
     </noscript>
     <div class="row g-3 align-items-end">
-        <div class="col-md-8">
+        <div class="col-md-5">
             <label for="variant" class="form-label">Variant</label>
             <select class="form-select" id="variant" name="variant">
                 <option value="" selected>Choose a variant...</option>
@@ -55,9 +55,21 @@
                 {% endfor %}
             </select>
         </div>
+        {# The variant picker of Epic 6 reads the chosen firmware version from this named field. #}
         <div class="col-md-4">
+            <label for="firmware_version" class="form-label">Firmware version</label>
+            <select class="form-select" id="firmware_version" name="firmware_version"{% if not firmware_sources %} disabled{% endif %}>
+                {% for source in firmware_sources %}
+                <option value="{{ source.version }}"{% if source.version == default_firmware_version %} selected{% endif %}>{{ source.version }} ({{ source.channel }})</option>
+                {% else %}
+                <option value="">No firmware version is installed.</option>
+                {% endfor %}
+            </select>
+            <div id="error-firmware_version" class="field-error invalid-feedback d-block"></div>
+        </div>
+        <div class="col-md-3">
             <button type="button" class="btn btn-success w-100" id="buildBtn" disabled
-                    hx-post="/api/v1/build-firmware" hx-include="#configForm, #variant"
+                    hx-post="/api/v1/build-firmware" hx-include="#configForm, #variant, #firmware_version"
                     hx-vals='{"config_source": "form"}' hx-target="#build-panel">
                 <i class="bi bi-hammer me-2"></i>Build
             </button>

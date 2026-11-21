@@ -28,10 +28,10 @@ Settings read `config.yaml` first, then `MTFW_<FIELD>` environment variables
 | `MTFW_BUILD_RATE_LIMIT`, `MTFW_LOGIN_RATE_LIMIT` | Rate limits of the build route and the login route, in slowapi notation (`5/minute`) | built |
 | `MTFW_DATA_DIR` | Data directory. Holds firmware sources, artifacts, the database and `config.yaml`. Default `data/` in the project root, `/data` in Docker. | built |
 | `MTFW_TRUSTED_PROXIES` | Comma-separated addresses or subnets of the proxies whose `X-Forwarded-For` the rate limiter reads. Default empty: the limiter counts the peer address. | built |
-| `MTFW_INSTALL_TIMEOUT_SECONDS` | Firmware install timeout | planned, feature 09 |
+| `MTFW_INSTALL_TIMEOUT_SECONDS` | Time limit of `pio pkg install` in a firmware install, default 3600 | built |
 | `MTFW_CACHE_ENABLED`, `MTFW_CACHE_TTL_SECONDS` | Build cache | planned, feature 14 |
 | `MTFW_MAX_FLEET_SIZE` | Fleet size limit | planned, feature 14 |
-| `GITHUB_TOKEN` | Optional. Raises the GitHub API rate limit for firmware lists | planned, feature 09 |
+| `GITHUB_TOKEN` | Optional. Raises the GitHub API rate limit for firmware lists and source downloads | built |
 | `PLATFORMIO_FORCE_COLOR`, `PLATFORMIO_NO_ANSI` | Set by the build for `pio` | built |
 | `PLATFORMIO_CORE_DIR` | PlatformIO toolchain directory. The Docker image sets `/home/app/.platformio`, a volume. | built |
 
@@ -40,7 +40,7 @@ Settings read `config.yaml` first, then `MTFW_<FIELD>` environment variables
 | Service | Use | Docs |
 |---|---|---|
 | GitHub REST API (releases) | Firmware version list and zipball | https://docs.github.com/en/rest/releases/releases |
-| api.meshtastic.org | Stable/alpha firmware list | No published docs. Used by `meshtastic/web-flasher`. |
+| api.meshtastic.org | Stable/alpha firmware list (`GET /github/firmware/list`) | No published docs. Shape from `meshtastic/web-flasher` `types/api.ts`. |
 | meshtastic/firmware | Firmware source | https://github.com/meshtastic/firmware |
 | meshtastic/protobufs | Enum and config reference | https://github.com/meshtastic/protobufs |
 
