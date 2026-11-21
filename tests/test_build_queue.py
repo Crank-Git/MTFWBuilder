@@ -145,8 +145,11 @@ async def test_progress_stream_with_log_from_sends_each_log_line_after_that_inde
     assert lines == ctx.build_log[1:]
 
 
-async def test_progress_stream_with_a_negative_log_from_returns_422(app, client, firmware_source):
+@pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
+async def test_progress_stream_with_a_negative_log_from_returns_422(app, client):
     resp = await _post_build(client)
+    # An ended build closes its stream, so a regression fails this test and does not hang it.
+    await _wait_for(app.state.build_queue.get(resp.json()["build_id"]), {"complete", "failed", "cancelled"})
 
     stream = await client.get(f"{resp.json()['progress_url']}?log_from=-1")
 
