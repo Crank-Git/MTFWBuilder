@@ -198,9 +198,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const versionSelect = document.getElementById('firmware_version');
     if (versionSelect && versionSelect.value) {
         const loadKeyScan = () => {
-            fetch(`/api/v1/userprefs/keys?version=${encodeURIComponent(versionSelect.value)}`)
+            const version = versionSelect.value;
+            fetch(`/api/v1/userprefs/keys?version=${encodeURIComponent(version)}`)
                 .then(response => (response.ok ? response.json() : null))
-                .then(scan => { if (scan) applyKeyScan(scan); });
+                // A response can arrive after a later change of version, and then it is for the wrong form.
+                .then(scan => { if (scan && versionSelect.value === version) applyKeyScan(scan); });
         };
         versionSelect.addEventListener('change', loadKeyScan);
         // The browser can keep the chosen version after a reload, and then the rendered form is for another version.

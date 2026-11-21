@@ -1,5 +1,6 @@
 """E2E tests of the form for the chosen firmware version (FR-config-coverage-16, criterion 8)."""
 
+import re
 import shutil
 import sys
 
@@ -90,3 +91,31 @@ def test_channel_tabs_follow_the_channel_slots_of_the_firmware_version(page: Pag
     expect(page.locator("#channel-2-tab")).to_be_visible()
     expect(page.locator("#channel-3-tab")).to_be_hidden()
     expect(page.locator('#channelsToWrite option[value="4"]')).to_be_disabled()
+
+
+def _keys_url(version: str) -> re.Pattern:
+    return re.compile(rf"/api/v1/userprefs/keys\?version={re.escape(version)}$")
+
+
+def test_a_late_key_scan_of_a_version_that_is_no_longer_chosen_changes_nothing(page: Page, versions_server: str):
+    held = []
+
+    def hold(route):
+        # The test answers the request later, so the response for NEW arrives after the response for OLD.
+        held.append(route)
+
+    page.route(_keys_url(NEW), hold)
+    page.goto(f"{versions_server}/")
+    with page.expect_request(_keys_url(NEW)):
+        page.select_option("#firmware_version", NEW)
+    with page.expect_response(_keys_url(OLD)):
+        page.select_option("#firmware_version", OLD)
+
+    with page.expect_response(_keys_url(NEW)):
+        held[0].continue_()
+    # The page reads the JSON body after the response event, so the check waits for the handler of the late scan.
+    page.wait_for_timeout(200)
+
+    open_tab(page, "mesh-beacon")
+    expect(page.locator("#configForm")).to_have_attribute("data-firmware-version", OLD)
+    expect(page.locator("#meshBeaconMessage")).to_be_hidden()
