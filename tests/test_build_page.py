@@ -296,7 +296,7 @@ const sandbox = {
   document: {
     addEventListener: (type, fn) => { (listeners[type] = listeners[type] || []).push(fn); },
     getElementById: () => null,
-    querySelectorAll: () => [],
+    querySelectorAll: selector => (selector === '.field-error' ? [slot] : []),
     documentElement: { getAttribute: () => 'dark' },
   },
   crypto: globalThis.crypto,
@@ -306,12 +306,28 @@ const sandbox = {
 sandbox.window = sandbox;
 vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync(process.argv[1], 'utf8'), sandbox);
+const fire = (type, evt) => (listeners[type] || []).forEach(fn => fn(evt));
 const swap = { detail: { xhr: { status: 422 }, shouldSwap: false, isError: true } };
-(listeners['htmx:beforeSwap'] || []).forEach(fn => fn(swap));
+fire('htmx:beforeSwap', swap);
+// Each request comes from one control: the id names it, and `inForm` says if the config form holds it.
+const slot = { textContent: '' };
+const errorsAfter = {};
+[
+  ['build-state', false],
+  ['build-cancel', false],
+  ['previewBtn', true],
+  ['buildBtn', false],
+  ['build-retry', false],
+].forEach(([id, inForm]) => {
+  slot.textContent = 'the PSK is not 0, 1, 16 or 32 bytes';
+  fire('htmx:beforeRequest', { detail: { elt: { id, closest: sel => (inForm && sel === '#configForm' ? {} : null) } } });
+  errorsAfter[id] = slot.textContent;
+});
 console.log(JSON.stringify({
   keys: [...store.keys()],
   psk: [vm.runInContext('generatePSK()', sandbox), vm.runInContext('generatePSK()', sandbox)],
   swap: swap.detail,
+  errorsAfter,
 }));
 """
 
@@ -340,6 +356,16 @@ def test_psk_generator_fills_32_random_bytes_as_base64(main_js_run):
 def test_main_js_swaps_a_422_response_so_the_field_errors_show(main_js_run):
     assert main_js_run["swap"]["shouldSwap"] is True
     assert main_js_run["swap"]["isError"] is False
+
+
+def test_main_js_keeps_the_field_errors_during_a_build_status_refresh_or_a_cancel(main_js_run):
+    assert main_js_run["errorsAfter"]["build-state"] == "the PSK is not 0, 1, 16 or 32 bytes"
+    assert main_js_run["errorsAfter"]["build-cancel"] == "the PSK is not 0, 1, 16 or 32 bytes"
+
+
+@pytest.mark.parametrize("control", ["previewBtn", "buildBtn", "build-retry"])
+def test_main_js_clears_the_field_errors_when_a_preview_or_a_build_starts(main_js_run, control):
+    assert main_js_run["errorsAfter"][control] == ""
 
 
 def test_one_psk_generator_exists_in_the_pages():

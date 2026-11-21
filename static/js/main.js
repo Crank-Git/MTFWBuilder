@@ -1,17 +1,50 @@
 // An old page version stored the whole config, secrets included, under this key (FR-frontend-htmx-6).
 localStorage.removeItem('meshtastic_config');
 
+// The Build control and the Retry control post the config form to the build route.
+const BUILD_CONTROLS = ['buildBtn', 'build-retry'];
+
 // htmx does not swap a 4xx or 5xx response by default.
 // A 422 holds field errors, and a 503 holds the build queue full message.
+// Any other failed build request shows its message in the build panel, as text.
 document.addEventListener('htmx:beforeSwap', function(evt) {
-    if (evt.detail.xhr.status === 422 || evt.detail.xhr.status === 503) {
+    const xhr = evt.detail.xhr;
+    if (xhr.status === 422 || xhr.status === 503) {
         evt.detail.shouldSwap = true;
         evt.detail.isError = false;
+        return;
     }
+    if (xhr.status < 400 || !BUILD_CONTROLS.includes(evt.detail.elt.id)) {
+        return;
+    }
+    // FastAPI puts the message in `detail`, and slowapi puts it in `error`.
+    // A response without a message, for example a plain text 500, gets a message with the HTTP status.
+    let message = `The build did not start. The server returned HTTP ${xhr.status}.`;
+    try {
+        const body = JSON.parse(xhr.responseText);
+        const text = body && (body.detail ?? body.error);
+        if (typeof text === 'string') {
+            message = text;
+        }
+    } catch (e) {
+        if (!(e instanceof SyntaxError)) {
+            throw e;
+        }
+    }
+    const alert = document.createElement('div');
+    alert.className = 'alert alert-danger';
+    alert.setAttribute('role', 'alert');
+    alert.textContent = message;
+    evt.detail.target.replaceChildren(alert);
 });
 
-// The messages of the last preview no longer apply when the operator previews again.
-document.addEventListener('htmx:beforeRequest', function() {
+// A preview or a build checks the config again, so the messages of the last check no longer apply.
+// A build status refresh and a cancel do not check the config, so the messages stay.
+document.addEventListener('htmx:beforeRequest', function(evt) {
+    const elt = evt.detail.elt;
+    if (!BUILD_CONTROLS.includes(elt.id) && elt.closest('#configForm') === null) {
+        return;
+    }
     document.querySelectorAll('.field-error').forEach(slot => { slot.textContent = ''; });
     document.querySelectorAll('#configForm .is-invalid').forEach(field => field.classList.remove('is-invalid'));
 });

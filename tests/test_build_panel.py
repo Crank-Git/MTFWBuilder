@@ -317,6 +317,7 @@ const sandbox = {
     getElementById: id => ({ buildBtn: button, variant: variant })[id] || null,
     querySelectorAll: () => [],
     documentElement: { getAttribute: () => 'dark' },
+    createElement: tag => ({ tag, attributes: {}, setAttribute(k, v) { this.attributes[k] = v; } }),
   },
   crypto: globalThis.crypto,
   btoa: globalThis.btoa,
@@ -338,13 +339,29 @@ fire('htmx:sseBeforeMessage', {
   detail: { type: 'log', data: JSON.stringify({ line: '<b>x</b>' }) },
   preventDefault: () => { prevented = true; },
 });
-const swap = { detail: { xhr: { status: 503 }, shouldSwap: false, isError: true } };
+const buildBtn = { id: 'buildBtn', closest: () => null };
+const panel = { id: 'build-panel', children: null, replaceChildren(...nodes) { this.children = nodes; } };
+const swap = { detail: { elt: buildBtn, target: panel, xhr: { status: 503 }, shouldSwap: false, isError: true } };
 fire('htmx:beforeSwap', swap);
+// Each failed build request: the HTTP status and the response body.
+const failures = {};
+[
+  [400, JSON.stringify({ detail: 'Unknown device variant: <b>x</b>' })],
+  [404, JSON.stringify({ detail: 'Not Found' })],
+  [429, JSON.stringify({ error: 'Rate limit exceeded: 10 per 1 minute' })],
+  [500, 'Internal Server Error'],
+].forEach(([status, responseText]) => {
+  panel.children = null;
+  const evt = { detail: { elt: buildBtn, target: panel, xhr: { status, responseText }, shouldSwap: false, isError: true } };
+  fire('htmx:beforeSwap', evt);
+  const [alert] = panel.children || [];
+  failures[status] = alert && { tag: alert.tag, text: alert.textContent, role: alert.attributes.role, shouldSwap: evt.detail.shouldSwap };
+});
 const closed = [];
 ['compiling', 'complete'].forEach(status => fire('htmx:sseMessage', {
   detail: { type: 'status', data: JSON.stringify({ status }), target: { close: () => closed.push(status) } },
 }));
-console.log(JSON.stringify({ before, after: button.disabled, appended, prevented, swap: swap.detail, closed }));
+console.log(JSON.stringify({ before, after: button.disabled, appended, prevented, swap: { shouldSwap: swap.detail.shouldSwap }, closed, failures }));
 """
 
 
@@ -370,6 +387,20 @@ def test_main_js_appends_each_log_line_as_text(main_js_run):
 
 def test_main_js_swaps_a_503_response_so_the_queue_full_message_shows(main_js_run):
     assert main_js_run["swap"]["shouldSwap"] is True
+
+
+@pytest.mark.parametrize(
+    ("status", "message"),
+    [
+        ("400", "Unknown device variant: <b>x</b>"),
+        ("404", "Not Found"),
+        ("429", "Rate limit exceeded: 10 per 1 minute"),
+        ("500", "The build did not start. The server returned HTTP 500."),
+    ],
+)
+def test_main_js_shows_the_message_of_a_failed_build_request_as_text_in_the_build_panel(main_js_run, status, message):
+    alert = main_js_run["failures"][status]
+    assert alert == {"tag": "div", "text": message, "role": "alert", "shouldSwap": False}
 
 
 def test_main_js_closes_the_progress_stream_on_an_ended_build_status_only(main_js_run):
