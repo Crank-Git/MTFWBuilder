@@ -1,7 +1,8 @@
-"""Decode a Meshtastic channel URL, and map a `meshtastic --export-config` file to the config form.
+"""Decode and encode a Meshtastic channel URL, and map a `meshtastic --export-config` file to the config form.
 
 The URL format is `Node.getURL` and `Node.setURL` in `meshtastic/node.py` of the `meshtastic` package 2.7.11:
 the fragment is the URL-safe base64 form, without padding, of a `ChannelSet` protobuf.
+The export of a config encodes the channels and the LoRa settings that the firmware gets from the config.
 
 The export format is `export_config` in `meshtastic/__main__.py` of the same package. Its `config` and
 `module_config` parts are `MessageToDict` output: camelCase field names and enum names. An enum value that the
@@ -10,20 +11,24 @@ package does not know is a number.
 
 import base64
 import binascii
+import io
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlsplit
 
+import segno
 import yaml
 from google.protobuf.message import DecodeError
-from meshtastic.protobuf import apponly_pb2, channel_pb2
+from meshtastic.protobuf import apponly_pb2, channel_pb2, config_pb2
 from meshtastic.util import camel_to_snake
 from pydantic import ValidationError
 
+from mtfwbuilder.key_bytes import decode_key
 from mtfwbuilder.meshtastic_enums import MODEM_PRESETS, REGIONS
 from mtfwbuilder.models import (
     CHANNEL_SLOTS,
+    ChannelConfig,
     ChannelUrlImport,
     CliYamlImport,
     ConfigRequest,
@@ -119,6 +124,98 @@ def decode_channel_url(url: str) -> ChannelUrlImport:
         add=_QUERIES[parts.query],
         warnings=warnings,
     )
+
+
+# Upstream `Channels::initDefaultChannel` gives each written channel slot this PSK and this position precision.
+_DEFAULT_PSK = b"\x01"
+_DEFAULT_POSITION_PRECISION = 13
+# Upstream `NodeDB.cpp` sets `HOP_RELIABLE`, and the config form has no hop limit field.
+_DEFAULT_HOP_LIMIT = 3
+_MAX_UINT32 = 0xFFFFFFFF
+NOT_UINT32_MESSAGE = f"the value is not a whole number from 0 to {_MAX_UINT32}"
+
+
+class InvalidExportField(ValueError):
+    """A config field that the channel URL holds as a `uint32` is not a whole number in the `uint32` range."""
+
+    def __init__(self, location: tuple[str, ...]):
+        super().__init__(NOT_UINT32_MESSAGE)
+        self.location = location
+
+
+def _uint32(value: str | None, default: int, location: tuple[str, ...]) -> int:
+    """Return `value` as a number, or `default` when `value` is empty.
+
+    Raises:
+        InvalidExportField: `value` is not a whole number in the `uint32` range.
+    """
+    if not value:
+        return default
+    # `ConfigRequest` does not check these fields, and protobuf rejects a number outside the `uint32` range.
+    if not (value.isascii() and value.isdigit() and int(value) <= _MAX_UINT32):
+        raise InvalidExportField(location)
+    return int(value)
+
+
+def _settings(slot: int, channel: ChannelConfig | None) -> channel_pb2.ChannelSettings:
+    """Return the settings that the firmware gives a written channel slot with the fields of `channel`."""
+    channel = channel or ChannelConfig()
+    is_muted = channel.muted == "true"
+    precision = _uint32(channel.precision, _DEFAULT_POSITION_PRECISION, (f"channel_{slot}", "precision"))
+    # An empty `module_settings` message adds two bytes, so the URL of an imported channel changes.
+    module_settings = channel_pb2.ModuleSettings(position_precision=precision, is_muted=is_muted)
+    return channel_pb2.ChannelSettings(
+        name=channel.name or "",
+        psk=decode_key(channel.psk or "") or _DEFAULT_PSK,
+        uplink_enabled=channel.uplink_enabled == "true",
+        downlink_enabled=channel.downlink_enabled == "true",
+        module_settings=module_settings if precision or is_muted else None,
+    )
+
+
+def _lora(config: ConfigRequest) -> config_pb2.Config.LoRaConfig:
+    """Return the LoRa settings that the firmware gets from the config."""
+    lora = config_pb2.Config.LoRaConfig(use_preset=True, hop_limit=_DEFAULT_HOP_LIMIT, tx_enabled=True)
+    # The generator writes no LoRa key when the LoRa switch is off, so the firmware keeps its defaults.
+    if config.lora_enabled != "true":
+        return lora
+    if config.lora_region:
+        lora.region = _REGION_NAMES.index(config.lora_region.removeprefix(REGIONS.c_prefix))
+    if config.lora_modem_preset:
+        # The package enum stops at `NARROW_SLOW`, but the field takes any number.
+        lora.modem_preset = _PRESET_NAMES.index(config.lora_modem_preset.removeprefix(MODEM_PRESETS.c_prefix))
+    lora.channel_num = _uint32(config.lora_channel_num, 0, ("lora_channel_num",))
+    lora.tx_power = int(config.lora_tx_power or 0)
+    lora.tx_enabled = config.lora_tx_disabled != "true"
+    lora.ignore_mqtt = config.lora_ignore_mqtt == "true"
+    lora.config_ok_to_mqtt = config.lora_config_ok_to_mqtt == "true"
+    return lora
+
+
+def encode_channel_url(config: ConfigRequest) -> str:
+    """Return the channel URL of the channels and the LoRa settings that a build of the config gives.
+
+    The URL holds the channel slots that `channels_to_write` counts, in the form of upstream `Node.getURL`.
+    A field that the config leaves empty takes the firmware default.
+
+    Raises:
+        InvalidExportField: A channel precision or the LoRa channel number is not a `uint32` number.
+    """
+    slots = range(int(config.channels_to_write))
+    channel_set = apponly_pb2.ChannelSet(
+        settings=[_settings(slot, getattr(config, f"channel_{slot}")) for slot in slots],
+        lora_config=_lora(config),
+    )
+    fragment = base64.urlsafe_b64encode(channel_set.SerializeToString()).decode("ascii").rstrip("=")
+    return f"https://meshtastic.org/e/#{fragment}"
+
+
+def qr_svg(text: str) -> str:
+    """Return an SVG document of a QR code that holds `text`."""
+    buffer = io.BytesIO()
+    # A phone camera reads a regular QR code, and segno picks a Micro QR code for a short text by default.
+    segno.make(text, error="m", micro=False).save(buffer, kind="svg", xmldecl=False, scale=4)
+    return buffer.getvalue().decode("utf-8")
 
 
 MAX_EXPORT_BYTES = 64 * 1024

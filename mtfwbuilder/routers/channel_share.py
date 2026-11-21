@@ -1,21 +1,26 @@
-"""Channel share API routes — /api/v1/import/channel-url and /api/v1/import/cli-yaml."""
+"""Channel share API routes — /api/v1/import/channel-url, /api/v1/import/cli-yaml and /api/v1/export/channel-url."""
 
 from typing import Annotated
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.exceptions import RequestValidationError
 
-from mtfwbuilder.models import ChannelUrlImport, ChannelUrlRequest, CliYamlImport
+from mtfwbuilder.models import ChannelUrlExport, ChannelUrlImport, ChannelUrlRequest, CliYamlImport, ConfigRequest
 from mtfwbuilder.routers.config_generator import field_error
 from mtfwbuilder.services.channel_share import (
     INVALID_FILE_MESSAGE,
     INVALID_URL_MESSAGE,
     MAX_EXPORT_BYTES,
     InvalidChannelUrl,
+    InvalidExportField,
     InvalidExportFile,
     decode_channel_url,
+    encode_channel_url,
+    qr_svg,
     read_cli_export,
 )
+
+NO_CHANNEL_MESSAGE = "the config writes no channel, so the channel URL has no channel"
 
 router = APIRouter(prefix="/api/v1", tags=["channel-share"])
 
@@ -48,3 +53,19 @@ async def import_cli_yaml(file: Annotated[UploadFile, File()]) -> CliYamlImport:
         return read_cli_export(data)
     except InvalidExportFile:
         raise RequestValidationError([field_error(("file",), INVALID_FILE_MESSAGE)]) from None
+
+
+@router.post("/export/channel-url")
+async def export_channel_url(body: ConfigRequest) -> ChannelUrlExport:
+    """Return the channel URL of the channels and the LoRa settings in the config, and an SVG QR code of the URL.
+
+    Raises:
+        RequestValidationError: The config is not valid, or it writes no channel (422).
+    """
+    if int(body.channels_to_write) == 0:
+        raise RequestValidationError([field_error(("channels_to_write",), NO_CHANNEL_MESSAGE)])
+    try:
+        url = encode_channel_url(body)
+    except InvalidExportField as error:
+        raise RequestValidationError([field_error(error.location, str(error))]) from None
+    return ChannelUrlExport(url=url, qr_svg=qr_svg(url))

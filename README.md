@@ -117,7 +117,7 @@ MTFWBuilder/
 │   │   ├── firmware.py             # /api/v1/firmware, installed and upstream firmware versions
 │   │   ├── variants.py             # /api/v1/variants, registry of a firmware version, device images
 │   │   ├── admin.py                # Login, firmware updates, cleanup
-│   │   ├── channel_share.py        # /api/v1/import/channel-url, /api/v1/import/cli-yaml
+│   │   ├── channel_share.py        # /api/v1/import/channel-url, import/cli-yaml, export/channel-url
 │   │   └── pages.py                # HTML page routes
 │   └── services/
 │       ├── jsonc_generator.py      # userPrefs.jsonc generation
@@ -125,7 +125,7 @@ MTFWBuilder/
 │       ├── registry_generator.py   # Registry of a firmware source, from its PlatformIO config
 │       ├── firmware_updater.py     # GitHub firmware source downloads
 │       ├── firmware_catalog.py     # Upstream stable and alpha firmware versions
-│       ├── channel_share.py        # Channel URL decoder, CLI export YAML reader
+│       ├── channel_share.py        # Channel URL decoder and encoder, CLI export YAML reader
 │       └── cleanup_service.py      # Build artifact and PSK cleanup
 ├── templates/                      # Jinja2 templates (htmx planned)
 ├── static/                         # CSS, JS
@@ -170,6 +170,10 @@ Key endpoints:
   that the form rejects). Returns 413 for a file larger than 64 KB. Returns 422 with "This is not a valid Meshtastic
   export file." when `yaml.safe_load` does not read the file or the file holds no mapping. The server keeps no copy of
   the file.
+- `POST /api/v1/export/channel-url` — Encode the channels and the LoRa settings of a config, with the
+  `/api/v1/generate` body. Returns `url` (a `https://meshtastic.org/e/#…` channel URL) and `qr_svg` (an SVG QR code
+  of the URL). The URL holds the channel slots that `channels_to_write` counts. An empty field takes the firmware
+  default: PSK default key 1, position precision 13, hop limit 3. Returns 422 when `channels_to_write` is 0.
 - `POST /api/v1/build-firmware` — Start firmware build
 - `GET /api/v1/build-progress/{id}` — SSE build progress stream
 - `GET /api/v1/builds/{id}` — Build status of a build: `build_id`, `status`, `message`, `progress`, `error`, `download_url`

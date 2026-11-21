@@ -580,6 +580,13 @@ class ChannelUrlImport(BaseModel):
     warnings: list[str]
 
 
+class ChannelUrlExport(BaseModel):
+    """Response of `POST /api/v1/export/channel-url`. `qr_svg` is an SVG document of a QR code that holds `url`."""
+
+    url: str
+    qr_svg: str
+
+
 class CliYamlImport(BaseModel):
     """Response of `POST /api/v1/import/cli-yaml`.
 
