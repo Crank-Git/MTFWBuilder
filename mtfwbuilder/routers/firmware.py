@@ -1,6 +1,11 @@
-"""Firmware version routes: the installed and the upstream firmware versions, and their install and removal."""
+"""Firmware version routes: the installed and the upstream firmware versions, and their install and removal.
+
+An htmx request from the Firmware sources section of the admin page gets an HTML fragment.
+Every other request gets JSON.
+"""
 
 import asyncio
+import json
 import logging
 
 import requests
@@ -9,13 +14,31 @@ from sse_starlette.sse import EventSourceResponse
 
 from mtfwbuilder.auth import require_admin, require_csrf
 from mtfwbuilder.database import list_firmware_sources
-from mtfwbuilder.models import AvailableFirmwareVersions, FirmwareSource, InstallRequest
+from mtfwbuilder.htmx import fragment_or_json, is_htmx
+from mtfwbuilder.models import AvailableFirmwareVersions, FirmwareSource, InstallRequest, InstallStatus
 from mtfwbuilder.services import firmware_updater
 from mtfwbuilder.services.firmware_catalog import CatalogUnavailable
 
 logger = logging.getLogger("mtfwbuilder.firmware_versions")
 
 router = APIRouter(prefix="/api/v1/firmware", tags=["firmware versions"])
+
+
+def install_context(install: firmware_updater.Install) -> dict:
+    """Return the template context of the install panel."""
+    return {"install": install, "progress_url": f"/api/v1/firmware/install/{install.install_id}/progress"}
+
+
+def _refusal(request: Request, status_code: int, detail: str, cause: Exception) -> Response:
+    """Return the message as an alert in the message area of the section for htmx, else raise `HTTPException`."""
+    if not is_htmx(request):
+        raise HTTPException(status_code=status_code, detail=detail) from cause
+    response = request.app.state.templates.TemplateResponse(
+        request, "partials/admin_result.html", {"success": False, "error": detail}, status_code=status_code
+    )
+    response.headers["HX-Retarget"] = "#firmware-message"
+    response.headers["HX-Reswap"] = "innerHTML"
+    return response
 
 
 @router.get("", response_model=list[FirmwareSource])
@@ -31,10 +54,17 @@ async def available(request: Request):
     Returns 502 when both upstreams fail.
     """
     try:
-        return await asyncio.to_thread(request.app.state.firmware_catalog.available)
+        result = await asyncio.to_thread(request.app.state.firmware_catalog.available)
     except CatalogUnavailable as e:
         logger.error(f"No upstream firmware list: {e}")
-        raise HTTPException(status_code=502, detail="Cannot reach api.meshtastic.org or GitHub.") from e
+        detail = "Cannot reach api.meshtastic.org or GitHub."
+        if not is_htmx(request):
+            raise HTTPException(status_code=502, detail=detail) from e
+        return request.app.state.templates.TemplateResponse(
+            request, "partials/firmware_available.html", {"error": detail}, status_code=502
+        )
+    data = AvailableFirmwareVersions(**result)
+    return fragment_or_json(request, "partials/firmware_available.html", {"available": result}, data)
 
 
 @router.post("/install", status_code=202, dependencies=[Depends(require_admin), Depends(require_csrf)])
@@ -50,13 +80,45 @@ async def install(body: InstallRequest, request: Request):
     try:
         started = await installs.start(channel=body.channel, tag=body.tag)
     except firmware_updater.FirmwareVersionInstalled as e:
-        raise HTTPException(status_code=409, detail=f"Firmware version {e} is installed") from e
+        return _refusal(request, 409, f"Firmware version {e} is installed", e)
     except firmware_updater.InstallActive as e:
-        raise HTTPException(status_code=409, detail=f"An install of {e.install.version} has not ended") from e
+        return _refusal(request, 409, f"An install of {e.install.version} has not ended", e)
     except (firmware_updater.ReleaseNotFound, requests.RequestException) as e:
         logger.error(f"No firmware version for channel {body.channel}: {e}")
-        raise HTTPException(status_code=502, detail="Cannot get the firmware version list from GitHub") from e
-    return {"install_id": started.install_id, "progress_url": f"/api/v1/firmware/install/{started.install_id}/progress"}
+        return _refusal(request, 502, "Cannot get the firmware version list from GitHub", e)
+    context = install_context(started)
+    data = {"install_id": started.install_id, "progress_url": context["progress_url"]}
+    response = fragment_or_json(request, "partials/firmware_install.html", context, data, status_code=202)
+    # The controls put an error message in the message area, so a started install goes to the top of the panels.
+    response.headers["HX-Retarget"] = "#firmware-installs"
+    response.headers["HX-Reswap"] = "afterbegin"
+    return response
+
+
+@router.get("/install/{install_id}")
+async def install_status(install_id: str, request: Request) -> Response:
+    """Return the install status of the install, as JSON or as the install panel for htmx.
+
+    The panel calls this route on each `status` event of the install progress stream. For an install that has
+    not ended, the fragment holds only the install state. For an ended install, the fragment is the whole panel
+    without the progress stream. After a ready install, the fragment also refreshes the firmware source list.
+    Returns 404 for an unknown install.
+    """
+    started = request.app.state.firmware_installs.get(install_id)
+    if started is None:
+        raise HTTPException(status_code=404, detail="Install not found")
+    data = InstallStatus(**json.loads(started.status_event()))
+    context = install_context(started)
+    if not started.ended:
+        return fragment_or_json(request, "partials/install_state.html", context, data)
+    if started.status == "ready":
+        context["sources"] = await list_firmware_sources(request.app.state.settings.database_path)
+        context["refresh_sources"] = True
+    response = fragment_or_json(request, "partials/firmware_install.html", context, data)
+    # A swap of the element that holds the progress stream closes the stream, so the browser does not reconnect.
+    response.headers["HX-Retarget"] = f"#install-{install_id}"
+    response.headers["HX-Reswap"] = "outerHTML"
+    return response
 
 
 @router.get("/install/{install_id}/progress")
@@ -72,14 +134,18 @@ async def install_progress(install_id: str, request: Request):
 async def remove(version: str, request: Request):
     """Delete the firmware source of the firmware version and its record.
 
+    An htmx request gets the firmware source list after the removal, because htmx swaps no 204 response.
     Returns 404 when the firmware version is not installed, and 409 while a build of it is queued or running.
     """
     try:
         await request.app.state.firmware_installs.remove(version)
     except KeyError as e:
-        raise HTTPException(status_code=404, detail="Firmware version not installed") from e
+        return _refusal(request, 404, "Firmware version not installed", e)
     except firmware_updater.FirmwareVersionInUse as e:
-        raise HTTPException(
-            status_code=409, detail="A build uses this firmware version. Try again when it ends."
-        ) from e
+        return _refusal(request, 409, "A build uses this firmware version. Try again when it ends.", e)
+    if is_htmx(request):
+        sources = await list_firmware_sources(request.app.state.settings.database_path)
+        return request.app.state.templates.TemplateResponse(
+            request, "partials/firmware_sources.html", {"sources": sources}
+        )
     return Response(status_code=204)

@@ -201,30 +201,21 @@ async def test_sign_out_with_a_valid_csrf_token_clears_the_session(client, setti
 # FR-frontend-htmx-12
 
 
-@pytest.mark.usefixtures("database")
-async def test_dashboard_shows_firmware_source_update_cleanup_recent_builds_and_sign_out(client, settings):
-    (settings.base_dir / "firmware_version.txt").write_text("Version: v2.7.26.54e0d8d\nUpdated: 2026-11-21 10:00:00\n")
+@pytest.mark.usefixtures("firmware_source")
+async def test_dashboard_shows_firmware_sources_install_cleanup_recent_builds_and_sign_out(client, settings):
     sign_in_admin(client, settings)
 
     resp = await client.get("/admin")
 
     assert resp.status_code == 200
     assert 'type="password"' not in resp.text
+    assert 'id="firmware-sources"' in resp.text
     assert "v2.7.26.54e0d8d" in resp.text
-    assert 'hx-post="/api/v1/update-firmware"' in resp.text
+    assert 'hx-post="/api/v1/firmware/install"' in resp.text
     assert 'hx-post="/api/v1/cleanup"' in resp.text
     assert 'id="recent-builds"' in resp.text
     assert 'action="/admin/logout"' in resp.text
     assert "Sign out" in resp.text
-
-
-@pytest.mark.usefixtures("database")
-async def test_dashboard_without_a_firmware_source_shows_not_installed(client, settings):
-    sign_in_admin(client, settings)
-
-    resp = await client.get("/admin")
-
-    assert "Not installed" in resp.text
 
 
 async def test_dashboard_lists_the_recent_builds_from_the_builds_table(client, settings, database):

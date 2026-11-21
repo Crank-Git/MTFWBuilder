@@ -27,7 +27,7 @@ from mtfwbuilder.services.build_service import BuildQueue
 from mtfwbuilder.services.cleanup_service import cleanup_every_interval, scrub_sources_after_restart
 from mtfwbuilder.services.device_registry import DeviceRegistry
 from mtfwbuilder.services.firmware_catalog import FirmwareCatalog
-from mtfwbuilder.services.firmware_updater import FirmwareInstalls, import_old_firmware_source
+from mtfwbuilder.services.firmware_updater import FirmwareInstalls, import_old_firmware_source, remove_install_staging
 
 
 def setup_logging(log_level: str, log_json: bool) -> None:
@@ -78,6 +78,7 @@ async def lifespan(app: FastAPI):
     if failed:
         logger.warning(f"Marked {failed} builds failed after a restart")
     await asyncio.to_thread(import_old_firmware_source, settings)
+    remove_install_staging(settings.firmware_dir)
     scrub_sources_after_restart(settings.firmware_dir)
 
     # Load device registry

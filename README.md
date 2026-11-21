@@ -28,7 +28,7 @@ In this README, "planned" marks a part that the code does not do yet. The spec i
 - **Device registry** — `devices/variants.yaml` lists the variants. The count of entries in that file is the variant count, and the startup log states it. ESP32 variants give `.bin` files. nRF52 and RP2040 variants give `.uf2` files.
 - **Factory Binary Support** — ESP32 devices get both `firmware.bin` and `firmware.factory.bin`
 - **Build progress (planned)** — The progress stream `GET /api/v1/build-progress/{id}` exists. The build page does not open it yet.
-- **Admin Dashboard** — Firmware source management, system status, build cleanup. The sign-in form is planned.
+- **Admin Dashboard** — Sign-in, firmware sources (install and remove firmware versions), build cleanup and recent builds.
 - **Dark Mode** — Default dark theme with light mode toggle
 
 ## Quick Start
@@ -98,7 +98,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
 
 ### 4. Admin Panel
 
-The `/admin` page shows the firmware source controls. The firmware update and the cleanup routes require an admin session, which `POST /admin/login` starts with the admin password from `config.yaml`. The page has no sign-in form yet (planned).
+The `/admin` page shows the sign-in form. Sign in with the admin password from `config.yaml`. The Firmware sources section then lists the installed firmware versions and the upstream firmware versions. It installs stable, alpha or an exact tag, shows the install progress, and removes a firmware version. When no firmware version is installed, Install stable is the first action.
 
 ## Architecture
 
@@ -161,7 +161,9 @@ Key endpoints:
 - `GET /api/v1/builds/{id}/artifacts` — Artifact list of a build: `name`, `size`, `kind`
 - `GET /api/v1/builds/{id}/artifacts/{name}` — Download one artifact from the artifact list
 - `GET /api/v1/download-firmware/{id}` — Redirects (308) to the factory or primary artifact, for one release
-- `GET /api/v1/system-info` — Firmware version and status
+- `GET /api/v1/system-info` — The default firmware version (`version`, `last_updated`) and the list
+  `firmware_versions`, read from the `firmware_sources` table. Without a firmware source, `version`
+  is `Not installed`.
 - `GET /api/v1/firmware` — Installed firmware versions, the newest first: `version`, `channel`
   (`stable`, `alpha` or `pinned`), `installed_at`, `size_bytes`, `status`
 - `GET /api/v1/firmware/available` (admin) — Upstream firmware versions, the newest first:
@@ -170,6 +172,9 @@ Key endpoints:
 - `POST /api/v1/firmware/install` (admin) — Install by `{"channel": "stable"}`, `{"channel": "alpha"}`
   or `{"tag": "<tag>"}`. Returns 202 with `install_id` and `progress_url`, and 409 when the
   firmware version is installed.
+- `GET /api/v1/firmware/install/{install_id}` — Install status of an install: `install_id`, `version`,
+  `status`, `error`. Returns 404 for an unknown install.
+- `GET /api/v1/firmware/install/{install_id}/progress` — SSE install progress stream
 - `DELETE /api/v1/firmware/{version}` (admin) — Remove an installed firmware version. Returns 204,
   and 409 while a build uses it.
 
@@ -231,7 +236,7 @@ docker compose restart mtfwbuilder
 Older releases used the named volumes `firmware_data`, `build_cache`, `temp_data`, `logs` and `platformio_cache`. The compose files do not mount them now, so the new container does not see the old firmware source.
 
 1. Start the new release.
-2. Go to `/admin` and click Update Firmware to install the firmware source in the `data` volume.
+2. Go to `/admin`, sign in, and click Install stable to install a firmware source in the `data` volume.
 3. When the first build succeeds, remove the old volumes with `docker volume rm`. Compose adds the project name to each volume name, for example `mtfwbuilder_firmware_data`. The `build_cache` volume can hold object files that contain secrets.
 
 ### Volumes
@@ -281,7 +286,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed contribution guidelines.
 ## Troubleshooting
 
 **Build fails with "Firmware source not installed"**
-- Go to `/admin` and click Update Firmware to download the source from GitHub
+- Go to `/admin`, sign in, and click Install stable to download a firmware source from GitHub
 
 **Configuration not taking effect (ESP32)**
 - Always use `firmware.factory.bin` — it includes bootloader and partition table
