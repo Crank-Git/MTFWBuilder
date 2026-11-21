@@ -29,13 +29,18 @@ async function runErrorLines(response) {
     return fallback;
 }
 
-/** Send the secrets to `url`, and return the 202 body, or null after the errors show in `#run-errors`. */
-async function postRun(url) {
+/**
+ * Send the secrets to `url`, and return the 202 body, or null after the errors show in `#run-errors`.
+ * An admin page gives `button` a CSRF token, because a fleet run of an admin uses the stored secrets.
+ */
+async function postRun(url, button) {
     const errors = document.getElementById('run-errors');
     errors.replaceChildren();
+    const headers = { 'Content-Type': 'application/json' };
+    if (button.dataset.csrfToken) headers['X-CSRF-Token'] = button.dataset.csrfToken;
     const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ secrets: enteredSecrets() }),
     });
     if (response.status === 202) return response.json();
@@ -52,10 +57,11 @@ document.addEventListener('click', async function(evt) {
     const target = evt.target.closest('button');
     if (!target) return;
     if (target.id === 'startRunBtn') {
-        const accepted = await postRun(`/api/v1/fleets/${document.getElementById('fleet').dataset.fleetId}/runs`);
+        const fleetId = document.getElementById('fleet').dataset.fleetId;
+        const accepted = await postRun(`/api/v1/fleets/${fleetId}/runs`, target);
         if (accepted) window.location.assign(`/fleet-runs/${accepted.run_id}`);
     } else if (target.id === 'retryBtn') {
-        const accepted = await postRun(`/api/v1/fleet-runs/${target.dataset.runId}/retry`);
+        const accepted = await postRun(`/api/v1/fleet-runs/${target.dataset.runId}/retry`, target);
         // A reload shows the state that polls again, and it clears the secret inputs.
         if (accepted) window.location.reload();
     }

@@ -32,14 +32,17 @@ function addRow(device) {
     const fragment = document.getElementById('fleet-row-template').content.cloneNode(true);
     const row = fragment.querySelector('tr.fleet-row');
     if (device) {
+        row.dataset.deviceId = String(device.id);
         for (const name of FIELDS) {
             if (name !== 'admin_key' && device[name] !== null && device[name] !== undefined) {
                 row.querySelector(`[name="${name}"]`).value = String(device[name]);
             }
         }
-        if (device.has_admin_key) {
-            row.querySelector('[name="admin_key"]').placeholder = 'Saved';
-        }
+    }
+    // The template row has the controls of a saved admin key, so a row without one loses them.
+    if (!device || !device.has_admin_key) {
+        row.querySelector('[name="admin_key"]').removeAttribute('placeholder');
+        row.querySelector('.clear-admin-key').remove();
     }
     document.querySelector('#fleet-devices tbody').append(fragment);
     renumberRows();
@@ -53,13 +56,20 @@ function showDevices(devices) {
     renumberRows();
 }
 
-/** Return the fields of each row. An empty field gives null, so it keeps the value of the profile. */
+/**
+ * Return the fields of each row. An empty field gives null, so it keeps the value of the profile.
+ * The id of a saved row goes with it, so the server changes that fleet device also after a rename.
+ * A checked Clear admin key control sends "", which removes the saved admin key.
+ */
 function readRows() {
     return deviceRows().map(row => {
-        const device = {};
+        const device = { id: row.dataset.deviceId ? Number(row.dataset.deviceId) : null };
         for (const name of FIELDS) {
             const value = row.querySelector(`[name="${name}"]`).value.trim();
             device[name] = value === '' ? null : value;
+        }
+        if (row.querySelector('[name="clear_admin_key"]')?.checked) {
+            device.admin_key = '';
         }
         return device;
     });
@@ -165,9 +175,22 @@ document.addEventListener('submit', function(evt) {
     }
 });
 
-document.addEventListener('change', async function(evt) {
+/** Put the text of the CSV file in the CSV box, or show an error when the file is not UTF-8. */
+async function readCsvFile(file) {
+    clearRowErrors();
+    // `File.text()` replaces a bad byte with no error, so a strict decoder shows the operator the problem.
+    const decoder = new TextDecoder('utf-8', { fatal: true });
+    try {
+        document.getElementById('csvText').value = decoder.decode(await file.arrayBuffer());
+    } catch (error) {
+        const message = 'The file is not UTF-8 text. Save the CSV as UTF-8.';
+        document.getElementById('csv-errors').replaceChildren(errorItem(message));
+    }
+}
+
+document.addEventListener('change', function(evt) {
     if (evt.target.id === 'csvFile' && evt.target.files.length) {
-        document.getElementById('csvText').value = await evt.target.files[0].text();
+        readCsvFile(evt.target.files[0]);
     }
 });
 
