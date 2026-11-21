@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse
 from sse_starlette.sse import EventSourceResponse
 
 from mtfwbuilder.models import BuildStatus
-from mtfwbuilder.rate_limit import limiter
+from mtfwbuilder.rate_limit import build_rate_limit, limiter
 from mtfwbuilder.services import build_service
 from mtfwbuilder.services.firmware_updater import get_firmware_version
 from mtfwbuilder.services.jsonc_generator import generate_jsonc
@@ -26,7 +26,7 @@ ACTIVE_BUILD_TTL_SECONDS = 30 * 60
 
 
 @router.post("/build-firmware")
-@limiter.limit("5/minute")
+@limiter.limit(build_rate_limit)
 async def start_build(request: Request):  # noqa: C901  # TODO(#18): The build queue rewrite splits this route.
     """Start a firmware build. Returns build_id for SSE progress tracking."""
     settings = request.app.state.settings
