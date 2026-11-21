@@ -185,17 +185,14 @@ def import_old_firmware_source(settings: Settings) -> str | None:
     source_dir = firmware_dir / version
     staging.rename(source_dir)
 
-    record_firmware_source(settings.database_path, _source_record(source_dir, channel, _installed_at(info)))
+    try:
+        installed_at = datetime.fromisoformat(info["last_updated"]).astimezone(UTC)
+    except ValueError:
+        # `get_firmware_version` gives `Unknown` when the version file has no `Updated:` line.
+        installed_at = datetime.now(UTC)
+    record_firmware_source(settings.database_path, _source_record(source_dir, channel, installed_at))
     logger.info(f"Imported the old firmware source as {source_dir}")
     return version
-
-
-def _installed_at(info: dict) -> datetime:
-    """Return the update time from the version file, or now when the file holds no ISO 8601 time."""
-    try:
-        return datetime.fromisoformat(info["last_updated"]).astimezone(UTC)
-    except ValueError:
-        return datetime.now(UTC)
 
 
 def _source_record(source_dir: Path, channel: str, installed_at: datetime) -> dict:
@@ -204,15 +201,9 @@ def _source_record(source_dir: Path, channel: str, installed_at: datetime) -> di
         "channel": channel,
         "path": str(source_dir),
         "installed_at": installed_at.isoformat(timespec="seconds"),
-        "size_bytes": _disk_size(source_dir),
+        # `lstat` counts a symlink as itself, so a link out of the tree adds nothing.
+        "size_bytes": sum(
+            os.lstat(os.path.join(root, name)).st_size for root, _dirs, files in os.walk(source_dir) for name in files
+        ),
         "status": "ready",
     }
-
-
-def _disk_size(directory: Path) -> int:
-    """Return the sum of the file sizes under `directory`, without a symlink target."""
-    total = 0
-    for root, _dirs, files in os.walk(directory):
-        for name in files:
-            total += os.lstat(os.path.join(root, name)).st_size
-    return total
