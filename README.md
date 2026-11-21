@@ -141,6 +141,9 @@ Key endpoints:
 - `GET /api/v1/download-firmware/{id}` — Redirects (308) to the factory or primary artifact, for one release
 - `GET /api/v1/system-info` — Firmware version and status
 
+The three config routes validate the body with `ConfigRequest`. An invalid body returns
+422 with field errors, for example `channel_0.psk`.
+
 ## Docker
 
 ### Development

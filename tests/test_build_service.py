@@ -157,7 +157,7 @@ class TestFirmwareRoutes:
 
     @pytest.mark.asyncio
     async def test_build_valid_request_returns_202_with_build_id_and_progress_url(self, client):
-        config = json.dumps({"device_name": "TestNode"})
+        config = json.dumps({"owner_long_name": "TestNode"})
         resp = await client.post(
             "/api/v1/build-firmware",
             data={"variant": "tbeam", "config_source": "current", "config_json": config},

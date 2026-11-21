@@ -96,7 +96,6 @@ def app(settings):
 def sample_config_data():
     """Minimal valid configuration data."""
     return {
-        "device_name": "TestNode",
         "owner_short_name": "TST",
         "owner_long_name": "Test Node",
         "channels_to_write": "1",

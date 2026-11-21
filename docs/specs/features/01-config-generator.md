@@ -12,7 +12,9 @@ mockups: []
 The config generator turns a web form into a userPrefs file. The operator previews the
 userPrefs file, downloads it, or carries the config to the firmware builder page.
 
-This file describes the code at commit `bd15bb1` (2026-11-21). Defects are stated
+This file describes the code at commit `bd15bb1` (2026-11-21).
+
+**Changed since this record.** Epic 1 (#92) changed this behaviour: the routes validate with `ConfigRequest` and return 422, the generator writes upstream key names, admin keys as `USERPREFS_USE_ADMIN_KEY_<n>`, the button pin, event mode and POSIX time zones. The current contract is `05-userprefs-correctness.md`. Defects are stated
 plainly. The repair is in `05-userprefs-correctness.md` and `07-frontend-htmx.md`.
 
 ## User stories
