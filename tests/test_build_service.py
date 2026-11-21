@@ -9,7 +9,6 @@ from unittest.mock import AsyncMock, patch, MagicMock
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from mtfwbuilder.main import create_app
 from mtfwbuilder.services.build_service import (
     BuildContext,
     BuildProgress,
@@ -191,19 +190,7 @@ class TestFirmwareRoutes:
     """Tests for firmware builder API routes."""
 
     @pytest.fixture
-    async def client(self):
-        app = create_app()
-        # Manually set up app state that lifespan would provide
-        from mtfwbuilder.config import load_settings
-        from mtfwbuilder.services.device_registry import DeviceRegistry
-        from mtfwbuilder.services.build_service import init_build_system
-
-        settings = load_settings()
-        app.state.settings = settings
-        app.state.device_registry = DeviceRegistry(settings.devices_file)
-        init_build_system(settings)
-        app.state.active_builds = {}
-
+    async def client(self, app):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as c:
             yield c

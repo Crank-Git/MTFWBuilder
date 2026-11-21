@@ -56,8 +56,11 @@ class Settings(BaseSettings):
 
 
 def load_settings() -> Settings:
-    """Load settings from config.yaml, with password auto-migration."""
-    base_dir = Path(__file__).resolve().parent.parent
+    """Load settings from config.yaml, with password auto-migration.
+
+    The function reads config.yaml and config.json from `MTFW_BASE_DIR`, else from the project root.
+    """
+    base_dir = Path(os.environ.get("MTFW_BASE_DIR") or Path(__file__).resolve().parent.parent)
     config_path = base_dir / "config.yaml"
     old_config_path = base_dir / "config.json"
 
