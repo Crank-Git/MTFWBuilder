@@ -125,6 +125,8 @@ the header of `userPrefs.jsonc` in `meshtastic/firmware` `develop@fe89ac1`.
 | modem preset | noun | A Meshtastic LoRa modem preset, for example `LONG_FAST`. | preset (alone), speed |
 | region | noun | A Meshtastic LoRa region code, for example `US`. | country, band |
 | role | noun | A Meshtastic device role, for example `CLIENT` or `ROUTER`. | mode, type |
+| time zone | noun | An IANA tz database name, for example `America/New_York`. The form sends a time zone. | timezone, tz name |
+| POSIX TZ string | noun | The `TZ` value that the firmware gives to `setenv`, for example `EST5EDT,M3.2.0,M11.1.0`. | tz string, timezone string |
 | Web Serial | noun | The browser API that opens a USB serial port from a page. | WebUSB |
 | SSE | noun | Server-Sent Events: a one-way HTTP stream from server to browser. | websocket |
 
