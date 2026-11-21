@@ -5,8 +5,10 @@ from ipaddress import ip_network
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from mtfwbuilder.auth import CSRF_COOKIE, csrf_token
 from mtfwbuilder.config import Settings, load_settings
 from mtfwbuilder.rate_limit import configure_rate_limits, limiter
+from tests.conftest import _CSRF_NONCE
 
 PROXY = "10.0.0.2"
 
@@ -27,11 +29,11 @@ def _client(app, peer: str) -> AsyncClient:
 
 async def _login_statuses(app, peer: str, count: int, forwarded_for: str | None = None) -> list[int]:
     headers = {"X-Forwarded-For": forwarded_for} if forwarded_for else {}
+    # The login form requires a CSRF token, and a request without one gets 403 before the rate limit counts it.
+    data = {"admin_key": "wrong", "csrf_token": csrf_token(_CSRF_NONCE, app.state.settings)}
     async with _client(app, peer) as c:
-        return [
-            (await c.post("/admin/login", data={"admin_key": "wrong"}, headers=headers)).status_code
-            for _ in range(count)
-        ]
+        c.cookies.set(CSRF_COOKIE, _CSRF_NONCE)
+        return [(await c.post("/admin/login", data=data, headers=headers)).status_code for _ in range(count)]
 
 
 @pytest.fixture
