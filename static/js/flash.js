@@ -40,7 +40,7 @@
 
   document.addEventListener('htmx:load', evt => {
     const elt = evt.detail.elt;
-    const panel = elt.id === 'flash-panel' ? elt : elt.querySelector && elt.querySelector('#flash-panel');
+    const panel = elt.id === 'flash-panel' ? elt : elt.querySelector('#flash-panel');
     if (panel) {
       check(panel);
     }
