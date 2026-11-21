@@ -5,6 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
+from mtfwbuilder import meshtastic_enums
 from mtfwbuilder.key_bytes import ADMIN_KEY_LENGTH, decode_key
 from mtfwbuilder.time_zones import to_posix_tz
 
@@ -16,6 +17,14 @@ _FLAT_CHANNEL_KEY = re.compile(r"(channel_[0-7])\[(\w+)\]")
 
 # The generator writes these fields as `{ 0x.. }` byte arrays, so a `//` in base64 input never reaches the file.
 _BYTE_ARRAY_FIELDS = frozenset({"psk", "admin_key_0", "admin_key_1", "admin_key_2"})
+
+
+# Upstream writes each enum value into the build unchanged, so only a value with its C prefix compiles.
+_ENUM_FIELDS = {
+    "lora_region": meshtastic_enums.REGIONS,
+    "lora_modem_preset": meshtastic_enums.MODEM_PRESETS,
+    "gps_mode": meshtastic_enums.GPS_MODES,
+}
 
 
 class _UserPrefsFields(BaseModel):
@@ -57,6 +66,7 @@ class ConfigRequest(_UserPrefsFields):
     owner_long_name: str | None = None
     tz_string: str | None = None
     bluetooth_fixed_pin: str | None = None
+    device_role: str | None = None
 
     # Channels
     channels_to_write: str = "1"
@@ -159,6 +169,20 @@ class ConfigRequest(_UserPrefsFields):
         if value:
             to_posix_tz(value)
         return value
+
+    @field_validator("device_role")
+    @classmethod
+    def _check_device_role(cls, value: str | None) -> str | None:
+        """Return an offered role with its C prefix, and reject a router role with the router-role message."""
+        if value and value.removeprefix(meshtastic_enums.ROLES.c_prefix) in meshtastic_enums.ROUTER_ROLES:
+            raise ValueError(meshtastic_enums.ROUTER_ROLE_MESSAGE)
+        return meshtastic_enums.ROLES.c_value(value) if value else value
+
+    @field_validator("lora_region", "lora_modem_preset", "gps_mode")
+    @classmethod
+    def _check_enum_value(cls, value: str | None, info: ValidationInfo) -> str | None:
+        """Return the value with its C prefix, if the protobufs enum of the field holds it."""
+        return _ENUM_FIELDS[info.field_name].c_value(value) if value else value
 
     @field_validator("button_pin", "event_mode")
     @classmethod

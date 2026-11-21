@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
+from mtfwbuilder import meshtastic_enums
 from mtfwbuilder.routers.firmware_builder import panel_context
 
 router = APIRouter(tags=["pages"])
@@ -20,7 +21,16 @@ async def index(request: Request, build: str | None = None):
     manufacturers: dict[str, list] = {}
     for variant in request.app.state.device_registry.all_variants:
         manufacturers.setdefault(variant.manufacturer, []).append(variant)
-    context = {"title": "Build", "manufacturers": manufacturers, "build_id": build}
+    context = {
+        "title": "Build",
+        "manufacturers": manufacturers,
+        "build_id": build,
+        "region_options": meshtastic_enums.REGIONS.options(),
+        "modem_preset_options": meshtastic_enums.MODEM_PRESETS.options(),
+        "role_options": meshtastic_enums.ROLES.options(),
+        "gps_mode_options": meshtastic_enums.GPS_MODES.options(),
+        "router_role_message": meshtastic_enums.ROUTER_ROLE_MESSAGE,
+    }
     ctx = request.app.state.build_queue.get(build) if build else None
     if ctx is not None:
         context.update(panel_context(ctx))

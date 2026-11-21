@@ -55,3 +55,16 @@ def test_build_completes_and_downloads_the_factory_artifact(page: Page, live_ser
     saved = tmp_path / download.suggested_filename
     download.save_as(saved)
     assert saved.read_bytes().startswith(b"fake firmware-heltec-v3-")
+
+
+def test_role_control_offers_client_base_and_shows_the_router_role_message(page: Page, live_server: str):
+    page.goto(f"{live_server}/")
+
+    role = page.locator("#deviceRole")
+    expect(role.locator('option[value="meshtastic_Config_DeviceConfig_Role_CLIENT_BASE"]')).to_have_count(1)
+    expect(role.locator('option[value="meshtastic_Config_DeviceConfig_Role_ROUTER"]')).to_have_count(0)
+    expect(page.locator("#deviceRoleHelp")).to_have_text(
+        "Router roles cannot be set as a factory default. Use Push config after flashing."
+    )
+    expect(page.locator("#loraRegion option")).to_have_count(37)
+    expect(page.locator("#loraModemPreset option")).to_have_count(17)
