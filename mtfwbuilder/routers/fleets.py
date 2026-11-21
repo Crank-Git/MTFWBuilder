@@ -1,6 +1,10 @@
 """Fleet API routes: fleets (feature fleet-builds, FR 10, 11 and 14) and fleet runs (FR 15 to 18)."""
 
+from collections.abc import Iterator
+from typing import IO
+
 from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi.responses import StreamingResponse
 
 from mtfwbuilder.models import (
     Fleet,
@@ -14,7 +18,7 @@ from mtfwbuilder.models import (
 )
 from mtfwbuilder.routers.profiles import NO_STORE, is_admin
 from mtfwbuilder.services import fleets
-from mtfwbuilder.services.fleet_runs import FleetNotFound, FleetRunConflict, FleetRunNotFound
+from mtfwbuilder.services.fleet_runs import ZIP_CHUNK_BYTES, FleetNotFound, FleetRunConflict, FleetRunNotFound
 
 router = APIRouter(prefix="/api/v1", tags=["fleets"])
 
@@ -218,3 +222,28 @@ async def retry_fleet_run(run_id: int, request: Request, body: FleetRunRequest |
     except FleetRunConflict as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     return _accepted(run_id)
+
+
+def _chunks(file: IO[bytes]) -> Iterator[bytes]:
+    """Yield the file in chunks, and close it after the last one or when the client goes away."""
+    with file:
+        while chunk := file.read(ZIP_CHUNK_BYTES):
+            yield chunk
+
+
+@router.get("/fleet-runs/{run_id}/download")
+async def download_fleet_run(run_id: int, request: Request) -> StreamingResponse:
+    """Send one zip with a folder for each fleet device label and `manifest.csv` (FR-fleet-builds-19 and -20).
+
+    A folder holds the artifacts of a complete build. `manifest.csv` has one row for each fleet device with its
+    label, folder, variant, firmware version, build id, build status, artifact names and config hash. It holds no
+    secret. Returns 404 when no fleet run has the id, and 409 while the fleet run runs.
+    """
+    try:
+        file = await request.app.state.fleet_runs.archive(run_id)
+    except FleetRunNotFound as e:
+        raise _run_not_found(run_id) from e
+    except FleetRunConflict as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    headers = {"Content-Disposition": f'attachment; filename="fleet-run-{run_id}.zip"', **NO_STORE}
+    return StreamingResponse(_chunks(file), media_type="application/zip", headers=headers)

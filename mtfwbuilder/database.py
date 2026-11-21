@@ -106,7 +106,8 @@ CREATE TABLE IF NOT EXISTS fleet_devices (
     fixed_lat REAL,
     fixed_lon REAL,
     fixed_alt INTEGER,
-    admin_key_ciphertext TEXT
+    admin_key_ciphertext TEXT,
+    position INTEGER
 )
 """,
     """
@@ -136,6 +137,7 @@ ADDED_COLUMNS = {
     "builds": {"config_hash": "TEXT", "firmware_version": "TEXT", "fleet_run_id": "INTEGER"},
     "profiles": {"secrets_ciphertext": "TEXT"},
     "cache_entries": {"artifact_names": "TEXT"},
+    "fleet_devices": {"position": "INTEGER"},
 }
 
 # A build in one of these build statuses has not ended.

@@ -5,10 +5,15 @@ them on a restart, so an unfinished fleet run then shows `partial`, and Retry fa
 """
 
 import asyncio
+import csv
+import io
 import logging
+import re
+import tempfile
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 import aiosqlite
 from fastapi.exceptions import RequestValidationError
@@ -53,8 +58,21 @@ FROM fleet_run_builds frb
 LEFT JOIN fleet_devices fd ON fd.id = frb.fleet_device_id
 LEFT JOIN builds b ON b.id = frb.build_id
 WHERE frb.fleet_run_id = ?
-ORDER BY frb.fleet_device_id
+ORDER BY fd.position, frb.fleet_device_id
 """
+# The zip has a folder for each fleet device label, so a label never makes a path outside its folder.
+UNSAFE_FOLDER_CHARACTERS = re.compile(r"[^\w.-]")
+MANIFEST_COLUMNS = (
+    "label",
+    "folder",
+    "variant",
+    "firmware_version",
+    "build_id",
+    "status",
+    "artifact_names",
+    "config_hash",
+)
+ZIP_CHUNK_BYTES = 1024 * 1024
 
 
 class FleetNotFound(Exception):
@@ -203,6 +221,44 @@ async def _wait_until_ended(ctx: BuildContext) -> None:
         await changed.wait()
 
 
+def _folder(label: str, used: set[str]) -> str:
+    """Return a zip folder name for `label` that `used` does not hold, and add it to `used`.
+
+    A folder name starts with no dot, so the folder is not hidden and no `..` path leaves the zip.
+    """
+    name = UNSAFE_FOLDER_CHARACTERS.sub("_", label)
+    if name.startswith("."):
+        name = f"_{name}"
+    while name in used:
+        name = f"{name}_"
+    used.add(name)
+    return name
+
+
+async def _build_records(database_path: Path, build_ids: list[str]) -> dict[str, aiosqlite.Row]:
+    """Return the `builds` row of each build id, so an artifact is found after the build queue forgets its build."""
+    async with aiosqlite.connect(database_path) as db:
+        db.row_factory = aiosqlite.Row
+        placeholders = ", ".join("?" for _ in build_ids)
+        cursor = await db.execute(
+            f"SELECT id, config_hash, firmware_path FROM builds WHERE id IN ({placeholders})", build_ids
+        )
+        return {row["id"]: row for row in await cursor.fetchall()}
+
+
+def _write_zip(file: IO[bytes], entries: list[tuple[dict[str, str], list[Path]]]) -> None:
+    """Write the artifacts of each entry in its folder, and `manifest.csv` with the row of each entry."""
+    manifest = io.StringIO()
+    writer = csv.DictWriter(manifest, MANIFEST_COLUMNS, lineterminator="\n")
+    writer.writeheader()
+    with zipfile.ZipFile(file, "w", zipfile.ZIP_DEFLATED) as archive:
+        for row, paths in entries:
+            for path in paths:
+                archive.write(path, f"{row['folder']}/{path.name}")
+            writer.writerow(row)
+        archive.writestr("manifest.csv", manifest.getvalue())
+
+
 class FleetRuns:
     """Run the fleet runs of this process, and hold their "must re-enter" secrets in memory."""
 
@@ -261,7 +317,7 @@ class FleetRuns:
             raise FleetRunNotFound(run_id)
         retry_ids = self._retry_ids(run)
         fleet = await fleets.get_fleet(self.settings.database_path, run["fleet_id"], self.settings.secret_key)
-        # A change of the fleet devices gives each one a new id, so the old fleet run cannot find them.
+        # A removed fleet device has no row, so the fleet run cannot build it again.
         if retry_ids - {device["id"] for device in fleet["devices"]}:
             raise FleetRunConflict("The fleet devices changed after this fleet run. Start a new fleet run.")
         version = await _firmware_version(self.settings, run["firmware_version"])
@@ -371,6 +427,64 @@ class FleetRuns:
             # A complete fleet run has nothing to retry, so the process keeps its secrets no longer.
             self._secrets.pop(run_id, None)
         logger.info(f"Fleet run {run_id} ended {status}")
+
+    async def archive(self, run_id: int) -> IO[bytes]:
+        """Return a temporary file that holds the zip of the fleet run, read from its start (FR-fleet-builds-19, -20).
+
+        The zip has a folder with the artifacts of each fleet device with a complete build, and `manifest.csv`.
+        `manifest.csv` has one row for each fleet device. It holds no value of a config, so it holds no secret.
+        The file is in `temp_dir`, so the zip never holds all the artifacts in memory. A close deletes the file.
+
+        Raises:
+        - `FleetRunNotFound` when no fleet run has the id.
+        - `FleetRunConflict` while the fleet run runs.
+        """
+        run = await self.get(run_id)
+        if run is None:
+            raise FleetRunNotFound(run_id)
+        if run["status"] == "running":
+            raise FleetRunConflict("The fleet run is running.")
+        build_ids = [device["build_id"] for device in run["devices"] if device["build_id"]]
+        records = await _build_records(self.settings.database_path, build_ids)
+        used: set[str] = set()
+        entries = [self._zip_entry(run, device, records.get(device["build_id"]), used) for device in run["devices"]]
+        self.settings.temp_dir.mkdir(parents=True, exist_ok=True)
+        # The response sends the file after this call returns, so the caller closes it.
+        file = tempfile.TemporaryFile(dir=self.settings.temp_dir)  # noqa: SIM115
+        try:
+            await asyncio.to_thread(_write_zip, file, entries)
+        except BaseException:
+            # The caller gets no file to close, so the half-written zip is removed here.
+            file.close()
+            raise
+        file.seek(0)
+        return file
+
+    def _zip_entry(
+        self, run: dict[str, Any], device: dict[str, Any], record: aiosqlite.Row | None, used: set[str]
+    ) -> tuple[dict[str, str], list[Path]]:
+        """Return the manifest row and the artifact paths of one fleet device of the fleet run."""
+        ctx = self.build_queue.get(device["build_id"]) if device["build_id"] else None
+        paths, config_hash = [], record["config_hash"] if record else None
+        if ctx is not None:
+            paths, config_hash = [ctx.build_dir / artifact.name for artifact in ctx.artifacts], ctx.config_hash
+        elif record is not None and record["firmware_path"]:
+            # After a restart, the `builds` row names only the primary artifact of the build.
+            paths = [Path(record["firmware_path"])]
+        # The cleanup removes the build directory of an old build, so a missing artifact stays out of the zip.
+        paths = [path for path in paths if path.is_file()] if device["status"] == "complete" else []
+        label = device["label"] or f"fleet-device-{device['fleet_device_id']}"
+        row = {
+            "label": label,
+            "folder": _folder(label, used) if paths else "",
+            "variant": device["variant"] or "",
+            "firmware_version": run["firmware_version"] or "",
+            "build_id": device["build_id"] or "",
+            "status": device["status"],
+            "artifact_names": ";".join(path.name for path in paths),
+            "config_hash": config_hash or "",
+        }
+        return row, paths
 
     async def stop(self) -> None:
         """Cancel the fleet runs of this process. Each one then shows `partial`."""
