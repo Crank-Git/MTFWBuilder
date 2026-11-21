@@ -1,5 +1,7 @@
 """E2E smoke tests of the build page in a real browser (feature frontend-htmx, criteria 1 and 2)."""
 
+import re
+
 import pytest
 from playwright.sync_api import Page, expect
 
@@ -23,6 +25,18 @@ def test_preview_shows_the_userprefs_file(page: Page, live_server: str):
     page.click("#previewBtn")
 
     expect(page.locator("#preview-container")).to_contain_text("USERPREFS_CHANNELS_TO_WRITE")
+
+
+def test_preview_with_a_15_byte_psk_shows_the_message_under_the_psk_field(page: Page, live_server: str):
+    page.goto(f"{live_server}/")
+    fill_config_form(page)
+    page.fill("#channel0PSK", "ab" * 15)
+
+    page.click("#previewBtn")
+
+    expect(page.locator('[id="error-channel_0.psk"]')).to_contain_text("the PSK is not 0, 1, 16 or 32 bytes")
+    expect(page.locator("#channel0PSK")).to_have_class(re.compile(r"\bis-invalid\b"))
+    expect(page.locator("#channel0PSK")).to_be_focused()
 
 
 def test_build_completes_and_downloads_the_factory_artifact(page: Page, live_server: str, tmp_path):
