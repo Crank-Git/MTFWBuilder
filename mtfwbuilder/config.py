@@ -7,6 +7,7 @@ from pathlib import Path
 
 import bcrypt
 import yaml
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
@@ -27,6 +28,7 @@ class Settings(BaseSettings):
 
     # Build settings
     max_queue_size: int = 5
+    build_workers: int = Field(default=1, ge=1)
     build_timeout_seconds: int = 900  # 15 minutes
     cleanup_interval_seconds: int = 1800  # 30 minutes
     build_max_age_seconds: int = 3600  # 1 hour

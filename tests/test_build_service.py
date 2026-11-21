@@ -11,25 +11,9 @@ from mtfwbuilder.services.build_service import (
     BuildContext,
     _parse_progress,
     _scrub_firmware_tree,
-    generate_build_id,
 )
 from mtfwbuilder.services.cleanup_service import cleanup_build_directory, cleanup_old_builds
 from mtfwbuilder.services.device_registry import DeviceVariant
-
-
-class TestBuildId:
-    """Tests for build ID generation."""
-
-    def test_build_id_format(self):
-        bid = generate_build_id()
-        assert bid.startswith("build_")
-        parts = bid.split("_")
-        assert len(parts) == 4  # build, timestamp, pid, counter
-        assert parts[1].isdigit()
-
-    def test_build_ids_unique(self):
-        ids = {generate_build_id() for _ in range(10)}
-        assert len(ids) == 10
 
 
 class TestProgressParsing:
@@ -204,17 +188,14 @@ class TestFirmwareRoutes:
         assert "No configuration" in resp.json()["detail"]
 
     @pytest.mark.asyncio
-    async def test_build_valid_request_returns_build_id(self, client):
+    async def test_build_valid_request_returns_202_with_build_id_and_progress_url(self, client):
         config = json.dumps({"device_name": "TestNode"})
         resp = await client.post(
             "/api/v1/build-firmware",
             data={"variant": "tbeam", "config_source": "current", "config_json": config},
         )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["success"] is True
-        assert "build_id" in data
-        assert data["build_id"].startswith("build_")
+        assert resp.status_code == 202
+        assert set(resp.json()) == {"build_id", "progress_url"}
 
     @pytest.mark.asyncio
     async def test_download_missing_build(self, client):

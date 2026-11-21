@@ -18,7 +18,7 @@ from mtfwbuilder.routers.admin import router as admin_router
 from mtfwbuilder.routers.config_generator import router as config_router
 from mtfwbuilder.routers.firmware_builder import router as firmware_router
 from mtfwbuilder.routers.pages import router as pages_router
-from mtfwbuilder.services.build_service import init_build_system
+from mtfwbuilder.services.build_service import BuildQueue
 from mtfwbuilder.services.device_registry import DeviceRegistry
 
 
@@ -69,12 +69,14 @@ async def lifespan(app: FastAPI):
     app.state.device_registry = registry
     logger.info(f"Loaded {registry.count} device variants")
 
-    # Initialize build system
-    init_build_system(settings)
-    logger.info("Build system initialized (serialized, 1 concurrent build)")
+    build_queue = BuildQueue(settings)
+    build_queue.start()
+    app.state.build_queue = build_queue
+    logger.info("Build queue started")
 
     yield
 
+    await build_queue.stop()
     logger.info("Shutting down MTFWBuilder")
 
 

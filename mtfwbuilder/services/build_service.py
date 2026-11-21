@@ -1,44 +1,39 @@
-"""Async firmware build orchestration with PlatformIO.
+"""Firmware builds: the build queue, the build workers and the progress stream.
 
-Serialized builds (Semaphore=1) to prevent shared firmware tree race condition.
-Line-by-line stdout streaming for SSE progress. Configurable build timeout.
+A build runs in a build worker, so it continues when no progress stream is open.
+The build keeps its build status and log lines in memory for the progress stream.
 """
 
 import asyncio
+import glob
+import json
 import logging
 import multiprocessing
 import os
+import secrets
 import shutil
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from mtfwbuilder.config import Settings
+from mtfwbuilder.models import BuildStatus
 from mtfwbuilder.services.device_registry import DeviceVariant
 
 logger = logging.getLogger("mtfwbuilder.build")
 
-# Serialized: shared firmware tree prevents concurrent builds
-_build_semaphore: asyncio.Semaphore | None = None
-_build_queue: asyncio.Queue | None = None
+FIRMWARE_SOURCE_MISSING = "Firmware source not installed. An admin must install a firmware version."
+ENDED_STATUSES = frozenset({"complete", "failed", "cancelled"})
+# The progress number of each build status that pio output shows.
+STEP_PROGRESS = {"compiling": 10, "linking": 70, "packaging": 90}
 
 
-def init_build_system(settings: Settings) -> None:
-    """Initialize the build semaphore and queue."""
-    global _build_semaphore, _build_queue  # noqa: PLW0603  # TODO(#18): The build queue replaces this module state.
-    _build_semaphore = asyncio.Semaphore(1)
-    _build_queue = asyncio.Queue(maxsize=settings.max_queue_size)
+class BuildQueueFull(Exception):
+    """The build queue holds `max_queue_size` builds."""
 
 
-@dataclass
-class BuildProgress:
-    """Progress event sent to SSE clients."""
-
-    status: str  # queued, compiling, linking, complete, failed
-    message: str = ""
-    progress: int = 0
-    download_url: str = ""
-    error: str = ""
+class BuildEnded(Exception):
+    """The build has a build status of `complete`, `failed` or `cancelled`."""
 
 
 @dataclass
@@ -53,62 +48,201 @@ class BuildContext:
     firmware_path: Path | None = None
     factory_path: Path | None = None
     build_log: list[str] = field(default_factory=list)
+    status: str = "queued"
+    message: str = ""
+    progress: int = 0
+    error: str = ""
+    download_url: str = ""
+    created_at: float = field(default_factory=time.monotonic)
+    task: asyncio.Task | None = None
+    changed: asyncio.Event = field(default_factory=asyncio.Event)
 
     def __post_init__(self):
         self.build_dir = self.settings.temp_dir / self.build_id
         self.build_dir.mkdir(parents=True, exist_ok=True)
 
+    @property
+    def ended(self) -> bool:
+        return self.status in ENDED_STATUSES
 
-async def build_firmware(ctx: BuildContext):
-    """Run a firmware build, yielding BuildProgress events via async generator.
+    def set_status(self, status: str, message: str = "", error: str = "", download_url: str = "") -> None:
+        """Set the build status and wake each progress stream; an ended build keeps its build status."""
+        if self.ended:
+            return
+        self.status = status
+        self.message = message
+        self.error = error
+        self.download_url = download_url
+        self.progress = 100 if status == "complete" else STEP_PROGRESS.get(status, self.progress)
+        self._notify()
 
-    Usage:
-        async for progress in build_firmware(ctx):
-            send_to_client(progress)
+    def add_log(self, line: str) -> None:
+        self.build_log.append(line)
+        self._notify()
+
+    def status_event(self) -> str:
+        """Return the JSON of the current build status for the progress stream."""
+        return BuildStatus(
+            status=self.status,
+            message=self.message,
+            progress=self.progress,
+            download_url=self.download_url,
+            error=self.error,
+        ).model_dump_json()
+
+    def _notify(self) -> None:
+        # A waiter holds the old event, so a set-and-replace wakes each waiter once.
+        self.changed.set()
+        self.changed = asyncio.Event()
+
+
+class BuildQueue:
+    """Hold the builds of this process and run them in build workers, in queue order."""
+
+    def __init__(self, settings: Settings):
+        self.settings = settings
+        self._queue: asyncio.Queue[BuildContext] = asyncio.Queue(maxsize=settings.max_queue_size)
+        self._builds: dict[str, BuildContext] = {}
+        self._workers: list[asyncio.Task] = []
+
+    def get(self, build_id: str) -> BuildContext | None:
+        return self._builds.get(build_id)
+
+    def submit(self, variant: DeviceVariant, config_content: str) -> BuildContext:
+        """Return a new build, after it is put in the build queue.
+
+        Raises `BuildQueueFull` when the build queue holds `max_queue_size` builds. A build
+        for a missing firmware source fails at once and does not go in the build queue.
+        """
+        if self._queue.full():
+            raise BuildQueueFull
+        self._forget_old_builds()
+        ctx = BuildContext(generate_build_id(), variant, config_content, self.settings)
+        self._builds[ctx.build_id] = ctx
+        if self.settings.firmware_dir.exists():
+            self._queue.put_nowait(ctx)
+        else:
+            ctx.set_status("failed", error=FIRMWARE_SOURCE_MISSING)
+        return ctx
+
+    def cancel(self, build_id: str) -> BuildContext:
+        """Return the build, after it changes to `cancelled`.
+
+        Raises `KeyError` for an unknown build id, and `BuildEnded` for a build that has ended.
+        """
+        ctx = self._builds[build_id]
+        if ctx.ended:
+            raise BuildEnded
+        ctx.set_status("cancelled", message="Build cancelled.")
+        if ctx.task is not None:
+            ctx.task.cancel()
+        return ctx
+
+    def start(self) -> None:
+        """Start the build workers in the running event loop."""
+        if self.settings.build_workers > 1:
+            # TODO(#88): Copy the firmware source per build worker and start `build_workers` of them.
+            logger.warning("MTFW_BUILD_WORKERS > 1 needs one firmware source per build worker; one build worker runs")
+        self._workers = [asyncio.create_task(self._work())]
+
+    async def stop(self) -> None:
+        """Stop the build workers, and cancel the builds that run."""
+        tasks = self._workers + [c.task for c in self._builds.values() if c.task is not None]
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        self._workers = []
+
+    async def _work(self) -> None:
+        while True:
+            ctx = await self._queue.get()
+            # A build cancelled while it waits stays in the queue until a build worker takes it.
+            if not ctx.ended:
+                ctx.task = asyncio.create_task(run_build(ctx))
+                # `wait` does not raise when the build task is cancelled, so the build worker continues.
+                await asyncio.wait({ctx.task})
+            self._queue.task_done()
+
+    def _forget_old_builds(self) -> None:
+        oldest = time.monotonic() - self.settings.build_max_age_seconds
+        for build_id in [k for k, c in self._builds.items() if c.ended and c.created_at < oldest]:
+            del self._builds[build_id]
+
+
+async def progress_events(ctx: BuildContext):
+    """Yield the SSE events of the progress stream for one build.
+
+    The first event is the current build status. Then the stream sends each change of the
+    build status and each new log line. The stream ends after the build ends. A closed
+    stream has no effect on the build.
     """
-    if _build_semaphore is None:
-        raise RuntimeError("Build system not initialized — call init_build_system()")
-
-    # Try to acquire build slot
-    if _build_semaphore.locked():
-        yield BuildProgress(status="queued", message="Waiting for current build to finish...")
-
-    async with _build_semaphore:
-        yield BuildProgress(status="compiling", message=f"Building firmware for {ctx.variant.name}...")
-
-        try:
-            async with asyncio.timeout(ctx.settings.build_timeout_seconds):
-                async for progress in _run_pio_build(ctx):
-                    yield progress
-        except TimeoutError:
-            error_msg = f"Build timed out after {ctx.settings.build_timeout_seconds // 60} minutes"
-            logger.error(f"Build {ctx.build_id}: {error_msg}")
-            yield BuildProgress(status="failed", error=error_msg)
+    sent_status = None
+    log_index = len(ctx.build_log)
+    while True:
+        # Hold the event before the read, so a change during a yield is not lost.
+        changed = ctx.changed
+        status = ctx.status_event()
+        if status != sent_status:
+            sent_status = status
+            yield {"event": "status", "data": status}
+        for line in ctx.build_log[log_index:]:
+            yield {"event": "log", "data": json.dumps({"line": line})}
+        log_index = len(ctx.build_log)
+        if ctx.ended:
             return
-
-        # Find and copy firmware files
-        try:
-            await _extract_firmware(ctx)
-        except FileNotFoundError as e:
-            yield BuildProgress(status="failed", error=str(e))
-            return
-
-        download_url = f"/api/v1/download-firmware/{ctx.build_id}?variant={ctx.variant.id}"
-        yield BuildProgress(
-            status="complete",
-            message="Build complete!",
-            download_url=download_url,
-        )
+        await changed.wait()
 
 
-# Type alias for the async generator
-async def _run_pio_build(ctx: BuildContext):
-    """Run PlatformIO build as async subprocess, streaming stdout line-by-line."""
-    firmware_dir = ctx.settings.firmware_dir
-
-    if not firmware_dir.exists():
-        yield BuildProgress(status="failed", error="Firmware source not installed. Use Admin panel to update.")
+async def run_build(ctx: BuildContext) -> None:
+    """Run one build to an ended build status."""
+    if not ctx.settings.firmware_dir.exists():
+        ctx.set_status("failed", error=FIRMWARE_SOURCE_MISSING)
         return
+    ctx.set_status("compiling", message=f"Building firmware for {ctx.variant.name}...")
+    try:
+        async with asyncio.timeout(ctx.settings.build_timeout_seconds):
+            exit_code = await _run_pio_build(ctx)
+        if exit_code != 0:
+            ctx.set_status(
+                "failed", message="Build failed. See build log for details.", error=_error_summary(ctx, exit_code)
+            )
+            return
+        _extract_firmware(ctx)
+    except TimeoutError:
+        error_msg = f"Build timed out after {ctx.settings.build_timeout_seconds // 60} minutes"
+        logger.error(f"Build {ctx.build_id}: {error_msg}")
+        ctx.set_status("failed", error=error_msg)
+        return
+    except OSError as e:
+        # A missing pio executable, a missing artifact and a full disk all raise OSError.
+        logger.error(f"Build {ctx.build_id} failed: {e}")
+        ctx.set_status("failed", error=str(e))
+        return
+    download_url = f"/api/v1/download-firmware/{ctx.build_id}?variant={ctx.variant.id}"
+    ctx.set_status("complete", message="Build complete!", download_url=download_url)
+
+
+def _error_summary(ctx: BuildContext, exit_code: int) -> str:
+    tail = ctx.build_log[-20:]
+    # The first `error:` line names the cause; the later `*** [...] Error 1` line only repeats it.
+    causes = [line for line in tail if "error:" in line.lower()]
+    other_errors = [line for line in tail if "error" in line.lower()]
+    if causes:
+        summary = causes[0]
+    elif other_errors:
+        summary = other_errors[-1]
+    else:
+        summary = f"PlatformIO exited with code {exit_code}"
+    logger.error(f"Build {ctx.build_id} failed: {summary}")
+    return summary
+
+
+async def _run_pio_build(ctx: BuildContext) -> int:
+    """Return the exit code of `pio run` for the build, after each output line goes to the build log.
+
+    A cancel of the build kills the pio process.
+    """
+    firmware_dir = ctx.settings.firmware_dir
 
     # Write userPrefs.jsonc to build locations
     configs_dir = firmware_dir / "configs"
@@ -147,33 +281,19 @@ async def _run_pio_build(ctx: BuildContext):
     )
 
     try:
-        last_status = ""
         async for raw_line in process.stdout:
             line = raw_line.decode("utf-8", errors="replace").rstrip()
-            ctx.build_log.append(line)
-
-            # Detect progress milestones
+            ctx.add_log(line)
             status = _parse_progress(line)
-            if status and status != last_status:
-                last_status = status
-                yield BuildProgress(status=status, message=line[:200])
-
-        exit_code = await process.wait()
-    except (asyncio.CancelledError, GeneratorExit):
-        # Kill subprocess on timeout or client disconnect
+            # Only the exit code of pio decides `complete` or `failed`, so one build sends one end event.
+            if status in STEP_PROGRESS and status != ctx.status:
+                ctx.set_status(status, message=line[:200])
+        return await process.wait()
+    except asyncio.CancelledError:
+        # A cancel or a timeout must not leave pio to write into the firmware source.
         process.kill()
         await process.wait()
         raise
-
-    if exit_code != 0:
-        error_lines = [line for line in ctx.build_log[-20:] if "error" in line.lower()]
-        error_summary = error_lines[-1] if error_lines else f"PlatformIO exited with code {exit_code}"
-        logger.error(f"Build {ctx.build_id} failed: {error_summary}")
-        yield BuildProgress(
-            status="failed",
-            error=error_summary,
-            message="Build failed. See build log for details.",
-        )
 
 
 def _parse_progress(line: str) -> str | None:
@@ -192,30 +312,39 @@ def _parse_progress(line: str) -> str | None:
     return None
 
 
-async def _extract_firmware(ctx: BuildContext) -> None:
-    """Find and copy firmware files to the build directory."""
-    firmware_dir = ctx.settings.firmware_dir
-    variant_id = ctx.variant.id
+def _find_artifact(pio_build_dir: Path, env_name: str, extension: str) -> Path | None:
+    """Return the upstream `firmware-<env>-<version>.<extension>` file, or None when pio wrote none.
+
+    Upstream `bin/platformio-pre.py` sets `PROGNAME = firmware-<env>-<version>` (meshtastic/firmware PR #8248).
+    """
+    pattern = str(pio_build_dir / f"firmware-{glob.escape(env_name)}-*.{extension}")
+    # The `.bin` pattern also matches the `.factory.bin` file of ESP32.
+    matches = sorted(p for p in glob.glob(pattern) if extension == "factory.bin" or not p.endswith(".factory.bin"))
+    return Path(matches[0]) if matches else None
+
+
+def _extract_firmware(ctx: BuildContext) -> None:
+    """Copy the primary artifact, and the ESP32 factory artifact, to the build directory.
+
+    The copies keep the names `firmware.<format>` and `firmware.factory.bin` that the download route reads.
+    Raises `FileNotFoundError` when pio wrote no primary artifact.
+    """
     fmt = ctx.variant.firmware_format
+    pio_build_dir = ctx.settings.firmware_dir / ".pio" / "build" / ctx.variant.id
 
-    # Check default PIO build output location
-    pio_build_dir = firmware_dir / ".pio" / "build" / variant_id
+    source_path = _find_artifact(pio_build_dir, ctx.variant.id, fmt)
+    if source_path is None:
+        raise FileNotFoundError(f"Build completed but no firmware-{ctx.variant.id}-*.{fmt} found in {pio_build_dir}")
+
     firmware_filename = f"firmware.{fmt}"
-    source_path = pio_build_dir / firmware_filename
-
-    if not source_path.exists():
-        raise FileNotFoundError(f"Build completed but {firmware_filename} not found at {source_path}")
-
-    # Copy firmware to isolated build directory
     dest = ctx.build_dir / firmware_filename
     shutil.copy2(str(source_path), str(dest))
     ctx.firmware_path = dest
     logger.info(f"Build {ctx.build_id}: firmware copied to {dest}")
 
-    # For ESP32: also copy factory binary
     if ctx.variant.has_factory_binary:
-        factory_source = pio_build_dir / "firmware.factory.bin"
-        if factory_source.exists():
+        factory_source = _find_artifact(pio_build_dir, ctx.variant.id, "factory.bin")
+        if factory_source is not None:
             factory_dest = ctx.build_dir / "firmware.factory.bin"
             shutil.copy2(str(factory_source), str(factory_dest))
             ctx.factory_path = factory_dest
@@ -246,11 +375,6 @@ def _scrub_firmware_tree(ctx: BuildContext) -> None:
     logger.debug(f"Build {ctx.build_id}: sensitive files scrubbed from firmware tree")
 
 
-_build_counter = 0
-
-
 def generate_build_id() -> str:
-    """Generate a unique build ID."""
-    global _build_counter  # noqa: PLW0603  # TODO(#18): The build queue owns the build ID.
-    _build_counter += 1
-    return f"build_{int(time.time())}_{os.getpid()}_{_build_counter}"
+    """Return a new build id of 32 hex characters."""
+    return secrets.token_hex(16)
