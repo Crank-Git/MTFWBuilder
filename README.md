@@ -184,7 +184,8 @@ Key endpoints:
   env or the manufacturer without case and punctuation. Give `arch` once for each architecture to keep.
   Variants with support level `extra` show only with `experimental=true`. Each entry has the registry
   fields and `image_url`, which is null when the firmware source does not hold the image file. Returns 404
-  for a `version` that is not installed.
+  for a `version` that is not installed. An htmx request (header `HX-Request`) gets the device picker
+  list of the build page as HTML, grouped by manufacturer.
 - `GET /api/v1/variants/{env}/image?version=` — The SVG or PNG device image from the firmware source.
   Returns 404 when the firmware source does not hold the image file named in `custom_meshtastic_images`.
 

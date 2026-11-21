@@ -21,6 +21,13 @@ def fill_config_form(page: Page) -> None:
     page.fill("#channel0PSK", PSK_HEX)
 
 
+def choose_variant(page: Page, env: str) -> None:
+    """Search the device picker for `env` and choose the row of that env."""
+    page.fill("#device-search", env)
+    page.click(f'#device-results [data-env="{env}"]')
+    expect(page.locator("#variant")).to_have_value(env)
+
+
 def test_preview_shows_the_userprefs_file(page: Page, live_server: str):
     page.goto(f"{live_server}/")
     fill_config_form(page)
@@ -45,7 +52,7 @@ def test_preview_with_a_15_byte_psk_shows_the_message_under_the_psk_field(page: 
 def test_build_completes_and_downloads_the_factory_artifact(page: Page, live_server: str, tmp_path):
     page.goto(f"{live_server}/")
     fill_config_form(page)
-    page.select_option("#variant", "heltec-v3")
+    choose_variant(page, "heltec-v3")
 
     page.click("#buildBtn")
 
@@ -64,7 +71,7 @@ def test_build_completes_and_downloads_the_factory_artifact(page: Page, live_ser
 def test_build_of_the_chosen_alpha_firmware_version_gives_alpha_artifacts(page: Page, live_server: str):
     page.goto(f"{live_server}/")
     fill_config_form(page)
-    page.select_option("#variant", "heltec-v3")
+    choose_variant(page, "heltec-v3")
     page.select_option("#firmware_version", ALPHA_VERSION)
 
     page.click("#buildBtn")
@@ -76,10 +83,10 @@ def test_build_of_the_chosen_alpha_firmware_version_gives_alpha_artifacts(page: 
 def test_build_of_a_variant_not_in_the_chosen_firmware_version_shows_the_variant_message(page: Page, live_server: str):
     page.goto(f"{live_server}/")
     fill_config_form(page)
-    # The YAML registry lists `tbeam`, and the registry of the alpha firmware version does not hold it.
-    page.select_option("#variant", "tbeam")
+    # The stable registry holds `heltec-v4`, and the alpha registry holds it under the name `heltec-v4-r2`.
+    choose_variant(page, "heltec-v4")
     page.select_option("#firmware_version", ALPHA_VERSION)
 
     page.click("#buildBtn")
 
-    expect(page.get_by_role("alert")).to_contain_text(f"variant: Variant not in {ALPHA_VERSION}")
+    expect(page.locator("#error-variant")).to_have_text(f"Variant not in {ALPHA_VERSION}")

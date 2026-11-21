@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 
 from mtfwbuilder.database import find_firmware_source, list_firmware_sources, list_variants
+from mtfwbuilder.htmx import is_htmx
 from mtfwbuilder.models import RegistryEntry
 
 router = APIRouter(prefix="/api/v1", tags=["variants"])
@@ -82,20 +83,32 @@ async def get_variants(
         experimental: When true, the result also holds the variants with support level `extra`.
 
     Returns an empty list when no firmware version is installed. Returns 404 for a `version` that is not installed.
+    An htmx request gets the device picker list as HTML (FR-generated-registry-8 to -12).
     """
     source = await _source(request, version)
-    if source is None:
-        return []
+    registry = await list_variants(request.app.state.settings.database_path, source["version"]) if source else []
     query = search_text(q)
-    source_dir = Path(source["path"])
-    image_query = urlencode({"version": source["version"]})
     entries = []
-    for entry in await list_variants(request.app.state.settings.database_path, source["version"]):
+    for entry in registry:
         if _matches(entry, query, arch, experimental):
-            has_image = image_path(source_dir, entry["image"]) is not None
+            has_image = image_path(Path(source["path"]), entry["image"]) is not None
+            image_query = urlencode({"version": source["version"]})
             url = f"/api/v1/variants/{quote(entry['env'])}/image?{image_query}" if has_image else None
             entries.append(RegistryEntry(**entry, image_url=url))
-    return entries
+    if not is_htmx(request):
+        return entries
+    # "Other" holds the variants without a manufacturer tag (FR-generated-registry-4), so its group comes last.
+    groups: dict[str, list[RegistryEntry]] = {}
+    for entry in sorted(entries, key=lambda e: (e.manufacturer == "Other", e.manufacturer.casefold())):
+        groups.setdefault(entry.manufacturer, []).append(entry)
+    context = {
+        "source": source,
+        "q": q,
+        "arch": arch or [],
+        "architectures": sorted({entry["architecture"] for entry in registry}),
+        "manufacturers": groups,
+    }
+    return request.app.state.templates.TemplateResponse(request, "partials/device_list.html", context)
 
 
 @router.get("/variants/{env}/image")

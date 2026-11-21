@@ -83,7 +83,8 @@ def live_server(tmp_path_factory):
     The server reads every path from a directory under `tmp_path`. Two firmware sources have a ready record:
     the stable `FIRMWARE_VERSION` and the alpha `ALPHA_VERSION`. Each is a directory `firmware/<tag>/` that holds
     no firmware, because the fake `pio` reads only the userPrefs file and `.fake-pio-version`.
-    Only the alpha firmware version has a registry: the registry of `tests/fixtures/firmware/project_config.json`.
+    The stable firmware version has the registry of `tests/fixtures/firmware/project_config.json`.
+    The alpha firmware version has that registry with `heltec-v4` renamed to `heltec-v4-r2`.
     The server stops when the module ends.
     """
     base = tmp_path_factory.mktemp("e2e")
@@ -99,7 +100,8 @@ def live_server(tmp_path_factory):
         "status": "ready",
     }
     database_path = base / "mtfwbuilder.db"
-    record_firmware_source(database_path, record)
+    registry = registry_entries(json.loads(PROJECT_CONFIG.read_text()))
+    record_firmware_source(database_path, record, registry)
     # The fake `pio` reads `.fake-pio-version`, so the artifact names show which firmware source the build used.
     alpha_dir = base / "firmware" / ALPHA_VERSION
     alpha_dir.mkdir()
@@ -110,8 +112,9 @@ def live_server(tmp_path_factory):
         "path": str(alpha_dir),
         "installed_at": "2026-11-10T00:00:00+00:00",
     }
-    # The alpha firmware version has the registry of the firmware fixture, and the stable one has no registry.
-    record_firmware_source(database_path, {**record, **alpha}, registry_entries(json.loads(PROJECT_CONFIG.read_text())))
+    # Upstream can rename an env between firmware versions, so the alpha registry holds `heltec-v4` under a new name.
+    renamed = [{**entry, "env": "heltec-v4-r2"} if entry["env"] == "heltec-v4" else entry for entry in registry]
+    record_firmware_source(database_path, {**record, **alpha}, renamed)
     port = _free_port()
     command = [sys.executable, "-m", "uvicorn", "mtfwbuilder.main:app", "--host", "127.0.0.1", "--port", str(port)]
     with _serve(command, env, port) as url:
