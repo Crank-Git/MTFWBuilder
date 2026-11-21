@@ -123,6 +123,7 @@ MTFWBuilder/
 │   │   ├── variants.py             # /api/v1/variants, registry of a firmware version, device images
 │   │   ├── profiles.py             # /api/v1/profiles, saved configs, with encrypted secrets on opt-in
 │   │   ├── admin.py                # Login, firmware updates, cleanup
+│   │   ├── channel_share.py        # /api/v1/import/channel-url, import/cli-yaml, export/channel-url
 │   │   └── pages.py                # HTML page routes
 │   └── services/
 │       ├── jsonc_generator.py      # userPrefs.jsonc generation
@@ -130,6 +131,7 @@ MTFWBuilder/
 │       ├── registry_generator.py   # Registry of a firmware source, from its PlatformIO config
 │       ├── firmware_updater.py     # GitHub firmware source downloads
 │       ├── firmware_catalog.py     # Upstream stable and alpha firmware versions
+│       ├── channel_share.py        # Channel URL decoder and encoder, CLI export YAML reader
 │       ├── profiles.py             # Profile records, secret removal on save
 │       └── cleanup_service.py      # Build artifact and PSK cleanup
 ├── templates/                      # Jinja2 templates (htmx planned)
@@ -164,6 +166,21 @@ Key endpoints:
 - `GET /api/v1/userprefs/keys?version=<tag>` — The userPrefs keys (`keys`) and the `config.proto` enum values
   (`enum_values`) that a firmware version reads, from a scan of its firmware source. Without `version`, the result
   is for the default firmware version. Returns 404 when the firmware version is not installed.
+- `POST /api/v1/import/channel-url` — Decode a channel URL `{"url": "https://meshtastic.org/e/#…"}` or an
+  `https://meshtastic.org/e/?add=true#…` URL. Returns `channels` (`index`, `name`, `psk` in base64, `default_key`,
+  `role`, `uplink_enabled`, `downlink_enabled`, `position_precision`), `lora` (`region`, `modem_preset` and the other
+  LoRa settings), `add` and `warnings`. A URL with more than 8 channels gives the first 8 and a warning. Returns 422
+  with "This is not a valid Meshtastic channel URL." when the URL does not decode. The server keeps no copy of the URL.
+- `POST /api/v1/import/cli-yaml` — Read a `meshtastic --export-config` file, sent as the multipart field `file`.
+  Returns `config` (the form fields that have a userPrefs key, with the form field names), `not_applied` (the dotted
+  path in the file of each other field, for example `module_config.serial`) and `warnings` (the reason for each field
+  that the form rejects). Returns 413 for a file larger than 64 KB. Returns 422 with "This is not a valid Meshtastic
+  export file." when `yaml.safe_load` does not read the file or the file holds no mapping. The server keeps no copy of
+  the file.
+- `POST /api/v1/export/channel-url` — Encode the channels and the LoRa settings of a config, with the
+  `/api/v1/generate` body. Returns `url` (a `https://meshtastic.org/e/#…` channel URL) and `qr_svg` (an SVG QR code
+  of the URL). The URL holds the channel slots that `channels_to_write` counts. An empty field takes the firmware
+  default: PSK default key 1, position precision 13, hop limit 3. Returns 422 when `channels_to_write` is 0.
 - `POST /api/v1/build-firmware` — Start firmware build
 - `GET /api/v1/build-progress/{id}` — SSE build progress stream
 - `GET /api/v1/builds/{id}` — Build status of a build: `build_id`, `status`, `message`, `progress`, `error`, `download_url`

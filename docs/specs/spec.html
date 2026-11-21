@@ -232,6 +232,7 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><td>PSK</td><td>noun</td><td>The pre-shared key that encrypts a channel.</td><td>password, key (alone)</td></tr>
 <tr><td>secret</td><td>noun</td><td>Any config value that gives access: a PSK, a WiFi password, an MQTT password, an admin key.</td><td>credential, sensitive data</td></tr>
 <tr><td>channel URL</td><td>noun</td><td>A <code>https://meshtastic.org/e/#…</code> URL that encodes a ChannelSet protobuf.</td><td>share link, QR link</td></tr>
+<tr><td>proto default</td><td>noun</td><td>The value of a protobuf field that a message does not set: false, 0, empty, or the enum value 0. <code>MessageToDict</code> leaves it out.</td><td>zero value, unset value</td></tr>
 <tr><td>build</td><td>noun</td><td>One compile of one variant with one userPrefs file. A build has a build id and a status.</td><td>job, compile run</td></tr>
 <tr><td>build id</td><td>noun</td><td>The identifier of one build.</td><td>job id, token</td></tr>
 <tr><td>build status</td><td>noun</td><td>One of: <code>queued</code>, <code>compiling</code>, <code>linking</code>, <code>packaging</code>, <code>complete</code>, <code>failed</code>, <code>cancelled</code>.</td><td>state, phase</td></tr>
@@ -397,6 +398,8 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><td>Runtime</td><td>Python 3.13 (Docker and CI; CI also tests 3.14)</td><td><code>meshtastic</code> python requires <code>&lt;3.15</code>.</td></tr>
 <tr><td>Deploy</td><td>Docker Compose, self-hosted. No hosted instance.</td><td>Interview answer: not deployed.</td></tr>
 <tr><td>Protobuf decode</td><td><code>meshtastic</code> python package (GPL-3.0)</td><td>Decodes channel URLs and CLI YAML. Allowed by the GPL-3.0 relicense (ADR 0004).</td></tr>
+<tr><td>QR code</td><td>segno (BSD-3-Clause)</td><td>Writes the SVG QR code of an exported channel URL. Pure Python, no image library.</td></tr>
+<tr><td>QR decode in tests</td><td>zxing-cpp (Apache-2.0), dev dependency only</td><td>The tests decode the exported QR code. The app does not load it.</td></tr>
 </table></div>
 <h2 id="data-model">Data model</h2>
 <div class="diagram"><pre class="mermaid">erDiagram

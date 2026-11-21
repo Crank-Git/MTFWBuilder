@@ -620,3 +620,8 @@ body {
     background: var(--bs-warning-bg-subtle);
     color: var(--bs-warning-text-emphasis);
 }
+
+/* The QR code SVG has a transparent background, and a camera cannot read dark modules on the dark theme. */
+.channel-share-qr svg {
+    background: #fff;
+}

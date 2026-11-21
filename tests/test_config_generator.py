@@ -144,6 +144,12 @@ class TestPSK:
         result = json.loads(generate_jsonc(data))
         assert "USERPREFS_CHANNEL_0_PSK" not in result
 
+    def test_empty_byte_list_psk_writes_an_empty_array(self):
+        # Upstream `Channels::getKey` reads a primary channel PSK of 0 bytes as no encryption.
+        data = {"channels_to_write": "1", "channel_0[psk]": "{ }"}
+        result = json.loads(generate_jsonc(data))
+        assert result["USERPREFS_CHANNEL_0_PSK"] == "{ }"
+
     def test_whitespace_psk_trimmed(self):
         data = {"channels_to_write": "1", "channel_0[psk]": "  deadbeef  "}
         result = json.loads(generate_jsonc(data))

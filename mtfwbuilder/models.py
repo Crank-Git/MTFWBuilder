@@ -13,6 +13,10 @@ from mtfwbuilder.time_zones import to_posix_tz
 CHANNEL_SLOTS = 8
 PSK_LENGTHS = (0, 1, 16, 32)
 MAX_TX_POWER_DBM = 30
+# Upstream `channel.options` gives `ChannelSettings.name` a `max_size` of 12, and the C string ends with a 0 byte.
+MAX_CHANNEL_NAME_BYTES = 11
+# A `ChannelSet` of 8 full channels gives a URL of about 670 characters, so the limit leaves room for new fields.
+MAX_CHANNEL_URL_LENGTH = 4096
 
 # Spec feature config-coverage: an interval field is 0 or 60 to 2,592,000 seconds (30 days).
 MIN_INTERVAL_SECS = 60
@@ -79,6 +83,14 @@ class ChannelConfig(_UserPrefsFields):
     uplink_enabled: str | None = None
     downlink_enabled: str | None = None
     muted: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _check_name_length(cls, value: str | None) -> str | None:
+        # Upstream copies the name into a 12-byte array with `strcpy`, so a longer name overflows the array.
+        if value and len(value.encode("utf-8")) > MAX_CHANNEL_NAME_BYTES:
+            raise ValueError(f"the channel name is longer than {MAX_CHANNEL_NAME_BYTES} bytes")
+        return value
 
     @field_validator("psk")
     @classmethod
@@ -416,11 +428,15 @@ class ConfigRequest(_UserPrefsFields):
 
     def generator_input(self) -> dict[str, Any]:
         """Return the flat dict that `generate_jsonc` reads, with `channel_N[field]` keys."""
-        data = self.model_dump(exclude_none=True)
-        for slot in range(CHANNEL_SLOTS):
-            for field, value in data.pop(f"channel_{slot}", {}).items():
-                data[f"channel_{slot}[{field}]"] = value
-        return data
+        return flat_channel_keys(self.model_dump(exclude_none=True))
+
+
+def flat_channel_keys(data: dict[str, Any]) -> dict[str, Any]:
+    """Return a `ConfigRequest` dump with each `channel_N` object as flat `channel_N[field]` keys, the form names."""
+    for slot in range(CHANNEL_SLOTS):
+        for field, value in data.pop(f"channel_{slot}", {}).items():
+            data[f"channel_{slot}[{field}]"] = value
+    return data
 
 
 class UserPrefsKeys(BaseModel):
@@ -604,3 +620,72 @@ class InstallStatus(BaseModel):
     version: str
     status: Literal["queued", "downloading", "extracting", "installing packages", "ready", "failed"]
     error: str = ""
+
+
+class ChannelUrlRequest(BaseModel):
+    """Request body of `POST /api/v1/import/channel-url`."""
+
+    url: str = Field(max_length=MAX_CHANNEL_URL_LENGTH)
+
+
+class ImportedChannel(BaseModel):
+    """One channel of a channel URL."""
+
+    index: int
+    name: str
+    # The PSK in base64. A PSK of 1 byte is a default key, and `default_key` then holds its number.
+    psk: str
+    default_key: int | None
+    role: Literal["PRIMARY", "SECONDARY"]
+    # Upstream `Channels::getKey` gives a secondary channel with an empty PSK the primary channel key.
+    uses_primary_key: bool
+    uplink_enabled: bool
+    downlink_enabled: bool
+    position_precision: int
+
+
+class ImportedLora(BaseModel):
+    """The LoRa settings of a channel URL. An enum number that protobufs v2.8.3 does not define is None."""
+
+    region: str | None
+    modem_preset: str | None
+    use_preset: bool
+    hop_limit: int
+    tx_enabled: bool
+    tx_power: int
+    channel_num: int
+    ignore_mqtt: bool
+    config_ok_to_mqtt: bool
+
+
+class ChannelUrlImport(BaseModel):
+    """Response of `POST /api/v1/import/channel-url`. `add` is True for an `add=true` URL."""
+
+    channels: list[ImportedChannel]
+    lora: ImportedLora
+    add: bool
+    warnings: list[str]
+
+
+class ChannelUrlExport(BaseModel):
+    """Response of `POST /api/v1/export/channel-url`.
+
+    `qr_svg` is an SVG document of a QR code that holds `url`. `warnings` holds each problem of the URL for a mesh.
+    """
+
+    url: str
+    qr_svg: str
+    warnings: list[str]
+
+
+class CliYamlImport(BaseModel):
+    """Response of `POST /api/v1/import/cli-yaml`.
+
+    `config` holds the form fields, with the `ConfigRequest` names and the flat `channel_N[field]` names.
+    `not_applied` holds the dotted path in the file of each field that has no userPrefs key or that the form rejects.
+    `warnings` holds the reason for each rejected field.
+    """
+
+    config: dict[str, str]
+    not_applied: list[str]
+    warnings: list[str]
