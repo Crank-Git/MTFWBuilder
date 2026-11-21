@@ -1,10 +1,13 @@
 """Tests for fleet runs (feature fleet-builds, FR 15, 17 and 18, and the restart edge case)."""
 
 import asyncio
+import csv
+import io
 import json
 import logging
 import re
 import time
+import zipfile
 
 import aiosqlite
 import pytest
@@ -337,3 +340,125 @@ async def test_fleet_run_of_a_device_without_a_variant_returns_422_with_its_row(
 
     assert response.status_code == 422
     assert [error["loc"][:4] for error in response.json()["detail"]] == [["body", "devices", 1, "variant"]]
+
+
+# FR-fleet-builds-19 and -20: Download all
+
+
+async def _download(client, run_id):
+    return await client.get(f"/api/v1/fleet-runs/{run_id}/download")
+
+
+def _zip(response) -> zipfile.ZipFile:
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"] == "application/zip"
+    return zipfile.ZipFile(io.BytesIO(response.content))
+
+
+def _manifest(archive: zipfile.ZipFile) -> list[dict]:
+    return list(csv.DictReader(io.StringIO(archive.read("manifest.csv").decode())))
+
+
+def _folders(archive: zipfile.ZipFile) -> set[str]:
+    return {name.split("/")[0] for name in archive.namelist() if "/" in name}
+
+
+@pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
+async def test_a_fleet_run_of_3_devices_gives_a_zip_with_3_folders_and_manifest_csv(client):
+    run_id = (await _start(client, await _fleet(client))).json()["run_id"]
+    run = await _wait_until_ended(client, run_id)
+
+    response = await _download(client, run_id)
+
+    archive = _zip(response)
+    assert response.headers["content-disposition"] == f'attachment; filename="fleet-run-{run_id}.zip"'
+    assert _folders(archive) == {"gate-1", "gate-2", "gate-3"}
+    rows = _manifest(archive)
+    assert [row["label"] for row in rows] == ["gate-1", "gate-2", "gate-3"]
+    for row, device in zip(rows, run["devices"], strict=True):
+        assert row["variant"] == "heltec-v3"
+        assert row["firmware_version"] == run["firmware_version"]
+        assert row["build_id"] == device["build_id"]
+        assert row["status"] == "complete"
+        assert re.fullmatch("[0-9a-f]{64}", row["config_hash"])
+        in_folder = [name for name in archive.namelist() if name.startswith(f"{row['folder']}/")]
+        assert in_folder
+        assert sorted(f"{row['folder']}/{name}" for name in row["artifact_names"].split(";")) == sorted(in_folder)
+
+
+@pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
+async def test_manifest_csv_holds_no_psk_and_no_admin_key(client):
+    fleet_id = await _fleet(client, config=PSK_CONFIG)
+    run_id = (await _start(client, fleet_id, {"channel_0[psk]": PSK})).json()["run_id"]
+    assert (await _wait_until_ended(client, run_id))["status"] == "complete"
+
+    manifest = _zip(await _download(client, run_id)).read("manifest.csv").decode()
+
+    for secret in (PSK, PSK_BYTES, ADMIN_KEY, ADMIN_KEY_BYTES):
+        assert secret not in manifest
+
+
+@pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
+async def test_the_zip_of_a_partial_fleet_run_lists_the_failed_device_without_a_folder(client, monkeypatch):
+    monkeypatch.setenv("FAKE_PIO_FAIL_MATCH", "Gate Two")
+    run_id = (await _start(client, await _fleet(client))).json()["run_id"]
+    assert (await _wait_until_ended(client, run_id))["status"] == "partial"
+
+    archive = _zip(await _download(client, run_id))
+
+    assert _folders(archive) == {"gate-1", "gate-3"}
+    failed = _manifest(archive)[1]
+    assert (failed["label"], failed["status"], failed["artifact_names"]) == ("gate-2", "failed", "")
+
+
+@pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
+async def test_a_label_with_a_path_gives_a_folder_inside_the_zip(client):
+    devices = [{"label": "../team/a", "variant": "heltec-v3"}, {"label": ".hidden", "variant": "heltec-v3"}]
+    run_id = (await _start(client, await _fleet(client, devices=devices))).json()["run_id"]
+    await _wait_until_ended(client, run_id)
+
+    archive = _zip(await _download(client, run_id))
+
+    assert _folders(archive) == {"_.._team_a", "_.hidden"}
+    assert [(row["label"], row["folder"]) for row in _manifest(archive)] == [
+        ("../team/a", "_.._team_a"),
+        (".hidden", "_.hidden"),
+    ]
+
+
+@pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
+async def test_the_download_of_a_running_fleet_run_returns_409(client, monkeypatch):
+    monkeypatch.setenv("FAKE_PIO_SLEEP", "30")
+    run_id = (await _start(client, await _fleet(client))).json()["run_id"]
+
+    response = await _download(client, run_id)
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "The fleet run is running."
+
+
+async def test_the_download_of_an_unknown_fleet_run_returns_404(client):
+    response = await _download(client, 999)
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Fleet run 999 does not exist"
+
+
+# A table save keeps the fleet device ids, so Retry failed still finds the fleet devices.
+
+
+@pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
+async def test_retry_after_a_table_save_with_the_same_labels_builds_the_failed_device(client, monkeypatch):
+    monkeypatch.setenv("FAKE_PIO_FAIL_MATCH", "Gate Two")
+    fleet_id = await _fleet(client)
+    run_id = (await _start(client, fleet_id)).json()["run_id"]
+    assert (await _wait_until_ended(client, run_id))["status"] == "partial"
+    monkeypatch.delenv("FAKE_PIO_FAIL_MATCH")
+    rows = [{**device, "long_name": "Gate 2 fixed"} if device["label"] == "gate-2" else device for device in DEVICES]
+    saved = await client.put(f"/api/v1/fleets/{fleet_id}/devices", json={"devices": rows})
+    assert saved.status_code == 200, saved.text
+
+    response = await client.post(f"/api/v1/fleet-runs/{run_id}/retry", json={})
+
+    assert response.status_code == 202, response.text
+    assert (await _wait_until_ended(client, run_id))["status"] == "complete"

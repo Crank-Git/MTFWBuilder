@@ -19,6 +19,7 @@ from mtfwbuilder.database import find_firmware_source, list_firmware_sources, li
 from mtfwbuilder.htmx import is_htmx
 from mtfwbuilder.models import CHANNEL_SLOTS, ProfileRequest
 from mtfwbuilder.routers.firmware_builder import panel_context
+from mtfwbuilder.routers.profiles import is_admin
 from mtfwbuilder.services import fleets, profiles
 from mtfwbuilder.services.userprefs_keys import KeyScan, find_key_scan
 from mtfwbuilder.time_zones import POSIX_TZ_BY_ZONE
@@ -98,8 +99,17 @@ async def profiles_page(request: Request):
 
 @router.get("/fleets")
 async def fleets_page(request: Request):
-    """Render the fleets page: each fleet with a link to its fleet editor."""
-    context = {"title": "Fleets", "fleets": await fleets.list_fleets(request.app.state.settings.database_path)}
+    """Render the fleets page: each fleet with a link to its fleet editor, and the form that creates a fleet.
+
+    The form creates a fleet from a profile (FR-fleet-builds-10). It selects the profile and the firmware version.
+    """
+    database_path = request.app.state.settings.database_path
+    context = {
+        "title": "Fleets",
+        "fleets": await fleets.list_fleets(database_path),
+        "profiles": await profiles.list_profiles(database_path),
+        "firmware_sources": [s for s in await list_firmware_sources(database_path) if s["status"] == "ready"],
+    }
     return request.app.state.templates.TemplateResponse(request, "fleets.html", context)
 
 
@@ -108,13 +118,14 @@ async def fleet_page(request: Request, fleet_id: int):
     """Render the fleet editor: the fleet device table form and the CSV box (FR-fleet-builds-12 and -13).
 
     The page never holds an admin key, also for an admin session, so a saved admin key shows as "Saved" only.
+    The Start fleet run control asks once for each "must re-enter" secret of the profile.
     Returns 404 when no fleet has the id.
     """
     database_path = request.app.state.settings.database_path
     fleet = await fleets.get_fleet(database_path, fleet_id, None)
     if fleet is None:
         raise HTTPException(status_code=404, detail=f"Fleet {fleet_id} does not exist")
-    profile = await profiles.get_profile(database_path, fleet["profile_id"], None)
+    profile = await _run_profile(request, fleet["profile_id"])
     source = await find_firmware_source(database_path, fleet["firmware_version"])
     context = {
         "title": f"Fleet {fleet['name']}",
@@ -125,8 +136,46 @@ async def fleet_page(request: Request, fleet_id: int):
         "role_options": meshtastic_enums.ROLES.options(),
         "router_role_message": meshtastic_enums.ROUTER_ROLE_MESSAGE,
         "csv_header": ",".join(fleets.CSV_HEADER),
+        "must_reenter": profile["must_reenter"] if profile else [],
     }
     return request.app.state.templates.TemplateResponse(request, "fleet.html", context)
+
+
+async def _run_profile(request: Request, profile_id: int) -> dict | None:
+    """Return the profile as a fleet run of this session reads it, so `must_reenter` names the secrets to ask for.
+
+    A fleet run of an admin session uses the stored secrets of the profile (ADR 0007), so they are not asked for.
+    The result can hold the stored secrets, so a template gets only its name and `must_reenter`.
+    """
+    settings = request.app.state.settings
+    return await profiles.get_profile(
+        settings.database_path, profile_id, settings.secret_key if is_admin(request) else None
+    )
+
+
+@router.get("/fleet-runs/{run_id}")
+async def fleet_run_page(request: Request, run_id: int):
+    """Render the fleet run page: one row for each fleet device with its build status (FR-fleet-builds-16).
+
+    While the fleet run runs, the state polls this route each second, and an htmx request gets the state only.
+    The state of an ended fleet run has no poll, Download all, and Retry failed when a build did not complete.
+    Returns 404 when no fleet run has the id.
+    """
+    run = await request.app.state.fleet_runs.get(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"Fleet run {run_id} does not exist")
+    database_path = request.app.state.settings.database_path
+    fleet = await fleets.get_fleet(database_path, run["fleet_id"], None)
+    profile = await _run_profile(request, fleet["profile_id"]) if fleet else None
+    context = {
+        "title": f"Fleet run {run_id}",
+        "run": run,
+        "fleet": fleet,
+        "complete_count": sum(device["status"] == "complete" for device in run["devices"]),
+        "must_reenter": profile["must_reenter"] if profile else [],
+    }
+    template = "partials/fleet_run_state.html" if is_htmx(request) else "fleet_run.html"
+    return request.app.state.templates.TemplateResponse(request, template, context)
 
 
 @router.get("/firmware-builder")

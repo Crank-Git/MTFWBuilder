@@ -184,6 +184,44 @@ async def test_put_devices_replaces_every_fleet_device(client, fleet_id):
     assert await _labels(client, fleet_id) == ["a", "b"]
 
 
+async def _ids(client, fleet_id) -> dict[str, int]:
+    response = await client.get(f"/api/v1/fleets/{fleet_id}")
+    return {device["label"]: device["id"] for device in response.json()["devices"]}
+
+
+async def test_put_devices_keeps_the_id_of_each_fleet_device_with_a_saved_label(client, fleet_id):
+    await client.put(f"/api/v1/fleets/{fleet_id}/devices", json={"devices": [{"label": "a"}, {"label": "b"}]})
+    before = await _ids(client, fleet_id)
+
+    rows = [{"label": "b", "long_name": "Bee"}, {"label": "c"}, {"label": "a"}]
+    response = await client.put(f"/api/v1/fleets/{fleet_id}/devices", json={"devices": rows})
+
+    assert response.status_code == 200, response.text
+    after = await _ids(client, fleet_id)
+    assert (after["a"], after["b"]) == (before["a"], before["b"])
+    assert after["c"] not in before.values()
+    assert await _labels(client, fleet_id) == ["b", "c", "a"]
+    assert response.json()["devices"][0]["long_name"] == "Bee"
+
+
+async def test_put_devices_removes_the_fleet_device_of_a_label_that_is_not_in_the_rows(client, fleet_id):
+    await client.put(f"/api/v1/fleets/{fleet_id}/devices", json={"devices": [{"label": "a"}, {"label": "b"}]})
+    before = await _ids(client, fleet_id)
+
+    await client.put(f"/api/v1/fleets/{fleet_id}/devices", json={"devices": [{"label": "b"}]})
+
+    assert await _ids(client, fleet_id) == {"b": before["b"]}
+
+
+async def test_a_csv_import_keeps_the_ids_of_the_saved_fleet_devices(client, fleet_id):
+    await client.put(f"/api/v1/fleets/{fleet_id}/devices", json={"devices": [{"label": "a"}]})
+    before = await _ids(client, fleet_id)
+
+    await client.post(f"/api/v1/fleets/{fleet_id}/devices/csv", json=_csv("b"))
+
+    assert (await _ids(client, fleet_id))["a"] == before["a"]
+
+
 async def test_put_devices_numbers_the_rows_of_the_table_from_1(client, fleet_id):
     devices = [{"label": "a"}, {"label": "b", "role": "ROUTER_LATE"}, {"label": ""}, {"label": "a"}]
 

@@ -72,6 +72,21 @@
     </datalist>
 </div>
 
+<div class="config-section" id="fleet-run-start">
+    <h3 class="section-title"><i class="bi bi-play-circle-fill text-success"></i>Start a fleet run</h3>
+    <p class="text-muted">A fleet run makes one build for each saved fleet device. Save the table first.</p>
+    {% if must_reenter %}
+    {# The server holds these secrets in memory for this fleet run only, and the page stores them nowhere. #}
+    <p class="text-muted">The profile does not store these secrets. Enter each one once for the whole fleet run.</p>
+    {% for name in must_reenter %}
+    <label class="form-label" for="secret-{{ loop.index }}">{{ name }}</label>
+    <input type="password" class="form-control mb-2" id="secret-{{ loop.index }}" data-secret="{{ name }}" autocomplete="off">
+    {% endfor %}
+    {% endif %}
+    <ul id="run-errors" class="text-danger small mb-2" role="alert"></ul>
+    <button type="button" class="btn btn-success" id="startRunBtn">Start fleet run ({{ fleet.devices | length }} builds)</button>
+</div>
+
 <div class="config-section" id="fleet-csv">
     <h3 class="section-title"><i class="bi bi-filetype-csv text-success"></i>Import fleet devices as CSV</h3>
     <p class="text-muted">The first line is the header <code>{{ csv_header }}</code>. The line after the header is row 1. The import adds the rows after the saved fleet devices.</p>
@@ -87,4 +102,5 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', path='js/fleet.js') }}"></script>
+<script src="{{ url_for('static', path='js/fleet_run.js') }}"></script>
 {% endblock %}

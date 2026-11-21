@@ -23,11 +23,20 @@ logger = logging.getLogger("mtfwbuilder.fleets")
 
 INSERT_DEVICE = """
 INSERT INTO fleet_devices (
-    fleet_id, label, variant, long_name, short_name, role, fixed_lat, fixed_lon, fixed_alt, admin_key_ciphertext
+    fleet_id, label, variant, long_name, short_name, role, fixed_lat, fixed_lon, fixed_alt, admin_key_ciphertext,
+    position
 ) VALUES (
-    :fleet_id, :label, :variant, :long_name, :short_name, :role, :lat, :lon, :alt, :admin_key_ciphertext
+    :fleet_id, :label, :variant, :long_name, :short_name, :role, :lat, :lon, :alt, :admin_key_ciphertext, :position
 )
 """
+UPDATE_DEVICE = """
+UPDATE fleet_devices SET
+    variant = :variant, long_name = :long_name, short_name = :short_name, role = :role, fixed_lat = :lat,
+    fixed_lon = :lon, fixed_alt = :alt, admin_key_ciphertext = :admin_key_ciphertext, position = :position
+WHERE id = :id
+"""
+# A fleet device without a position comes from a database before the column, and its id gives the order then.
+DEVICE_ORDER = "ORDER BY position, id"
 
 
 async def profile_exists(database_path: Path, profile_id: int) -> bool:
@@ -66,7 +75,7 @@ def _device(row: aiosqlite.Row, secret_key: str | None) -> dict[str, Any]:
 
 
 async def _fleet(db: aiosqlite.Connection, row: aiosqlite.Row, secret_key: str | None) -> dict[str, Any]:
-    cursor = await db.execute("SELECT * FROM fleet_devices WHERE fleet_id = ? ORDER BY id", (row["id"],))
+    cursor = await db.execute(f"SELECT * FROM fleet_devices WHERE fleet_id = ? {DEVICE_ORDER}", (row["id"],))
     return {**dict(row), "devices": [_device(device, secret_key) for device in await cursor.fetchall()]}
 
 
@@ -93,21 +102,32 @@ async def get_fleet(database_path: Path, fleet_id: int, secret_key: str | None) 
 async def _replace_devices(
     db: aiosqlite.Connection, secret_key: str, fleet_id: int, devices: list[FleetDevice]
 ) -> None:
-    # An operator without an admin session gets no admin key, so a device without one keeps the saved token.
-    cursor = await db.execute("SELECT label, admin_key_ciphertext FROM fleet_devices WHERE fleet_id = ?", (fleet_id,))
-    saved = {label: ciphertext for label, ciphertext in await cursor.fetchall()}
+    """Save `devices` as the fleet devices of the fleet, in list order.
+
+    A device with the label of a saved fleet device keeps its id, so a fleet run still finds it for Retry failed.
+    """
+    cursor = await db.execute(
+        "SELECT label, id, admin_key_ciphertext FROM fleet_devices WHERE fleet_id = ?", (fleet_id,)
+    )
+    saved = {label: (device_id, ciphertext) for label, device_id, ciphertext in await cursor.fetchall()}
     cipher = fernet(secret_key)
-    rows = []
-    for device in devices:
+    inserts, updates = [], []
+    for position, device in enumerate(devices):
+        # A label that is in the list two times gets the saved row once, so the second device is a new row.
+        device_id, saved_ciphertext = saved.pop(device.label, (None, None))
         if device.admin_key is None:
-            ciphertext = saved.get(device.label)
+            # An operator without an admin session gets no admin key, so a device without one keeps the saved token.
+            ciphertext = saved_ciphertext
         else:
             ciphertext = cipher.encrypt(device.admin_key.encode()).decode("ascii") if device.admin_key else None
-        rows.append(
-            {**device.model_dump(exclude={"admin_key"}), "fleet_id": fleet_id, "admin_key_ciphertext": ciphertext}
-        )
-    await db.execute("DELETE FROM fleet_devices WHERE fleet_id = ?", (fleet_id,))
-    await db.executemany(INSERT_DEVICE, rows)
+        row = {**device.model_dump(exclude={"admin_key"}), "admin_key_ciphertext": ciphertext, "position": position}
+        if device_id is None:
+            inserts.append({**row, "fleet_id": fleet_id})
+        else:
+            updates.append({**row, "id": device_id})
+    await db.executemany("DELETE FROM fleet_devices WHERE id = ?", [(device_id,) for device_id, _ in saved.values()])
+    await db.executemany(UPDATE_DEVICE, updates)
+    await db.executemany(INSERT_DEVICE, inserts)
 
 
 async def create_fleet(database_path: Path, secret_key: str, fleet: FleetRequest) -> int:
@@ -272,7 +292,7 @@ async def add_devices(database_path: Path, secret_key: str, fleet_id: int, devic
     """Save `devices` after the saved fleet devices of the fleet, which keep their admin keys (FR-fleet-builds-12)."""
     async with aiosqlite.connect(database_path) as db:
         db.row_factory = aiosqlite.Row
-        cursor = await db.execute("SELECT * FROM fleet_devices WHERE fleet_id = ? ORDER BY id", (fleet_id,))
+        cursor = await db.execute(f"SELECT * FROM fleet_devices WHERE fleet_id = ? {DEVICE_ORDER}", (fleet_id,))
         saved = [FleetDevice.model_validate(_device(row, None)) for row in await cursor.fetchall()]
         await _replace_devices(db, secret_key, fleet_id, saved + devices)
         await db.execute("UPDATE fleets SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (fleet_id,))
