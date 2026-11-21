@@ -8,6 +8,7 @@ import json
 from typing import Any
 
 from mtfwbuilder.key_bytes import ADMIN_KEY_LENGTH, byte_array, decode_key
+from mtfwbuilder.time_zones import to_posix_tz
 
 ADMIN_KEY_SLOTS = 3
 
@@ -21,7 +22,8 @@ def generate_jsonc(config_data: dict[str, Any]) -> str:
 
     _set_if_present(config_data, output, "owner_short_name", "USERPREFS_CONFIG_OWNER_SHORT_NAME")
     _set_if_present(config_data, output, "owner_long_name", "USERPREFS_CONFIG_OWNER_LONG_NAME")
-    _set_if_present(config_data, output, "tz_string", "USERPREFS_TZ_STRING")
+    if config_data.get("tz_string"):
+        output["USERPREFS_TZ_STRING"] = to_posix_tz(config_data["tz_string"])
     _set_if_present(config_data, output, "bluetooth_fixed_pin", "USERPREFS_FIXED_BLUETOOTH")
 
     channel_count = int(channels_to_write)

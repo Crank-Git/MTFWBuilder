@@ -143,6 +143,13 @@ async def test_valid_channel_fields_reach_the_userprefs_file(client):
     assert parsed["USERPREFS_CHANNEL_0_UPLINK_ENABLED"] == "true"
 
 
+@pytest.mark.asyncio
+async def test_iana_time_zone_reaches_the_userprefs_file_as_a_posix_tz_string(client):
+    resp = await client.post("/api/v1/preview", json={"tz_string": "America/New_York"})
+    assert resp.status_code == 200
+    assert json.loads(resp.json()["content"])["USERPREFS_TZ_STRING"] == "EST5EDT,M3.2.0,M11.1.0"
+
+
 DOUBLE_SLASH_ADMIN_KEY = base64.b64encode(bytes([0xFF] * 32)).decode()
 DOUBLE_SLASH_PSK = base64.b64encode(bytes([0xFF] * 16)).decode()
 
@@ -172,3 +179,38 @@ async def test_base64_psk_with_double_slash_reaches_the_file_as_a_byte_array(cli
     assert resp.status_code == 200
     parsed = json.loads(resp.json()["content"])
     assert parsed["USERPREFS_CHANNEL_0_PSK"] == "{ " + ", ".join(["0xff"] * 16) + " }"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("route", CONFIG_ROUTES)
+async def test_unknown_time_zone_returns_422_for_tz_string(client, route):
+    resp = await client.post(route, json={"tz_string": "Mars/Olympus_Mons"})
+    assert resp.status_code == 422
+    assert "tz_string" in error_fields(resp)
+
+
+@pytest.mark.asyncio
+async def test_empty_time_zone_returns_200_and_writes_no_tz_key(client):
+    resp = await client.post("/api/v1/preview", json={"tz_string": ""})
+    assert resp.status_code == 200
+    assert "USERPREFS_TZ_STRING" not in json.loads(resp.json()["content"])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("route", CONFIG_ROUTES)
+@pytest.mark.parametrize(("field", "value"), [("button_pin", "GPIO36"), ("button_pin", "-1"), ("event_mode", "on")])
+async def test_button_pin_or_event_mode_that_is_not_digits_returns_422_for_that_field(client, route, field, value):
+    resp = await client.post(route, json={field: value, "button_pin_enabled": "true"})
+    assert resp.status_code == 422
+    assert field in error_fields(resp)
+
+
+@pytest.mark.asyncio
+async def test_digit_button_pin_and_event_mode_reach_the_userprefs_file(client):
+    resp = await client.post(
+        "/api/v1/preview", json={"button_pin": "36", "button_pin_enabled": "true", "event_mode": "1"}
+    )
+    assert resp.status_code == 200
+    parsed = json.loads(resp.json()["content"])
+    assert parsed["USERPREFS_BUTTON_PIN"] == "36"
+    assert parsed["USERPREFS_EVENT_MODE"] == "1"

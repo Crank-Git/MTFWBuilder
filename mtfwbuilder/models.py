@@ -6,6 +6,7 @@ from typing import Any
 from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 from mtfwbuilder.key_bytes import ADMIN_KEY_LENGTH, decode_key
+from mtfwbuilder.time_zones import to_posix_tz
 
 CHANNEL_SLOTS = 8
 PSK_LENGTHS = (0, 1, 16, 32)
@@ -112,6 +113,11 @@ class ConfigRequest(_UserPrefsFields):
     oem_image_height: str | None = None
     oem_image_data: str | None = None
 
+    # Other settings
+    button_pin: str | None = None
+    button_pin_enabled: str | None = None
+    event_mode: str | None = None
+
     # Preview flag
     preview_only: bool = False
 
@@ -141,6 +147,25 @@ class ConfigRequest(_UserPrefsFields):
         """Accept an admin key in hex, `{ 0x.. }` or base64 form that is 32 bytes."""
         if value and len(decode_key(value)) != ADMIN_KEY_LENGTH:
             raise ValueError(f"the admin key is not {ADMIN_KEY_LENGTH} bytes")
+        return value
+
+    @field_validator("tz_string")
+    @classmethod
+    def _check_tz_string(cls, value: str | None) -> str | None:
+        """Reject a value that is not an IANA time zone or a POSIX TZ string.
+
+        The value stays unchanged, because the generator also converts input that no model checks.
+        """
+        if value:
+            to_posix_tz(value)
+        return value
+
+    @field_validator("button_pin", "event_mode")
+    @classmethod
+    def _check_digits(cls, value: str | None) -> str | None:
+        # The upstream parser quotes a value that is not all digits, and the firmware build then fails.
+        if value and not value.isdecimal():
+            raise ValueError("the value is not a whole number")
         return value
 
     @field_validator("channels_to_write")

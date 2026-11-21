@@ -11,7 +11,9 @@ from mtfwbuilder.services.jsonc_generator import generate_jsonc
 
 ADMIN_KEY = bytes(range(32))
 ADMIN_KEY_ARRAY = "{ " + ", ".join(f"0x{b:02x}" for b in ADMIN_KEY) + " }"
-GPS_TEMPLATE = Path(__file__).resolve().parents[1] / "templates" / "includes" / "gps_config.html"
+TEMPLATES = Path(__file__).resolve().parents[1] / "templates" / "includes"
+GPS_TEMPLATE = TEMPLATES / "gps_config.html"
+ADVANCED_TEMPLATE = TEMPLATES / "advanced_config.html"
 
 
 def byte_count(byte_array: str) -> int:
@@ -41,9 +43,18 @@ class TestBasicFields:
         result = json.loads(generate_jsonc({"owner_long_name": "Test Node"}))
         assert result["USERPREFS_CONFIG_OWNER_LONG_NAME"] == "Test Node"
 
-    def test_timezone(self):
-        result = json.loads(generate_jsonc({"tz_string": "EST5EDT"}))
-        assert result["USERPREFS_TZ_STRING"] == "EST5EDT"
+    def test_iana_time_zone_gives_its_posix_tz_string(self):
+        result = json.loads(generate_jsonc({"tz_string": "America/New_York"}))
+        assert result["USERPREFS_TZ_STRING"] == "EST5EDT,M3.2.0,M11.1.0"
+
+    @pytest.mark.parametrize("posix", ["CET-1CEST,M3.5.0,M10.5.0/3", "<+0545>-5:45", "AEST-10AEDT,M10.1.0,M4.1.0/3"])
+    def test_posix_tz_string_passes_through_unchanged(self, posix):
+        result = json.loads(generate_jsonc({"tz_string": posix}))
+        assert result["USERPREFS_TZ_STRING"] == posix
+
+    def test_unknown_time_zone_raises_value_error(self):
+        with pytest.raises(ValueError, match="time zone"):
+            generate_jsonc({"tz_string": "Mars/Olympus_Mons"})
 
     def test_bluetooth_pin(self):
         result = json.loads(generate_jsonc({"bluetooth_fixed_pin": "123456"}))
@@ -346,6 +357,13 @@ class TestOtherAdvancedSettings:
     def test_event_mode_gives_event_mode_key(self, mode):
         result = json.loads(generate_jsonc({"event_mode": mode}))
         assert result["USERPREFS_EVENT_MODE"] == mode
+
+    def test_default_event_mode_of_the_form_keeps_event_mode_off(self):
+        """The form always posts the select value, so the default writes `"0"` and upstream `#if 0` is false."""
+        select = re.search(r'<select[^>]*name="event_mode".*?</select>', ADVANCED_TEMPLATE.read_text(), re.DOTALL)
+        default = re.search(r'<option value="([^"]+)" selected>', select[0])[1]
+        result = json.loads(generate_jsonc({"event_mode": default}))
+        assert result["USERPREFS_EVENT_MODE"] == "0"
 
 
 class TestOEMConfig:
