@@ -129,7 +129,7 @@ async def test_connect_after_the_build_ends_gets_the_final_build_status(app, cli
     stream = await client.get(resp.json()["progress_url"])
 
     events = _sse_events(stream.text)
-    assert [(kind, data["status"]) for kind, data in events] == [("status", "complete")]
+    assert [(kind, data["status"]) for kind, data in events if kind == "status"] == [("status", "complete")]
 
 
 @pytest.mark.usefixtures("fake_pio", "firmware_source")
@@ -276,7 +276,7 @@ async def test_unexpected_build_error_gives_failed(app, client, monkeypatch):
     def broken_extract(ctx):
         raise RuntimeError("unexpected")
 
-    monkeypatch.setattr(build_service, "_extract_firmware", broken_extract)
+    monkeypatch.setattr(build_service, "_collect_artifacts", broken_extract)
     ctx = app.state.build_queue.get((await _post_build(client)).json()["build_id"])
 
     await _wait_for(ctx, {"complete", "failed", "cancelled"})

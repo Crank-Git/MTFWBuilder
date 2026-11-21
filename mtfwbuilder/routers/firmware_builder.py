@@ -2,14 +2,12 @@
 
 import json
 import logging
-import re
-import shutil
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from sse_starlette.sse import EventSourceResponse
-from starlette.background import BackgroundTask
 
+from mtfwbuilder.models import Artifact
 from mtfwbuilder.rate_limit import limiter
 from mtfwbuilder.services import build_service
 from mtfwbuilder.services.firmware_updater import get_firmware_version
@@ -100,79 +98,45 @@ async def cancel_build(build_id: str, request: Request):
     return {"build_id": ctx.build_id, "status": ctx.status}
 
 
-@router.get("/download-firmware/{build_id}")
-async def download_firmware(  # noqa: C901, PLR0912  # TODO(#19): The artifact routes replace this route.
-    build_id: str, request: Request, variant: str = "unknown", filename: str = ""
-):
-    """Download the built firmware file."""
-    settings = request.app.state.settings
-    registry = request.app.state.device_registry
+@router.get("/builds/{build_id}/artifacts", response_model=list[Artifact])
+async def list_artifacts(build_id: str, request: Request):
+    """Return the artifact list of the build. Returns 404 for an unknown build."""
+    return _get_build(request, build_id).artifacts
 
-    build_dir = (settings.temp_dir / build_id).resolve()
-    if not str(build_dir).startswith(str(settings.temp_dir.resolve())):
-        raise HTTPException(status_code=400, detail="Invalid build ID")
-    if not build_dir.is_dir():
-        raise HTTPException(status_code=404, detail="Build not found or expired")
 
-    # Determine firmware format
-    if registry.exists(variant):
-        device = registry.get(variant)
-        fmt = device.firmware_format
-        has_factory = device.has_factory_binary
-    else:
-        fmt = "bin"
-        has_factory = False
-
-    # For ESP32, prefer factory binary
-    firmware_filename = f"firmware.{fmt}"
-    firmware_path = build_dir / firmware_filename
-
-    if has_factory:
-        factory_path = build_dir / "firmware.factory.bin"
-        if factory_path.exists():
-            firmware_path = factory_path
-            firmware_filename = "firmware.factory.bin"
-
-    if not firmware_path.exists():
-        raise HTTPException(status_code=404, detail="Firmware file not found")
-
-    # Build download filename
-    if filename:
-        download_name = re.sub(r"[^\w\-\.]", "_", filename)
-        if firmware_filename == "firmware.factory.bin":
-            if not download_name.lower().endswith(".factory.bin"):
-                download_name = download_name.replace(".bin", "") + ".factory.bin"
-        elif not download_name.lower().endswith(f".{fmt}"):
-            download_name += f".{fmt}"
-    elif firmware_filename == "firmware.factory.bin":
-        download_name = f"meshtastic_{variant}_firmware.factory.bin"
-    else:
-        download_name = f"meshtastic_{variant}_firmware.{fmt}"
-
-    response = FileResponse(
-        path=str(firmware_path),
-        filename=download_name,
+@router.get("/builds/{build_id}/artifacts/{name}")
+async def download_artifact(build_id: str, name: str, request: Request):
+    """Send one artifact of the build. Returns 404 when `name` is not in the artifact list."""
+    ctx = _get_build(request, build_id)
+    # Only a name from the artifact list reaches the file system, so a path in `name` cannot leave the build.
+    path = ctx.build_dir / name
+    if name not in {a.name for a in ctx.artifacts} or not path.is_file():
+        raise HTTPException(status_code=404, detail="Artifact not found")
+    return FileResponse(
+        path=str(path),
+        filename=name,
         media_type="application/octet-stream",
-        headers={
-            "Cache-Control": "no-cache, no-store, must-revalidate",
-            "Pragma": "no-cache",
-            "Expires": "0",
-        },
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
     )
 
-    # Starlette awaits `background`, so a plain lambda raises after the file is sent.
-    response.background = BackgroundTask(_sync_cleanup, build_dir)
-    return response
+
+@router.get("/download-firmware/{build_id}")
+async def download_firmware(build_id: str, request: Request):
+    """Redirect to the factory or primary artifact of the build.
+
+    This old route stays for one release. Returns 404 when the build has no firmware artifact.
+    """
+    primary = build_service.primary_artifact(_get_build(request, build_id).artifacts)
+    if primary is None:
+        raise HTTPException(status_code=404, detail="Firmware file not found")
+    return RedirectResponse(build_service.artifact_url(build_id, primary.name), status_code=308)
 
 
-def _sync_cleanup(build_dir):
-    """Synchronous cleanup for FileResponse background task."""
-    try:
-        if build_dir.exists():
-            shutil.rmtree(str(build_dir), ignore_errors=True)
-            logger.info(f"Post-download cleanup: {build_dir}")
-    except Exception as e:
-        logger.error(f"Cleanup error: {e}")
+def _get_build(request: Request, build_id: str) -> build_service.BuildContext:
+    ctx = request.app.state.build_queue.get(build_id)
+    if ctx is None:
+        raise HTTPException(status_code=404, detail="Build not found")
+    return ctx
 
 
 @router.get("/system-info")

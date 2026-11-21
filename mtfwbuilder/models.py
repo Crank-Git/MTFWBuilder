@@ -1,5 +1,7 @@
 """Pydantic models for request/response validation."""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -91,6 +93,14 @@ class BuildStatus(BaseModel):
     progress: int | None = None
     download_url: str | None = None
     error: str | None = None
+
+
+class Artifact(BaseModel):
+    """One file of a complete build, in the artifact list."""
+
+    name: str
+    size: int
+    kind: Literal["factory", "app", "uf2", "ota-zip", "hex", "littlefs", "manifest"]
 
 
 class BuildResult(BaseModel):
