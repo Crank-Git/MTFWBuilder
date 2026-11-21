@@ -1,0 +1,13 @@
+{# The progress panel of one build. A build that has not ended holds the progress stream (FR-frontend-htmx-7). #}
+<div class="card" id="build-card"{% if not build.ended %} hx-ext="sse" sse-connect="{{ progress_url }}"{% endif %}>
+    <div class="card-header">Build id: <code>{{ build.build_id }}</code></div>
+    <div class="card-body">
+        <div id="build-state"{% if not build.ended %} hx-get="/api/v1/builds/{{ build.build_id }}" hx-trigger="sse:status" hx-swap="innerHTML"{% endif %}>
+            {% include "partials/build_state.html" %}
+        </div>
+        <details id="build-log-region" class="mt-3"{% if build.status == "failed" %} open{% endif %}>
+            <summary>Build log (secrets masked)</summary>
+            {% include "partials/build_log.html" %}
+        </details>
+    </div>
+</div>

@@ -1,0 +1,6 @@
+{# The progress stream sends only new log lines, so each update replaces the log with all stored lines. #}
+{# A screen reader does not read each new line aloud, because the log has aria-live="off". #}
+<pre id="build-log" class="mt-2 p-3 bg-dark text-light rounded" style="max-height: 400px; overflow-y: auto;" aria-live="off"{% if not build.ended %} sse-swap="log"{% endif %}{% if oob_log %} hx-swap-oob="true"{% endif %}>
+{%- for line in build.build_log %}{{ line }}
+{% endfor -%}
+</pre>

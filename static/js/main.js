@@ -1,9 +1,10 @@
 // An old page version stored the whole config, secrets included, under this key (FR-frontend-htmx-6).
 localStorage.removeItem('meshtastic_config');
 
-// htmx does not swap a 4xx response by default, so a 422 needs this to show its field errors.
+// htmx does not swap a 4xx or 5xx response by default.
+// A 422 holds field errors, and a 503 holds the build queue full message.
 document.addEventListener('htmx:beforeSwap', function(evt) {
-    if (evt.detail.xhr.status === 422) {
+    if (evt.detail.xhr.status === 422 || evt.detail.xhr.status === 503) {
         evt.detail.shouldSwap = true;
         evt.detail.isError = false;
     }
@@ -30,7 +31,33 @@ document.addEventListener('htmx:afterSettle', function() {
     }
 });
 
+// A log event holds JSON, so the line goes into the log as text and htmx does not swap it as HTML.
+document.addEventListener('htmx:sseBeforeMessage', function(evt) {
+    if (evt.detail.type === 'log') {
+        evt.preventDefault();
+        evt.target.append(JSON.parse(evt.detail.data).line + '\n');
+    }
+});
+
+// The server closes the progress stream after an ended build status.
+// The page closes it first, so the browser neither reports an error nor reconnects.
+const ENDED_STATUSES = ['complete', 'failed', 'cancelled'];
+document.addEventListener('htmx:sseMessage', function(evt) {
+    if (evt.detail.type === 'status' && ENDED_STATUSES.includes(JSON.parse(evt.detail.data).status)) {
+        evt.detail.target.close();
+    }
+});
+
 document.addEventListener('DOMContentLoaded', function() {
+    // The browser can keep the chosen variant after a reload, so the check also runs at load.
+    const variant = document.getElementById('variant');
+    const buildBtn = document.getElementById('buildBtn');
+    if (variant && buildBtn) {
+        const enableBuild = () => { buildBtn.disabled = !variant.value; };
+        variant.addEventListener('change', enableBuild);
+        enableBuild();
+    }
+
     // Dark mode toggle
     const darkModeToggle = document.getElementById('darkModeToggle');
     const htmlElement = document.documentElement;
