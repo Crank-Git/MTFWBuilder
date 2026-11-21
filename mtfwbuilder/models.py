@@ -163,8 +163,9 @@ class ConfigRequest(_UserPrefsFields):
     @field_validator("button_pin", "event_mode")
     @classmethod
     def _check_digits(cls, value: str | None) -> str | None:
-        # The upstream parser quotes a value that is not all digits, and the firmware build then fails.
-        if value and not value.isdecimal():
+        # The upstream parser quotes a value that is not all ASCII digits, and the firmware build then fails.
+        # `isdecimal()` alone accepts other scripts' digits, for example "١٢".
+        if value and not (value.isascii() and value.isdigit()):
             raise ValueError("the value is not a whole number")
         return value
 

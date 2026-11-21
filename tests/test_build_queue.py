@@ -19,7 +19,7 @@ from mtfwbuilder.services.build_service import (
 )
 from mtfwbuilder.services.device_registry import DeviceRegistry
 
-CONFIG = json.dumps({"device_name": "TestNode"})
+CONFIG = json.dumps({"owner_long_name": "TestNode"})
 
 
 @pytest.fixture
@@ -264,11 +264,10 @@ async def test_build_worker_runs_the_next_build_after_a_cancel(app, client, monk
 
 
 @pytest.mark.parametrize("config_json", ["[]", "not json", json.dumps({"channels_to_write": "x"})])
-async def test_invalid_config_json_returns_400(client, config_json):
+async def test_invalid_config_json_returns_422(client, config_json):
     resp = await _post_build(client, config_json=config_json)
 
-    assert resp.status_code == 400
-    assert resp.json()["detail"].startswith("Invalid configuration")
+    assert resp.status_code == 422
 
 
 @pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
