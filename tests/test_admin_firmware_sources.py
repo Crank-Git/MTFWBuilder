@@ -251,6 +251,7 @@ async def test_install_status_returns_404_for_an_unknown_install(client):
     resp = await client.get("/api/v1/firmware/install/unknown")
 
     assert resp.status_code == 404
+    assert resp.json() == {"detail": "Install not found"}
 
 
 async def test_htmx_status_of_a_ready_install_replaces_the_panel_and_refreshes_the_list(app, admin, settings):
