@@ -96,3 +96,73 @@ def test_firmware_version_reads_marker_in_data_dir(tmp_path):
     (tmp_path / "firmware_version.txt").write_text("Version: v2.8.2.d5f1619\nUpdated: today\n")
     info = get_firmware_version(Settings(data_dir=tmp_path))
     assert info == {"version": "v2.8.2.d5f1619", "last_updated": "today"}
+
+
+def _old_firmware_with_secrets(firmware_dir):
+    """Make a firmware source that holds the secret files of a build, and return its `platformio.ini`."""
+    (firmware_dir / ".pio" / "build" / "tbeam").mkdir(parents=True)
+    (firmware_dir / ".pio" / "build" / "tbeam" / "firmware.elf").write_bytes(b"psk")
+    (firmware_dir / ".pio" / "build_cache").mkdir()
+    (firmware_dir / "userPrefs.jsonc").write_text("{}")
+    platformio_ini = firmware_dir / "platformio.ini"
+    platformio_ini.write_text("[platformio]\n")
+    return platformio_ini
+
+
+def _assert_scrubbed(firmware_dir):
+    assert not (firmware_dir / "userPrefs.jsonc").exists()
+    assert not (firmware_dir / ".pio" / "build" / "tbeam").exists()
+    assert not (firmware_dir / ".pio" / "build_cache").exists()
+
+
+def test_startup_keeps_old_firmware_when_firmware_dir_is_set(dirs, tmp_path, monkeypatch):
+    base_dir, _ = dirs
+    monkeypatch.setenv("MTFW_FIRMWARE_DIR", str(tmp_path / "elsewhere"))
+    platformio_ini = _old_firmware_with_secrets(base_dir / "firmware")
+    (base_dir / "firmware_version.txt").write_text("Version: v2.7.26.54e0d8d\nUpdated: now\n")
+
+    settings = load_settings()
+
+    assert settings.firmware_dir == tmp_path / "elsewhere"
+    assert not settings.firmware_dir.exists()
+    assert platformio_ini.exists()
+    assert (base_dir / "firmware_version.txt").exists()
+
+
+def test_startup_scrubs_old_firmware_when_firmware_dir_is_set(dirs, tmp_path, monkeypatch, caplog):
+    base_dir, _ = dirs
+    monkeypatch.setenv("MTFW_FIRMWARE_DIR", str(tmp_path / "elsewhere"))
+    _old_firmware_with_secrets(base_dir / "firmware")
+
+    load_settings()
+
+    _assert_scrubbed(base_dir / "firmware")
+    assert f"Scrubbed the old firmware source {base_dir / 'firmware'}" in caplog.text
+
+
+def test_startup_keeps_old_database_when_database_path_is_set(dirs, tmp_path, monkeypatch):
+    base_dir, data_dir = dirs
+    monkeypatch.setenv("MTFW_DATABASE_PATH", str(tmp_path / "other.db"))
+    (base_dir / "mtfwbuilder.db").write_bytes(b"db")
+
+    settings = load_settings()
+
+    assert settings.database_path == tmp_path / "other.db"
+    assert (base_dir / "mtfwbuilder.db").read_bytes() == b"db"
+    assert not (data_dir / "mtfwbuilder.db").exists()
+    assert not (tmp_path / "other.db").exists()
+
+
+def test_startup_scrubs_and_keeps_old_firmware_when_data_dir_has_one(dirs, caplog):
+    base_dir, data_dir = dirs
+    old_ini = _old_firmware_with_secrets(base_dir / "firmware")
+    (data_dir / "firmware").mkdir(parents=True)
+    new_ini = data_dir / "firmware" / "platformio.ini"
+    new_ini.write_text("[new]\n")
+
+    load_settings()
+
+    assert old_ini.exists()
+    _assert_scrubbed(base_dir / "firmware")
+    assert new_ini.read_text() == "[new]\n"
+    assert f"Scrubbed the old firmware source {base_dir / 'firmware'}" in caplog.text

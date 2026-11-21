@@ -13,10 +13,9 @@ import yaml
 from pydantic import Field, IPvAnyNetwork, field_validator
 from pydantic_settings import BaseSettings, NoDecode
 
-logger = logging.getLogger("mtfwbuilder")
+from mtfwbuilder.services.cleanup_service import scrub_after_restart
 
-# Releases before the data directory kept these files in `base_dir`.
-_MOVED_NAMES = ("config.yaml", "mtfwbuilder.db", "firmware", "firmware_version.txt")
+logger = logging.getLogger("mtfwbuilder")
 
 
 class DataDirError(RuntimeError):
@@ -83,9 +82,10 @@ class Settings(BaseSettings):
 
 
 def prepare_data_dir(data_dir: Path, base_dir: Path) -> None:
-    """Make the data directory writable and move the files of an old release into it.
+    """Make the data directory writable and move the `config.yaml` of an old release into it.
 
-    A file moves only when it exists in `base_dir` and the data directory has no file of that name.
+    Releases before the data directory kept their files in `base_dir`. A file moves only when the data
+    directory has no file of that name.
 
     Raises:
         DataDirError: The process cannot make the data directory or write to it.
@@ -99,14 +99,44 @@ def prepare_data_dir(data_dir: Path, base_dir: Path) -> None:
             "Set MTFW_DATA_DIR to a writable directory, or give the process user write access to it."
         ) from exc
 
+    if data_dir.resolve() != base_dir.resolve():
+        _move_old(base_dir / "config.yaml", data_dir / "config.yaml")
+
+
+def move_old_state(settings: Settings, base_dir: Path) -> None:
+    """Move the database and the firmware source of an old release from `base_dir` into the data directory.
+
+    A path moves only when its setting has the default value under the data directory. An old firmware source
+    that does not move stays, but the function scrubs it, because it can hold the secrets of its last build.
+
+    Raises:
+        OSError: A scrub of the old firmware source fails.
+    """
+    data_dir = settings.data_dir
     if data_dir.resolve() == base_dir.resolve():
         return
-    for name in _MOVED_NAMES:
-        old, new = base_dir / name, data_dir / name
-        if old.exists() and not new.exists():
-            shutil.move(old, new)
-            # Startup configures logging after the settings load, and the default level drops an info line.
-            logger.warning(f"Moved {old} to {new}")
+    if settings.database_path == data_dir / "mtfwbuilder.db":
+        _move_old(base_dir / "mtfwbuilder.db", settings.database_path)
+
+    old_firmware = base_dir / "firmware"
+    if settings.firmware_dir == data_dir / "firmware" and _move_old(old_firmware, settings.firmware_dir):
+        _move_old(base_dir / "firmware_version.txt", data_dir / "firmware_version.txt")
+    elif old_firmware.is_dir():
+        scrub_after_restart(old_firmware)
+        logger.warning(
+            f"Scrubbed the old firmware source {old_firmware} and kept it, because the firmware source is "
+            f"{settings.firmware_dir}. Delete {old_firmware} when you do not need it."
+        )
+
+
+def _move_old(old: Path, new: Path) -> bool:
+    """Move `old` to `new` and return True, or return False when `old` does not exist or `new` exists."""
+    if not old.exists() or new.exists():
+        return False
+    shutil.move(old, new)
+    # Startup configures logging after the settings load, and the default level drops an info line.
+    logger.warning(f"Moved {old} to {new}")
+    return True
 
 
 def load_settings() -> Settings:
@@ -176,7 +206,9 @@ def load_settings() -> Settings:
 
     # The data directory holds config.yaml, so config.yaml cannot move it.
     overrides["data_dir"] = data_dir
-    return Settings(**overrides)
+    settings = Settings(**overrides)
+    move_old_state(settings, base_dir)
+    return settings
 
 
 def _hash_password(password: str) -> str:
