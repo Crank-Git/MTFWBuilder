@@ -97,25 +97,18 @@ async def get_variants(
             entries.append(RegistryEntry(**entry, image_url=url))
     if not is_htmx(request):
         return entries
+    # "Other" holds the variants without a manufacturer tag (FR-generated-registry-4), so its group comes last.
+    groups: dict[str, list[RegistryEntry]] = {}
+    for entry in sorted(entries, key=lambda e: (e.manufacturer == "Other", e.manufacturer.casefold())):
+        groups.setdefault(entry.manufacturer, []).append(entry)
     context = {
         "source": source,
         "q": q,
         "arch": arch or [],
         "architectures": sorted({entry["architecture"] for entry in registry}),
-        "manufacturers": _by_manufacturer(entries),
+        "manufacturers": groups,
     }
     return request.app.state.templates.TemplateResponse(request, "partials/device_list.html", context)
-
-
-def _by_manufacturer(entries: list[RegistryEntry]) -> dict[str, list[RegistryEntry]]:
-    """Return the entries in groups by manufacturer, in name order, with the group "Other" last.
-
-    "Other" holds the variants without a manufacturer tag (FR-generated-registry-4), so it is not a name to sort.
-    """
-    groups: dict[str, list[RegistryEntry]] = {}
-    for entry in entries:
-        groups.setdefault(entry.manufacturer, []).append(entry)
-    return {name: groups[name] for name in sorted(groups, key=lambda name: (name == "Other", name.casefold()))}
 
 
 @router.get("/variants/{env}/image")
