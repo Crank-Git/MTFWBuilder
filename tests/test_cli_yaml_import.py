@@ -137,8 +137,8 @@ async def test_channel_url_fills_the_channels_and_the_lora_preset(client):
     assert config["channel_0[psk]"] == "AQ=="
     assert config["lora_enabled"] == "true"
     assert config["lora_modem_preset"] == "meshtastic_Config_LoRaConfig_ModemPreset_LONG_FAST"
-    # The URL holds no region, and the form has no `UNSET` value.
-    assert "lora_region" not in config
+    # The URL holds the region `UNSET`, and an empty region field gives the firmware default `UNSET`.
+    assert config["lora_region"] == ""
 
 
 async def test_channel_url_that_does_not_decode_is_listed_as_not_applied(client):
@@ -409,3 +409,63 @@ async def test_import_writes_no_part_of_the_file_to_the_log(client, caplog):
 
     assert "wifi-secret-1" not in caplog.text
     assert LONG_FAST_URL not in caplog.text
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        pytest.param("owner: " + "1" * 5000 + "\n", id="int-over-4300-digits"),
+        pytest.param("owner: 2026-13-45\n", id="impossible-timestamp"),
+    ],
+)
+async def test_yaml_that_python_cannot_build_returns_422(client, text):
+    response = await upload(client, text)
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["msg"] == INVALID_FILE_MESSAGE
+
+
+async def test_non_ascii_channel_url_is_not_applied(client):
+    body = await imported(client, "channel_url: https://meshtastic.org/e/#CgMSAQé\n")
+
+    assert body["not_applied"] == ["channel_url"]
+
+
+async def test_request_larger_than_the_limit_returns_413_before_the_form_parse(client):
+    response = await client.post(
+        IMPORT_URL,
+        files={"file": ("config.yaml", "owner: Alice\n", "application/yaml")},
+        data={"padding": "#" * (80 * 1024)},
+    )
+
+    assert response.status_code == 413
+
+
+async def test_field_that_the_export_leaves_out_gets_its_proto_default(client):
+    local_config = localonly_pb2.LocalConfig()
+    local_config.lora.modem_preset = local_config.lora.ModemPreset.MEDIUM_FAST
+    local_config.lora.tx_enabled = False
+    module_config = localonly_pb2.LocalModuleConfig()
+    module_config.mqtt.address = "mqtt.example.org"
+
+    body = await imported(client, export_yaml(local_config=local_config, module_config=module_config))
+
+    config = body["config"]
+    assert config["lora_tx_disabled"] == "true"
+    assert config["lora_ignore_mqtt"] == "false"
+    assert config["lora_channel_num"] == "0"
+    # The region `UNSET` has no form value, and an empty region field gives the firmware default `UNSET`.
+    assert config["lora_region"] == ""
+    assert config["mqtt_enabled"] == "false"
+    assert config["mqtt_username"] == ""
+    defaulted = {"config.lora.region", "config.lora.txEnabled", "module_config.mqtt.username"}
+    assert defaulted.isdisjoint(body["not_applied"])
+
+
+async def test_empty_psk_of_a_channel_url_fills_the_empty_byte_list(client):
+    url = "https://meshtastic.org/e/#CgYaBE9wZW4"
+
+    body = await imported(client, export_yaml(channel_url=url))
+
+    assert body["config"]["channel_0[name]"] == "Open"
+    assert body["config"]["channel_0[psk]"] == "{ }"

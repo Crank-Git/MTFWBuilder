@@ -49,6 +49,27 @@ def decode(page: Page, url: str) -> None:
     page.click("#channelShareDecode")
 
 
+def drop_keys(page: Page, prefixes: list[str]) -> None:
+    """Show the form of a firmware version that reads no key that starts with one of `prefixes`."""
+    page.evaluate(
+        """(prefixes) => {
+            const keys = Array.from(document.querySelectorAll('#configForm fieldset[data-userprefs-key]'))
+                .map(fieldset => fieldset.dataset.userprefsKey)
+                .filter(key => !prefixes.some(prefix => key.startsWith(prefix)));
+            applyKeyScan({keys, enum_values: null, version: 'v0.0.0'});
+        }""",
+        prefixes,
+    )
+
+
+def named_set(*names: str) -> apponly_pb2.ChannelSet:
+    """Return a channel set with one channel for each name, each with its own 16-byte PSK."""
+    channel_set = apponly_pb2.ChannelSet()
+    for number, name in enumerate(names):
+        channel_set.settings.add(name=name, psk=bytes([number + 1] * 16))
+    return channel_set
+
+
 def test_decoded_url_shows_a_preview_and_keeps_the_form_unchanged(page: Page, live_server: str):
     page.goto(f"{live_server}/")
 
@@ -203,3 +224,156 @@ def test_export_note_says_the_config_has_no_hop_limit(page: Page, live_server: s
     page.click("#channelShareExport")
 
     expect(page.locator("#channelShareExportNote")).to_contain_text("hop limit")
+
+
+def test_apply_skips_a_control_that_the_firmware_version_does_not_read(page: Page, live_server: str):
+    page.goto(f"{live_server}/")
+    drop_keys(page, ["USERPREFS_LORACONFIG_CHANNEL_NUM"])
+
+    decode(page, channel_url(event_set()))
+
+    expect(page.locator("#channelShareNotApplied")).to_contain_text(
+        "lora_channel_num: this firmware version does not read it"
+    )
+    page.click("#channelShareApply")
+    open_tab(page, "lora")
+    expect(page.locator("#loraChannelNum")).to_have_value("31")
+    expect(page.locator("#loraTxPower")).to_have_value("20")
+
+
+def test_add_url_counts_only_the_slots_that_the_firmware_version_reads(page: Page, live_server: str):
+    page.goto(f"{live_server}/")
+    drop_keys(page, [f"USERPREFS_CHANNEL_{slot}_" for slot in range(4, 8)])
+
+    decode(page, channel_url(named_set("Event", "Ops"), prefix=ADD_URL_PREFIX))
+
+    expect(page.locator("#channelShareError")).to_have_text("No free channel index.")
+    decode(page, channel_url(named_set("Event"), prefix=ADD_URL_PREFIX))
+    page.click("#channelShareApply")
+    open_tab(page, "channels")
+    expect(page.locator("#channelsToWrite")).to_have_value("4")
+    expect(page.locator("#channel3Name")).to_have_value("Event")
+
+
+def test_add_url_skips_a_channel_without_a_name_or_with_a_name_in_use(page: Page, live_server: str):
+    page.goto(f"{live_server}/")
+    open_tab(page, "channels")
+    page.fill("#channel0Name", "Home")
+
+    decode(page, channel_url(named_set("Home", "", "Event"), prefix=ADD_URL_PREFIX))
+
+    rows = page.locator("#channelSharePreview tbody tr")
+    expect(rows).to_have_count(1)
+    expect(rows.nth(0)).to_contain_text("3")
+    expect(rows.nth(0)).to_contain_text("Event")
+    expect(rows.nth(0)).to_contain_text("Secondary")
+    expect(page.locator("#channelShareNotApplied li")).to_have_count(2)
+    page.click("#channelShareApply")
+    expect(page.locator("#channelsToWrite")).to_have_value("4")
+    expect(page.locator("#channel0Name")).to_have_value("Home")
+    expect(page.locator("#channel0PSK")).to_have_value("")
+    expect(page.locator("#channel3Name")).to_have_value("Event")
+
+
+def test_add_url_never_fills_slot_0(page: Page, live_server: str):
+    page.goto(f"{live_server}/")
+    open_tab(page, "channels")
+    page.select_option("#channelsToWrite", "0")
+
+    decode(page, channel_url(named_set("Event"), prefix=ADD_URL_PREFIX))
+    page.click("#channelShareApply")
+
+    expect(page.locator("#channelsToWrite")).to_have_value("2")
+    expect(page.locator("#channel0Name")).to_have_value("")
+    expect(page.locator("#channel1Name")).to_have_value("Event")
+
+
+def test_channel_without_encryption_imports_and_exports_unchanged(page: Page, live_server: str):
+    channel_set = apponly_pb2.ChannelSet()
+    channel_set.settings.add(name="Open", module_settings=channel_pb2.ModuleSettings(position_precision=13))
+    channel_set.lora_config.CopyFrom(LoRaConfig(use_preset=True, region=LoRaConfig.RegionCode.US, hop_limit=3))
+    url = channel_url(channel_set)
+    page.goto(f"{live_server}/")
+
+    decode(page, url)
+
+    expect(page.locator("#channelSharePreview tbody tr").nth(0)).to_contain_text("No encryption")
+    page.click("#channelShareApply")
+    open_tab(page, "channels")
+    expect(page.locator("#channel0PSK")).to_have_value("{ }")
+    page.click("#channelShareExport")
+    expect(page.locator("#channelShareExportUrl")).to_have_value(url)
+
+
+def test_url_with_region_unset_empties_the_region_field(page: Page, live_server: str):
+    channel_set = named_set("Event")
+    channel_set.lora_config.CopyFrom(LoRaConfig(use_preset=True, hop_limit=3, tx_enabled=True))
+    page.goto(f"{live_server}/")
+
+    decode(page, channel_url(channel_set))
+    page.click("#channelShareApply")
+
+    open_tab(page, "lora")
+    expect(page.locator("#loraRegion")).to_have_value("")
+
+
+def test_yaml_lora_section_without_tx_enabled_turns_tx_off(page: Page, live_server: str, tmp_path):
+    local_config = localonly_pb2.LocalConfig()
+    local_config.lora.region = LoRaConfig.RegionCode.EU_868
+    export = tmp_path / "config.yaml"
+    export.write_text(export_yaml(local_config))
+    page.goto(f"{live_server}/")
+
+    page.set_input_files("#channelShareFile", str(export))
+    page.click("#channelShareApply")
+
+    open_tab(page, "lora")
+    expect(page.locator("#loraTxDisabled")).to_be_checked()
+    expect(page.locator("#loraChannelNum")).to_have_value("0")
+
+
+def test_export_without_a_region_shows_the_warning(page: Page, live_server: str):
+    page.goto(f"{live_server}/")
+    open_tab(page, "lora")
+    page.uncheck("#loraEnabled")
+
+    page.click("#channelShareExport")
+
+    expect(page.locator("#channelShareExportWarnings")).to_contain_text("UNSET")
+
+
+def test_primary_channel_with_an_empty_psk_shows_no_encryption(page: Page, live_server: str):
+    page.goto(f"{live_server}/")
+
+    decode(page, channel_url(_open_set()))
+
+    row = page.locator("#channelSharePreview tbody tr").nth(0)
+    expect(row).to_contain_text("No encryption")
+    expect(row).not_to_contain_text("Uses the primary channel key")
+
+
+def test_secondary_channel_with_an_empty_psk_shows_that_it_uses_the_primary_key(page: Page, live_server: str):
+    page.goto(f"{live_server}/")
+
+    decode(page, channel_url(_open_set()))
+
+    row = page.locator("#channelSharePreview tbody tr").nth(1)
+    expect(row).to_contain_text("Uses the primary channel key")
+    expect(row).not_to_contain_text("No encryption")
+
+
+def test_psk_help_text_of_a_secondary_slot_says_that_it_uses_the_primary_key(page: Page, live_server: str):
+    page.goto(f"{live_server}/")
+    open_tab(page, "channels")
+
+    expect(page.locator("#channel0PSKHelp")).to_contain_text("no encryption")
+    page.click("#channel-1-tab")
+    expect(page.locator("#channel1PSKHelp")).to_contain_text("uses the primary channel key")
+
+
+def _open_set() -> apponly_pb2.ChannelSet:
+    """Return a channel set of a primary and a secondary channel, both with an empty PSK."""
+    channel_set = apponly_pb2.ChannelSet()
+    channel_set.settings.add(name="Open")
+    channel_set.settings.add(name="Side")
+    return channel_set

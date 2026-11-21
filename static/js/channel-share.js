@@ -1,9 +1,11 @@
 // The Import and Export panels of the build page (feature channel-share, FR-channel-share-7 and -8).
 // The page keeps an import in a variable only, because the import holds PSKs (FR-frontend-htmx-6).
 
-const CHANNEL_SLOTS = 8;
 const NO_FREE_INDEX_MESSAGE = 'No free channel index.';
 const MASKED_PSK = '••••••••';
+// The form value of a PSK of 0 bytes. A blank PSK field gives default key 1, so an empty PSK needs its own value.
+const NO_ENCRYPTION_PSK = '{ }';
+const UNREAD_REASON = 'this firmware version does not read it';
 
 // The decoded import that the preview shows. Apply reads it, and Cancel or a new import replaces it.
 let pendingImport = null;
@@ -35,28 +37,69 @@ function writtenChannels() {
     return Number(document.getElementById('channelsToWrite').value);
 }
 
+/** Return the number of channel slots that the firmware version reads. A slot that it does not read has a disabled count. */
+function readSlots() {
+    const counts = Array.from(document.getElementById('channelsToWrite').options)
+        .filter(option => !option.disabled)
+        .map(option => Number(option.value));
+    return Math.max(0, ...counts);
+}
+
 /**
- * Return the form fields of a decoded channel URL.
+ * Return the channels of a decoded URL with the slot that each one fills, and the "Not applied" lines.
  *
- * The channels go to the slots from `firstSlot`. Upstream `Node.setURL` sets the LoRa settings for both URL forms.
+ * Upstream `Node.setURL` adds the channels of an `add=true` URL to the disabled slots, never to slot 0. It skips a
+ * channel without a name or with a name that is in use. The function returns null when the free slots are too few.
  */
-function channelUrlFields(result, firstSlot) {
+function urlPlan(result) {
+    if (!result.add) {
+        return {channels: result.channels, notApplied: []};
+    }
+    const names = new Set(Array.from({length: writtenChannels()}, (_, slot) => {
+        return document.querySelector(`[name="channel_${slot}[name]"]`).value;
+    }));
+    const channels = [];
+    const notApplied = [];
+    let slot = Math.max(writtenChannels(), 1);
+    for (const channel of result.channels) {
+        if (!channel.name) {
+            notApplied.push(`Channel ${channel.index} of the URL: the channel has no name`);
+        } else if (names.has(channel.name)) {
+            notApplied.push(`Channel "${channel.name}": the config has a channel with this name`);
+        } else if (slot >= readSlots()) {
+            return null;
+        } else {
+            channels.push({...channel, index: slot});
+            names.add(channel.name);
+            slot += 1;
+        }
+    }
+    return {channels, notApplied};
+}
+
+/**
+ * Return the form fields of the planned channels and the LoRa settings of a decoded channel URL.
+ *
+ * Upstream `Node.setURL` sets the LoRa settings for both URL forms. A field that the URL leaves out keeps its value.
+ */
+function channelUrlFields(plan, lora) {
     const share = document.getElementById('channelShare').dataset;
-    const fields = {channels_to_write: String(firstSlot + result.channels.length)};
-    result.channels.forEach((channel, position) => {
-        const prefix = `channel_${firstSlot + position}`;
+    // An `add=true` URL whose channels are all skipped keeps the channel count of the config.
+    const count = plan.channels.length ? Math.max(...plan.channels.map(channel => channel.index + 1)) : writtenChannels();
+    const fields = {channels_to_write: String(count)};
+    plan.channels.forEach(channel => {
+        const prefix = `channel_${channel.index}`;
         fields[`${prefix}[name]`] = channel.name;
-        fields[`${prefix}[psk]`] = channel.psk;
+        fields[`${prefix}[psk]`] = channel.psk || NO_ENCRYPTION_PSK;
         // The export writes the firmware default 13 for an empty precision, so the import fills 0 too.
         fields[`${prefix}[precision]`] = String(channel.position_precision);
         fields[`${prefix}[uplink_enabled]`] = String(channel.uplink_enabled);
         fields[`${prefix}[downlink_enabled]`] = String(channel.downlink_enabled);
     });
-    const lora = result.lora;
     fields.lora_enabled = 'true';
-    // The form has no `UNSET` region, and an empty region field keeps the firmware default.
-    if (lora.region && lora.region !== 'UNSET') {
-        fields.lora_region = share.regionPrefix + lora.region;
+    // The form has no `UNSET` region, and an empty region field keeps the firmware default `UNSET`.
+    if (lora.region) {
+        fields.lora_region = lora.region === 'UNSET' ? '' : share.regionPrefix + lora.region;
     }
     if (lora.modem_preset) {
         fields.lora_modem_preset = share.modemPresetPrefix + lora.modem_preset;
@@ -81,9 +124,10 @@ function yamlChannels(config) {
 }
 
 /** Return the text of a PSK that the preview can show without the Show control, or null for a secret key. */
-function plainPskText(psk, defaultKey) {
-    if (!psk) {
-        return 'No encryption';
+function plainPskText(psk, defaultKey, role) {
+    if (!psk || /^\{\s*\}$/.test(psk)) {
+        // Upstream `Channels::getKey` gives a secondary channel with an empty PSK the primary channel key.
+        return role === 'SECONDARY' ? 'Uses the primary channel key' : 'No encryption';
     }
     if (defaultKey !== undefined && defaultKey !== null) {
         return `Default key ${defaultKey}`;
@@ -96,9 +140,9 @@ function plainPskText(psk, defaultKey) {
 }
 
 /** Return the table cell of a PSK: masked, with a Show control that switches the PSK text on and off. */
-function pskCell(psk, defaultKey) {
+function pskCell(psk, defaultKey, role) {
     const cell = document.createElement('td');
-    const plain = plainPskText(psk, defaultKey);
+    const plain = plainPskText(psk, defaultKey, role);
     if (plain !== null) {
         cell.textContent = plain;
         return cell;
@@ -152,13 +196,16 @@ function showImportError(message) {
  */
 function showPreview(preview) {
     pendingImport = preview;
+    const unread = Object.entries(preview.fields() || {})
+        .filter(([name, value]) => isUnread(formControl(name), value))
+        .map(([name]) => `${name}: ${UNREAD_REASON}`);
     document.getElementById('channelShareError').textContent = '';
     const rows = preview.channels.map(channel => {
         const row = document.createElement('tr');
         row.append(
             textCell(String(channel.index)),
             textCell(channel.name),
-            pskCell(channel.psk, channel.default_key),
+            pskCell(channel.psk, channel.default_key, channel.role),
             textCell(channel.role === 'PRIMARY' ? 'Primary' : 'Secondary'),
         );
         return row;
@@ -173,22 +220,9 @@ function showPreview(preview) {
     document.querySelector('#channelSharePreview tbody').replaceChildren(...rows);
     document.getElementById('channelShareLora').textContent =
         `LoRa: region ${preview.region || 'not set'}, modem preset ${preview.modemPreset || 'not set'}.`;
-    showList('channelShareNotApplied', preview.notApplied);
+    showList('channelShareNotApplied', [...preview.notApplied, ...unread]);
     showList('channelShareWarnings', preview.warnings);
     document.getElementById('channelSharePreview').hidden = false;
-}
-
-/**
- * Return the first channel slot that an import of `result` fills, or null when the free slots are too few.
- *
- * An `add=true` URL keeps the channels of the config and adds its channels after them (FR-channel-share-8).
- */
-function firstSlot(result) {
-    if (!result.add) {
-        return 0;
-    }
-    const first = writtenChannels();
-    return first + result.channels.length <= CHANNEL_SLOTS ? first : null;
 }
 
 async function decodeUrl() {
@@ -202,20 +236,21 @@ async function decodeUrl() {
         return;
     }
     const result = await response.json();
-    if (firstSlot(result) === null) {
+    const plan = urlPlan(result);
+    if (plan === null) {
         showImportError(NO_FREE_INDEX_MESSAGE);
         return;
     }
     showPreview({
-        channels: result.channels,
+        channels: plan.channels,
         region: result.lora.region,
         modemPreset: result.lora.modem_preset,
-        notApplied: [],
+        notApplied: plan.notApplied,
         warnings: result.warnings,
         // The operator can change the channel count after the preview, so Apply finds the free slots again.
         fields: () => {
-            const slot = firstSlot(result);
-            return slot === null ? null : channelUrlFields(result, slot);
+            const current = urlPlan(result);
+            return current === null ? null : channelUrlFields(current, result.lora);
         },
     });
 }
@@ -247,6 +282,25 @@ async function readYamlFile(input) {
     });
 }
 
+/** Return the form control of the field `name`, or null when the form has no control for it. */
+function formControl(name) {
+    // A switch has a hidden field with the same name, which sends `false` when the switch is off.
+    return document.getElementById('configForm').querySelector(`[name="${CSS.escape(name)}"]:not([type="hidden"])`);
+}
+
+/**
+ * Return true when the firmware version does not read the key of `control`, or does not read the enum `value`.
+ *
+ * The page disables the fieldset of each such key and each such enum option, so the form sends no value for it.
+ */
+function isUnread(control, value) {
+    if (!control) {
+        return false;
+    }
+    const option = control.tagName === 'SELECT' && Array.from(control.options).find(item => item.value === value);
+    return control.matches(':disabled') || Boolean(option && option.disabled);
+}
+
 /**
  * Put `value` into a form control, as a user change, so the section switches and the tab counts follow it.
  *
@@ -257,7 +311,8 @@ function setControl(control, value) {
         control.checked = value === 'true';
     } else {
         if (control.tagName === 'SELECT' && !Array.from(control.options).some(option => option.value === value)) {
-            control.add(new Option(value, value));
+            // An empty region is the firmware default `UNSET`, which the form has no option for.
+            control.add(new Option(value || 'Not set', value));
         }
         control.value = value;
     }
@@ -271,11 +326,10 @@ function applyImport() {
         showImportError(NO_FREE_INDEX_MESSAGE);
         return;
     }
-    const form = document.getElementById('configForm');
     for (const [name, value] of Object.entries(fields)) {
-        // A switch has a hidden field with the same name, which sends `false` when the switch is off.
-        const control = form.querySelector(`[name="${CSS.escape(name)}"]:not([type="hidden"])`);
-        if (control) {
+        const control = formControl(name);
+        // The preview lists each value that the firmware version does not read as "Not applied".
+        if (control && !isUnread(control, value)) {
             setControl(control, value);
         }
     }
@@ -301,6 +355,7 @@ async function exportChannels() {
     }
     const body = await response.json();
     error.textContent = '';
+    showList('channelShareExportWarnings', body.warnings);
     document.getElementById('channelShareExportUrl').value = body.url;
     document.getElementById('channelShareCopyStatus').textContent = '';
     // DOMParser makes an inert SVG element, so the page inserts no server text as HTML.

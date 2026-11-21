@@ -27,13 +27,13 @@
                 </div>
                 <p id="channelShareLora" class="mb-2"></p>
                 <div id="channelShareNotApplied" class="alert alert-warning" hidden>
-                    <p class="mb-1">Not applied: the config has no userPrefs key for these fields.</p>
+                    <p class="mb-1">Not applied: Apply leaves these values out. The config has no userPrefs key for the field, or the config does not accept the value.</p>
                     <ul class="mb-0"></ul>
                 </div>
                 <div id="channelShareWarnings" class="alert alert-warning" hidden>
                     <ul class="mb-0"></ul>
                 </div>
-                <p class="form-text text-muted">Apply changes the channels and the LoRa settings of the config.</p>
+                <p class="form-text text-muted">Apply changes each config field that the import holds. A channel URL holds the channels and the LoRa settings.</p>
                 <button type="button" class="btn btn-success" id="channelShareApply"><i class="bi bi-check2 me-1"></i>Apply</button>
                 <button type="button" class="btn btn-outline-secondary" id="channelShareCancel">Cancel</button>
             </div>
@@ -51,6 +51,9 @@
                 </div>
                 <div id="channelShareCopyStatus" class="form-text" aria-live="polite"></div>
                 <div id="channelShareQr" class="channel-share-qr mt-3" role="img" aria-label="QR code of the channel URL"></div>
+                <div id="channelShareExportWarnings" class="alert alert-warning mt-3" hidden>
+                    <ul class="mb-0"></ul>
+                </div>
                 <p id="channelShareExportNote" class="form-text text-muted">The config has no hop limit field, so the channel URL holds the firmware default hop limit 3.</p>
                 <div class="alert alert-warning mb-0">The channel URL holds the PSK of each channel. Share it only with the operators of the mesh.</div>
             </div>

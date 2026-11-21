@@ -287,10 +287,13 @@ def _process_channel_config(config_data: dict, output: dict, channel_index: int)
 
 
 def _process_channel_psk(psk_value: str, output: dict, channel_index: int) -> None:
-    """Write a hex, `{ 0x.. }` or base64 PSK as a `{ 0x.. }` byte array."""
-    psk = decode_key(psk_value)
-    if psk:
-        output[f"USERPREFS_CHANNEL_{channel_index}_PSK"] = byte_array(psk)
+    """Write a hex, `{ 0x.. }` or base64 PSK as a `{ 0x.. }` byte array.
+
+    A blank value writes no key, so the firmware gives the slot default key 1. The value `{ }` writes an empty array.
+    """
+    if psk_value.strip():
+        # Upstream `Channels::getKey` reads a primary channel PSK of 0 bytes as no encryption.
+        output[f"USERPREFS_CHANNEL_{channel_index}_PSK"] = byte_array(decode_key(psk_value))
 
 
 def _process_lora_config(config_data: dict, output: dict) -> None:
