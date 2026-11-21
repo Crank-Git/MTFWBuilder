@@ -25,7 +25,7 @@ router = APIRouter(tags=["admin"])
 async def admin_page(request: Request):
     """Render the admin dashboard."""
     templates = request.app.state.templates
-    return templates.TemplateResponse(request, "admin.html", {"title": "Admin Dashboard"})
+    return templates.TemplateResponse(request, "admin.html", {"title": "Admin"})
 
 
 @router.post("/admin/login")
