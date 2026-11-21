@@ -16,4 +16,4 @@ The project runs `pio project config --json-output` in each firmware source when
 - PlatformIO resolves `extends` and interpolation, so the registry matches what a build sees.
 - Registry generation needs PlatformIO on the server, which builds need anyway.
 - A bad value in one env skips that field or env with a warning; the rest of the registry is stored.
-- The weekly upstream check does not yet regenerate the registry against upstream (#144).
+- The weekly upstream check generates the registry from upstream `develop` and checks it (#144).
