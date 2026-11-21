@@ -1,7 +1,7 @@
 """Pydantic models for request/response validation."""
 
 import re
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
@@ -163,8 +163,9 @@ class ConfigRequest(_UserPrefsFields):
     @field_validator("button_pin", "event_mode")
     @classmethod
     def _check_digits(cls, value: str | None) -> str | None:
-        # The upstream parser quotes a value that is not all digits, and the firmware build then fails.
-        if value and not value.isdecimal():
+        # The upstream parser quotes a value that is not all ASCII digits, and the firmware build then fails.
+        # `isdecimal()` alone accepts other scripts' digits, for example "١٢".
+        if value and not (value.isascii() and value.isdigit()):
             raise ValueError("the value is not a whole number")
         return value
 
@@ -202,13 +203,12 @@ class BuildStatus(BaseModel):
     error: str | None = None
 
 
-class BuildResult(BaseModel):
-    """Result of a completed build."""
+class Artifact(BaseModel):
+    """One file of a complete build, in the artifact list."""
 
-    build_id: str
-    success: bool
-    download_url: str | None = None
-    error: str | None = None
+    name: str
+    size: int
+    kind: Literal["factory", "app", "uf2", "ota-zip", "hex", "littlefs", "manifest"]
 
 
 class AdminLoginRequest(BaseModel):

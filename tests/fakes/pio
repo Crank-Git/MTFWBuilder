@@ -1,0 +1,114 @@
+#!/usr/bin/env python3
+"""Act as `pio run -e <env>` for the tests, so the tests run without PlatformIO.
+
+The fake writes the artifact names that upstream `bin/platformio-pre.py` and
+`bin/platformio-custom.py` give at firmware `v2.7.26.54e0d8d`. It prints the lines that
+the build service parses, and one `-D` flag per userPrefs key, as upstream does.
+
+Environment variables:
+- `FAKE_PIO_FAIL=1` makes the build fail with exit code 1 and no artifacts.
+- `FAKE_PIO_SLEEP=<seconds>` holds the build after the first compile line.
+"""
+
+import argparse
+import json
+import os
+import re
+import sys
+import time
+from pathlib import Path
+
+VERSION = "2.7.26.54e0d8d"
+ENVS_FILE = Path(__file__).resolve().parent.parent / "fixtures" / "firmware" / "envs.json"
+
+# The suffixes after `firmware-<env>-<version>`, by architecture folder.
+ESP32_SUFFIXES = [".bin", ".factory.bin", ".mt.json"]
+SUFFIXES = {
+    "esp32": ESP32_SUFFIXES,
+    "esp32c3": ESP32_SUFFIXES,
+    "esp32c6": ESP32_SUFFIXES,
+    "esp32s2": ESP32_SUFFIXES,
+    "esp32s3": ESP32_SUFFIXES,
+    "nrf52840": [".uf2", ".hex", "-ota.zip", ".mt.json"],
+    "rp2040": [".uf2", ".mt.json"],
+    "rp2350": [".uf2", ".mt.json"],
+    "stm32": [".bin", ".mt.json"],
+}
+
+
+def out(line: str) -> None:
+    sys.stdout.write(line + "\n")
+    sys.stdout.flush()
+
+
+def userprefs_flags(firmware_dir: Path) -> list[str]:
+    """Return the `-D` flags for the userPrefs file, with the value rules of `platformio-custom.py`."""
+    prefs_path = firmware_dir / "userPrefs.jsonc"
+    if not prefs_path.exists():
+        return []
+    # Upstream removes all text after // on a line before it parses the file.
+    prefs = json.loads(re.sub("//.*", "", prefs_path.read_text(), flags=re.MULTILINE))
+    flags = []
+    for key, value in prefs.items():
+        bare = (
+            value.startswith("{")
+            or value.lstrip("-").replace(".", "").isdigit()
+            or value in ("true", "false")
+            or value.startswith("meshtastic_")
+        )
+        flags.append(f"-D{key}={value}" if bare else f'-D{key}="{value}"')
+    return flags
+
+
+def fail(build_dir: str, start: float) -> int:
+    out(f"{build_dir}/src/main.cpp:1:1: error: FAKE_PIO_FAIL is set")
+    out(f"*** [{build_dir}/src/main.cpp.o] Error 1")
+    out(f"========== [FAILED] Took {time.monotonic() - start:.2f} seconds ==========")
+    return 1
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(prog="pio")
+    parser.add_argument("command", choices=["run"])
+    parser.add_argument("-e", "--environment", required=True)
+    parser.add_argument("-j", "--jobs")
+    parser.add_argument("--disable-auto-clean", action="store_true")
+    args = parser.parse_args()
+
+    start = time.monotonic()
+    env_name = args.environment
+    envs = json.loads(ENVS_FILE.read_text())
+    if env_name not in envs:
+        out(f"Error: Unknown environment names '{env_name}'. Valid names are '{', '.join(sorted(envs))}'")
+        return 1
+
+    firmware_dir = Path.cwd()
+    progname = f"firmware-{env_name}-{VERSION}"
+    build_dir = f".pio/build/{env_name}"
+    out(f"Processing {env_name} (fake pio)")
+    out(f"PROGNAME: {progname}")
+    out(f"Using meshtastic platformio-custom.py, firmware version {VERSION} on {env_name}")
+    out("Using flags:")
+    for flag in [f"-DAPP_VERSION={VERSION}", f"-DAPP_ENV={env_name}", *userprefs_flags(firmware_dir)]:
+        out(flag)
+    out(f"Compiling {build_dir}/src/main.cpp.o")
+    time.sleep(float(os.environ.get("FAKE_PIO_SLEEP", "0")))
+    if os.environ.get("FAKE_PIO_FAIL") == "1":
+        return fail(build_dir, start)
+
+    out(f"Linking {build_dir}/{progname}.elf")
+    out(f"Checking size {build_dir}/{progname}.elf")
+    out(f"Building {build_dir}/{progname}{SUFFIXES[envs[env_name]][0]}")
+    output = firmware_dir / build_dir
+    output.mkdir(parents=True, exist_ok=True)
+    names = [progname + suffix for suffix in SUFFIXES[envs[env_name]]]
+    if envs[env_name].startswith("esp32"):
+        names.append(f"littlefs-{env_name}-{VERSION}.bin")
+    for name in names:
+        (output / name).write_bytes(b"fake " + name.encode())
+    out(f"========== [SUCCESS] Took {time.monotonic() - start:.2f} seconds ==========")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

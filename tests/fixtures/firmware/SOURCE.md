@@ -61,6 +61,16 @@ firmware version. The contract test scans these files for the keys the firmware 
 - `src/modules/PositionModule.h`
 - `src/platform/portduino/SimRadio.cpp`
 
+## Env list
+
+`envs.json` is not an upstream file. It maps each `[env:…]` name to its architecture
+folder (the first folder under `variants/`). It holds all 230 envs of every
+`variants/**/*.ini` file at the firmware version above. The registry id test and the fake
+`pio` read it.
+
+To make it again, clone the tag with `git clone --depth 1 --branch <version>`. Then read
+each `^\[env:([^\]]+)\]` line of each `variants/**/*.ini` file.
+
 ## License
 
 The upstream firmware is GPL-3.0. This project is GPL-3.0-or-later (ADR 0004), so it
