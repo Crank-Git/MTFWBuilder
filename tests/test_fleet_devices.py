@@ -135,6 +135,13 @@ async def test_a_csv_with_an_unknown_column_returns_422(client, fleet_id):
     ]
 
 
+async def test_a_csv_that_starts_with_a_byte_order_mark_reads_the_label_column(client, fleet_id):
+    response = await client.post(f"/api/v1/fleets/{fleet_id}/devices/csv", json={"csv": "﻿label\ngate-1\n"})
+
+    assert response.status_code == 200
+    assert await _labels(client, fleet_id) == ["gate-1"]
+
+
 async def test_a_csv_without_a_label_column_returns_422(client, fleet_id):
     response = await client.post(f"/api/v1/fleets/{fleet_id}/devices/csv", json={"csv": "variant\npico\n"})
 

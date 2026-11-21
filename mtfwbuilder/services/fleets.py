@@ -7,6 +7,7 @@ session gets the decrypted admin key on a load, the same as the stored secrets o
 import csv
 import io
 import logging
+from collections.abc import Collection
 from pathlib import Path
 from typing import Any
 
@@ -187,7 +188,8 @@ def read_csv(text: str) -> list[dict[str | None, Any]]:
     Raises:
         CsvHeaderError: The header has an unknown column or no `label` column.
     """
-    reader = csv.DictReader(io.StringIO(text))
+    # A spreadsheet export can start with a byte order mark, which would join the name of the first column.
+    reader = csv.DictReader(io.StringIO(text.removeprefix("﻿")))
     columns = [name.strip() for name in reader.fieldnames or ()]
     use = f"Use the header {','.join(CSV_HEADER)}."
     unknown = [name for name in columns if name not in CSV_HEADER]
@@ -217,7 +219,9 @@ async def _registry(database_path: Path, firmware_version: str | None) -> tuple[
     return source["version"], {entry["env"] for entry in await list_variants(database_path, source["version"])}
 
 
-def _label_error(row: dict, number: int, first_rows: dict[str, int], saved_labels: set[str]) -> list[dict[str, Any]]:
+def _label_error(
+    row: dict, number: int, first_rows: dict[str, int], saved_labels: Collection[str]
+) -> list[dict[str, Any]]:
     """Return the row error of a label that an earlier row or a saved fleet device has, and record a new label."""
     label = str(row.get("label") or "").strip()
     if not label:
@@ -231,7 +235,7 @@ def _label_error(row: dict, number: int, first_rows: dict[str, int], saved_label
 
 
 async def check_devices(
-    database_path: Path, firmware_version: str | None, rows: list[dict], saved_labels: set[str] = frozenset()
+    database_path: Path, firmware_version: str | None, rows: list[dict], saved_labels: Collection[str] = ()
 ) -> tuple[list[FleetDevice], list[dict[str, Any]]]:
     """Return the fleet device of each row and every row error, in row order (FR-fleet-builds-13).
 
