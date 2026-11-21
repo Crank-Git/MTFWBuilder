@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.test_smoke_e2e import fill_config_form
+from tests.e2e.test_smoke_e2e import choose_variant, fill_config_form
 
 pytestmark = pytest.mark.e2e
 
@@ -21,7 +21,7 @@ LAN_HOST = "flash.lan"
 def build_esp32(page: Page, url: str) -> None:
     page.goto(f"{url}/")
     fill_config_form(page)
-    page.select_option("#variant", "heltec-v3")
+    choose_variant(page, "heltec-v3")
     page.click("#buildBtn")
     expect(page.locator('[data-step="complete"]')).to_have_attribute("data-state", "done", timeout=15_000)
 

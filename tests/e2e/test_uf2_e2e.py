@@ -5,7 +5,7 @@ import re
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.test_smoke_e2e import fill_config_form
+from tests.e2e.test_smoke_e2e import choose_variant, fill_config_form
 
 pytestmark = pytest.mark.e2e
 
@@ -13,7 +13,7 @@ pytestmark = pytest.mark.e2e
 def test_nrf52_build_shows_the_uf2_steps_and_no_flash_control(page: Page, live_server: str):
     page.goto(f"{live_server}/")
     fill_config_form(page)
-    page.select_option("#variant", "rak4631")
+    choose_variant(page, "rak4631")
     page.click("#buildBtn")
     expect(page.locator('[data-step="complete"]')).to_have_attribute("data-state", "done", timeout=15_000)
 

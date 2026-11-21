@@ -4,8 +4,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from mtfwbuilder.models import Artifact
-from mtfwbuilder.services.device_registry import DeviceVariant
-from tests.test_flash_panel import _complete_panel, _Panel
+from tests.test_flash_panel import _complete_panel, render_complete_panel
 
 CONNECT_STEP = "Connect the device with USB."
 RESET_STEP = "Press the reset button two times quickly. A USB drive appears."
@@ -22,8 +21,7 @@ async def client(app):
 
 
 @pytest.fixture
-async def workers(app, settings, fake_pio):
-    settings.firmware_dir.mkdir(parents=True)
+async def workers(app, firmware_source, fake_pio):
     app.state.build_queue.start()
     yield app.state.build_queue
     await app.state.build_queue.stop()
@@ -44,7 +42,7 @@ def _steps(panel):
 async def test_nrf52_build_shows_the_uf2_steps_and_no_flash_control(app, client):
     ctx, panel = await _complete_panel(app, client, "rak4631")
 
-    assert ctx.variant.pio_platform == "nrf52840"
+    assert ctx.variant.architecture == "nrf52840"
     assert panel.by_id("uf2-panel") is not None
     assert panel.by_id("flash-start") is None
     assert panel.by_id("flash-panel") is None
@@ -54,16 +52,27 @@ async def test_nrf52_build_shows_the_uf2_steps_and_no_flash_control(app, client)
 
 
 @pytest.mark.usefixtures("workers")
-@pytest.mark.parametrize("variant", ["rak11310", "pico2"])
-async def test_rp2040_and_rp2350_builds_show_the_bootsel_steps_and_no_flash_control(app, client, variant):
-    _, panel = await _complete_panel(app, client, variant)
+@pytest.mark.parametrize("variant", ["rak11310", "pico"])
+async def test_rp2040_builds_show_the_bootsel_steps_and_no_flash_control(app, client, variant):
+    ctx, panel = await _complete_panel(app, client, variant)
 
+    assert ctx.variant.architecture == "rp2040"
     assert panel.by_id("flash-start") is None
     assert _steps(panel)[1:] == [BOOTSEL_STEP, COPY_STEP]
 
 
+# The firmware fixture has no rp2350 variant, so the test renders the template.
+def test_rp2350_build_shows_the_bootsel_steps_and_no_flash_control(app):
+    uf2 = Artifact(name="firmware-pico2-2.7.26.uf2", size=1, kind="uf2")
+    panel = render_complete_panel(app, "rp2350", [uf2])
+
+    assert panel.by_id("flash-start") is None
+    assert panel.by_id("uf2-download")["href"] == f"/api/v1/builds/b1/artifacts/{uf2.name}"
+    assert _steps(panel)[1:] == [BOOTSEL_STEP, COPY_STEP]
+
+
 @pytest.mark.usefixtures("workers")
-@pytest.mark.parametrize("variant", ["rak4631", "rak11310", "pico2"])
+@pytest.mark.parametrize("variant", ["rak4631", "rak11310", "pico"])
 async def test_uf2_download_control_links_the_uf2_artifact_on_the_artifact_route(app, client, variant):
     ctx, panel = await _complete_panel(app, client, variant)
 
@@ -74,11 +83,10 @@ async def test_uf2_download_control_links_the_uf2_artifact_on_the_artifact_route
     assert panel.text_of("uf2-download") == uf2.name
 
 
-@pytest.mark.usefixtures("workers")
-async def test_stm32_build_shows_the_download_only_note_and_no_uf2_steps(app, client):
-    ctx, panel = await _complete_panel(app, client, "rak3172")
+# The firmware fixture has no stm32 variant, so the test renders the template.
+def test_stm32_build_shows_the_download_only_note_and_no_uf2_steps(app):
+    panel = render_complete_panel(app, "stm32", [Artifact(name="firmware-rak3172-2.7.26.bin", size=1, kind="app")])
 
-    assert ctx.variant.pio_platform == "stm32"
     assert panel.text_of("download-only") == DOWNLOAD_ONLY
     assert panel.by_id("uf2-panel") is None
     assert panel.by_id("flash-start") is None
@@ -93,34 +101,18 @@ async def test_esp32_build_shows_no_uf2_steps_and_no_download_only_note(app, cli
     assert panel.by_id("download-only") is None
 
 
-# The registry has no nrf54l15 variant yet, so the test renders the partial directly.
+# The firmware fixture has no nrf54l15 variant, so the test renders the template.
 def test_nrf54l15_build_shows_the_download_only_note(app):
-    class Build:
-        build_id = "b1"
-        variant = DeviceVariant(
-            id="xiao_nrf54l15", name="XIAO", manufacturer="Seeed", architecture="nrf52", pio_platform="nrf54l15"
-        )
-
     artifact = Artifact(name="firmware-xiao_nrf54l15-2.7.26.zip", size=1, kind="ota-zip")
-    template = app.state.templates.get_template("partials/uf2_panel.html")
-    panel = _Panel()
-    panel.feed(template.render(build=Build, artifacts=[(artifact, "/x")]))
+    panel = render_complete_panel(app, "nrf54l15", [artifact])
 
     assert panel.text_of("download-only") == DOWNLOAD_ONLY
     assert panel.by_id("uf2-panel") is None
 
 
 def test_uf2_panel_without_a_uf2_artifact_says_that_the_build_has_no_uf2_file(app):
-    class Build:
-        build_id = "b1"
-        variant = DeviceVariant(
-            id="pico2", name="Pico 2", manufacturer="Raspberry Pi", architecture="rp2040", pio_platform="rp2350"
-        )
-
     artifact = Artifact(name="firmware-pico2-2.7.26.hex", size=1, kind="hex")
-    template = app.state.templates.get_template("partials/uf2_panel.html")
-    panel = _Panel()
-    panel.feed(template.render(build=Build, artifacts=[(artifact, "/x")]))
+    panel = render_complete_panel(app, "rp2350", [artifact])
 
     assert panel.text_of("uf2-step-1") == "This build has no UF2 file."
     assert panel.by_id("uf2-download") is None

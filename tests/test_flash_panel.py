@@ -11,7 +11,11 @@ from urllib.parse import urlsplit
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from starlette.requests import Request
 
+from mtfwbuilder.services.build_service import DeviceVariant
+from mtfwbuilder.services.registry_generator import ESP32_FAMILY as ESP32_ARCHITECTURES
+from mtfwbuilder.services.registry_generator import flash_method
 from tests.conftest import REPO_ROOT
 
 HX = {"HX-Request": "true"}
@@ -21,10 +25,12 @@ ESPTOOL_URL = "/static/vendor/esptool-js-0.7.1/bundle.js"
 UNSUPPORTED = "This browser cannot flash. Use Chrome or Edge on a desktop."
 INSECURE = "Web Serial needs HTTPS. Open this page through the TLS proxy or on localhost."
 
-# One variant of each pio platform in the ESP32 family. The registry puts all of them under `esp32`.
-ESP32_FAMILY = ["heltec-v3", "heltec-ht62-esp32c3-sx1262", "tbeam"]
-# One variant of each other architecture.
-OTHER = ["rak4631", "rak11310", "rak3172"]
+# The ESP32-family variants of the firmware fixture. The fixture holds esp32s3 variants only.
+ESP32_FAMILY = ["heltec-v3", "heltec-v4"]
+# The variants of the other architectures in the firmware fixture.
+OTHER = ["rak4631", "rak11310", "pico"]
+# The architectures that FR-generated-registry-14 names and that are not ESP32 family.
+OTHER_ARCHITECTURES = ["nrf52840", "rp2040", "rp2350", "nrf54l15", "stm32"]
 
 
 @pytest.fixture
@@ -35,8 +41,7 @@ async def client(app):
 
 
 @pytest.fixture
-async def workers(app, settings, fake_pio):
-    settings.firmware_dir.mkdir(parents=True)
+async def workers(app, firmware_source, fake_pio):
     app.state.build_queue.start()
     yield app.state.build_queue
     await app.state.build_queue.stop()
@@ -91,6 +96,38 @@ async def _complete_panel(app, client, variant):
     return ctx, panel
 
 
+class _CompleteBuild:
+    """A complete build of one variant, with the attributes that the build update template reads."""
+
+    build_id = "b1"
+    status = "complete"
+    ended = True
+    error = None
+    message = ""
+
+    def __init__(self, architecture):
+        self.variant = DeviceVariant(id="v1", name="V1", manufacturer="M", architecture=architecture)
+
+
+def render_complete_panel(app, architecture, artifacts=()):
+    """Return the parsed build update of a complete build of `architecture`, rendered without the build route.
+
+    The firmware fixture has no variant of some architectures, so a test of those architectures renders the template.
+    """
+    scope = {"type": "http", "app": app, "path": "/", "headers": [], "query_string": b"", "server": ("test", 80)}
+    template = app.state.templates.get_template("partials/build_state.html")
+    html = template.render(
+        request=Request(scope),
+        build=_CompleteBuild(architecture),
+        steps=[],
+        artifacts=[(a, f"/api/v1/builds/b1/artifacts/{a.name}") for a in artifacts],
+        source_missing=False,
+    )
+    panel = _Panel()
+    panel.feed(html)
+    return panel
+
+
 # FR-browser-flashing-2
 
 
@@ -99,7 +136,7 @@ async def _complete_panel(app, client, variant):
 async def test_complete_esp32_family_build_shows_a_flash_control(app, client, variant):
     ctx, panel = await _complete_panel(app, client, variant)
 
-    assert ctx.variant.architecture == "esp32"
+    assert flash_method(ctx.variant.architecture) == "web-serial"
     assert panel.by_id("flash-panel") is not None
     assert panel.by_id("flash-start") is not None
     assert panel.text_of("flash-start") == "Flash"
@@ -109,6 +146,22 @@ async def test_complete_esp32_family_build_shows_a_flash_control(app, client, va
 @pytest.mark.parametrize("variant", OTHER)
 async def test_complete_build_of_another_architecture_shows_no_flash_panel(app, client, variant):
     _, panel = await _complete_panel(app, client, variant)
+
+    assert panel.by_id("flash-panel") is None
+    assert panel.by_id("flash-start") is None
+
+
+@pytest.mark.parametrize("architecture", ESP32_ARCHITECTURES)
+def test_complete_build_of_each_esp32_family_architecture_shows_a_flash_control(app, architecture):
+    panel = render_complete_panel(app, architecture)
+
+    assert panel.by_id("flash-panel") is not None
+    assert panel.text_of("flash-start") == "Flash"
+
+
+@pytest.mark.parametrize("architecture", OTHER_ARCHITECTURES)
+def test_complete_build_of_an_architecture_outside_the_esp32_family_shows_no_flash_panel(app, architecture):
+    panel = render_complete_panel(app, architecture)
 
     assert panel.by_id("flash-panel") is None
     assert panel.by_id("flash-start") is None

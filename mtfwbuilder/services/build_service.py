@@ -58,9 +58,14 @@ class DeviceVariant:
     architecture: str
 
     @property
+    def flash_method(self) -> str:
+        """Return the flash method of the architecture: `web-serial`, `uf2`, `dfu-zip` or `download`."""
+        return flash_method(self.architecture)
+
+    @property
     def firmware_format(self) -> str:
         """Return the artifact file type of the architecture: `bin`, `uf2` or `zip`."""
-        return FLASH_METHOD_FORMATS[flash_method(self.architecture)]
+        return FLASH_METHOD_FORMATS[self.flash_method]
 
 
 class BuildQueueFull(Exception):
