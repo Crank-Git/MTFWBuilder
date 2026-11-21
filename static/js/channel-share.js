@@ -323,9 +323,6 @@ async function copyExportUrl() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    if (!document.getElementById('channelShare')) {
-        return;
-    }
     document.getElementById('channelShareDecode').addEventListener('click', decodeUrl);
     document.getElementById('channelShareUrl').addEventListener('keydown', evt => {
         if (evt.key === 'Enter') {
