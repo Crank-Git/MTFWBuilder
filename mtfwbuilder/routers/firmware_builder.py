@@ -11,7 +11,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from mtfwbuilder.htmx import fragment_or_json, is_htmx
 from mtfwbuilder.models import Artifact, ConfigRequest
-from mtfwbuilder.rate_limit import limiter
+from mtfwbuilder.rate_limit import build_rate_limit, limiter
 from mtfwbuilder.services import build_service
 from mtfwbuilder.services.firmware_updater import get_firmware_version
 from mtfwbuilder.services.jsonc_generator import generate_jsonc
@@ -28,7 +28,7 @@ RUN_STEPS = ("queued", "compiling", "linking", "packaging")
 
 
 @router.post("/build-firmware", status_code=202)
-@limiter.limit("5/minute")
+@limiter.limit(build_rate_limit)
 async def start_build(request: Request) -> Response:
     """Put a build in the build queue, and return its build id and progress stream URL.
 

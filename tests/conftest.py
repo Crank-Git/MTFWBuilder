@@ -10,7 +10,7 @@ import yaml
 from mtfwbuilder.auth import CSRF_COOKIE, SESSION_COOKIE, create_session_token, csrf_token
 from mtfwbuilder.config import _hash_password, load_settings
 from mtfwbuilder.main import create_app
-from mtfwbuilder.rate_limit import limiter
+from mtfwbuilder.rate_limit import configure_rate_limits, limiter
 from mtfwbuilder.services.build_service import BuildQueue
 from mtfwbuilder.services.device_registry import DeviceRegistry
 
@@ -79,15 +79,13 @@ def admin_password():
 
 @pytest.fixture
 def settings_env(tmp_path, monkeypatch):
-    """Return a base directory under `tmp_path` that the `MTFW_*` variables point at.
+    """Return a directory under `tmp_path` that is both the base directory and the data directory.
 
     The directory holds a `config.yaml` with a known admin password and secret key.
     The registry stays the real `devices/variants.yaml`, which the tests only read.
     """
     monkeypatch.setenv("MTFW_BASE_DIR", str(tmp_path))
-    monkeypatch.setenv("MTFW_TEMP_DIR", str(tmp_path / "tmp"))
-    monkeypatch.setenv("MTFW_DATABASE_PATH", str(tmp_path / "mtfwbuilder.db"))
-    monkeypatch.setenv("MTFW_FIRMWARE_DIR", str(tmp_path / "firmware"))
+    monkeypatch.setenv("MTFW_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("MTFW_DEVICES_FILE", str(REPO_ROOT / "devices" / "variants.yaml"))
     config = {"admin_password_hash": _ADMIN_PASSWORD_HASH, "secret_key": SECRET_KEY}
     (tmp_path / "config.yaml").write_text(yaml.safe_dump(config))
@@ -108,6 +106,7 @@ def app(settings):
     """
     app = create_app()
     app.state.settings = settings
+    configure_rate_limits(settings)
     app.state.device_registry = DeviceRegistry(settings.devices_file)
     app.state.build_queue = BuildQueue(settings)
     # The rate limit counts across tests, so each test starts with an empty count.

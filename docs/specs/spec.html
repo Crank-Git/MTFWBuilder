@@ -222,6 +222,8 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><td>factory default</td><td>noun</td><td>A value the firmware applies on first boot and on factory reset only. Every userPrefs key is a factory default.</td><td>baked setting, locked setting</td></tr>
 <tr><td>firmware source</td><td>noun</td><td>One extracted copy of the <code>meshtastic/firmware</code> source tree at one firmware version.</td><td>firmware tree, repo copy</td></tr>
 <tr><td>firmware version</td><td>noun</td><td>One upstream release tag, for example <code>v2.7.26.54e0d8d</code>.</td><td>release, tag (alone)</td></tr>
+<tr><td>release channel</td><td>noun</td><td>The upstream release track of a firmware version: <code>stable</code> or <code>alpha</code>, or <code>pinned</code> for an exact tag.</td><td>channel (alone), track</td></tr>
+<tr><td>install</td><td>verb</td><td>To download a firmware source and its packages onto the server. Never used for a device.</td><td>download, fetch</td></tr>
 <tr><td>channel</td><td>noun</td><td>A Meshtastic channel: index 0–7, name, PSK, precision, uplink, downlink, muted.</td><td>room, group</td></tr>
 <tr><td>PSK</td><td>noun</td><td>The pre-shared key that encrypts a channel.</td><td>password, key (alone)</td></tr>
 <tr><td>secret</td><td>noun</td><td>Any config value that gives access: a PSK, a WiFi password, an MQTT password, an admin key.</td><td>credential, sensitive data</td></tr>
@@ -232,6 +234,7 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><td>artifact</td><td>noun</td><td>One file a build produces for the operator, for example <code>firmware-heltec-v4-2.7.26.54e0d8d.factory.bin</code>.</td><td>output, binary, image</td></tr>
 <tr><td>build queue</td><td>noun</td><td>The ordered list of builds that wait for a free build worker.</td><td>job queue</td></tr>
 <tr><td>build worker</td><td>noun</td><td>The process slot that runs one build at a time.</td><td>runner, executor</td></tr>
+<tr><td>data directory</td><td>noun</td><td>The one directory that holds all state: firmware sources, artifacts, the database and <code>config.yaml</code>. <code>MTFW_DATA_DIR</code> sets it.</td><td>state dir, volume (alone)</td></tr>
 <tr><td>build cache</td><td>noun</td><td>Stored artifacts, keyed by a hash of firmware version, variant and userPrefs file.</td><td>artifact store</td></tr>
 <tr><td>progress stream</td><td>noun</td><td>The Server-Sent Events (SSE) stream that sends build status and log lines to the page.</td><td>event feed, socket</td></tr>
 <tr><td>scrub</td><td>verb</td><td>To delete every file that holds a secret, after a build ends.</td><td>sanitize, wipe, clean</td></tr>
@@ -373,8 +376,8 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><td>Push config</td><td><code>@meshtastic/core</code> + <code>@meshtastic/transport-web-serial</code> (GPL-3.0, JSR), or <code>meshtastic-sdk</code> JS when it reaches 0.3.0</td><td>The only maintained client libraries. Choice deferred to a spike in Epic 12.</td></tr>
 <tr><td>Data store</td><td>SQLite through aiosqlite</td><td>Built (schema only). Zero setup for a self-hoster. ADR 0003.</td></tr>
 <tr><td>Firmware build</td><td>PlatformIO Core 6.2 (<code>pioarduino</code> core for ESP32 on firmware 2.8)</td><td>Upstream build system. Source: <code>meshtastic/gh-action-firmware</code>.</td></tr>
-<tr><td>Packaging</td><td><code>pyproject.toml</code> + hatchling today; uv + <code>uv.lock</code> planned</td><td>Interview choice (stack modernization).</td></tr>
-<tr><td>Runtime</td><td>Python 3.11 today (Docker); Python 3.13 planned</td><td><code>asyncio.timeout</code> needs 3.11. <code>meshtastic</code> python requires <code>&lt;3.15</code>.</td></tr>
+<tr><td>Packaging</td><td><code>pyproject.toml</code> + hatchling, uv + <code>uv.lock</code> (Epic 4)</td><td>Interview choice (stack modernization).</td></tr>
+<tr><td>Runtime</td><td>Python 3.13 (Docker and CI; CI also tests 3.14)</td><td><code>meshtastic</code> python requires <code>&lt;3.15</code>.</td></tr>
 <tr><td>Deploy</td><td>Docker Compose, self-hosted. No hosted instance.</td><td>Interview answer: not deployed.</td></tr>
 <tr><td>Protobuf decode</td><td><code>meshtastic</code> python package (GPL-3.0)</td><td>Decodes channel URLs and CLI YAML. Allowed by the GPL-3.0 relicense (ADR 0004).</td></tr>
 </table></div>
@@ -462,10 +465,10 @@ body.rv-open .layout { padding-right:21rem; }
 <p>Seed data: none. The registry and the firmware source come from upstream at runtime. Planned: a test fixture holds a small firmware source subset (a few variant <code>platformio.ini</code> files and <code>userPrefs.jsonc</code>) so tests run without a download.</p>
 <h2 id="testing-strategy">Testing strategy</h2>
 <ul>
-<li><strong>Unit:</strong> pytest, <code>asyncio_mode = "auto"</code>. 106 tests today: generator 39, build service
+<li><strong>Unit:</strong> pytest, <code>asyncio_mode = "auto"</code>. 106 tests at the inherit (2026-11-21, <code>bd15bb1</code>);
 </li>
 </ul>
-<p>26, registry 20, security 14, routes 7.</p>
+<p>the suite grows with each epic.</p>
 <ul>
 <li><strong>Contract tests (planned):</strong> the userPrefs keys the generator writes are a subset of
 </li>
@@ -879,6 +882,8 @@ body.rv-open .layout { padding-right:21rem; }
 <li>2026-11-21 — Epic 1 shipped (#92). PM decision, flagged for the owner: the event mode select defaults to Disabled (#13), so a form left at its defaults does not turn event mode on. The contract test found that firmware v2.7.26 reads no <code>USERPREFS_CHANNEL_3_*</code> key; the generator writes channel slots 0–2 only until #47. The build route still skips <code>ConfigRequest</code>: filed as #94 in epic #16.
 </li>
 <li>2026-11-21 — Epic 2 shipped (#102). PM decision from the batch review, flagged for the owner: the project sets no shared PlatformIO build cache and the scrub deletes <code>.pio/build_cache</code>, because the cache keeps objects compiled with secrets (Goal 7). Each build then compiles from the start; toolchains stay cached. <code>config_hash</code> is an HMAC with <code>secret_key</code>. Follow-up #88 (more than one build worker) stays open.
+</li>
+<li>2026-11-21 — Epic 4 shipped (#112). Batch review fixes: the data-directory move respects path overrides and scrubs an old firmware tree it keeps; production trusts only the nginx network for <code>X-Forwarded-For</code>; nginx repeats its security headers in each block. Terms: added <code>release channel</code> and <code>install</code> (the word <code>channel</code> alone means a Meshtastic channel).
 </li>
 </ul><nav class="pager">
 <span></span>

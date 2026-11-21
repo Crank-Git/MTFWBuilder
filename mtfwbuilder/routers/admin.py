@@ -23,7 +23,7 @@ from mtfwbuilder.auth import (
 )
 from mtfwbuilder.database import get_db, get_recent_builds
 from mtfwbuilder.htmx import fragment_or_json
-from mtfwbuilder.rate_limit import limiter
+from mtfwbuilder.rate_limit import limiter, login_rate_limit
 from mtfwbuilder.services.cleanup_service import cleanup_old_builds
 from mtfwbuilder.services.firmware_updater import get_firmware_version, update_firmware
 
@@ -68,7 +68,7 @@ async def admin_page(request: Request):
 
 
 @router.post("/admin/login", dependencies=[Depends(require_csrf)])
-@limiter.limit("10/minute")
+@limiter.limit(login_rate_limit)
 async def admin_login(request: Request):
     """Authenticate admin and set session cookie."""
     settings = request.app.state.settings

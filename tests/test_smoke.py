@@ -16,3 +16,9 @@ async def test_page_returns_200(client, path):
     resp = await client.get(path)
     assert resp.status_code == 200
     assert "text/html" in resp.headers["content-type"]
+
+
+async def test_healthz_returns_status_ok(client):
+    resp = await client.get("/healthz")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok"}

@@ -59,7 +59,6 @@ env/
 ENV/
 .venv/
 .env/
-.python-version
 
 # ===========================================
 # Flask
@@ -95,6 +94,9 @@ flask_session/
 
 # Firmware source directory (downloaded)
 /firmware/
+
+# Data directory: firmware sources, artifacts, the database and config.yaml
+/data/
 
 # Build artifacts
 *.o

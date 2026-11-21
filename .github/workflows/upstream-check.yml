@@ -1,0 +1,39 @@
+# Upstream firmware changes without notice. This check runs the contract tests against
+# upstream `develop`, so a change shows before it reaches a stable firmware version.
+# A failure means a fixture refresh: see .claude/skills/refresh-fixtures/SKILL.md.
+name: Upstream check
+
+on:
+  # GitHub runs a schedule only from the workflow file on the default branch.
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: Contract tests against upstream develop
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v10.4.0
+
+      - name: Install
+        run: uv sync --frozen
+
+      - name: Fetch upstream develop
+        run: git clone --depth 1 --branch develop https://github.com/meshtastic/firmware.git "$RUNNER_TEMP/firmware"
+
+      - name: Record the upstream commit
+        run: |
+          echo "Upstream develop commit: \`$(git -C "$RUNNER_TEMP/firmware" rev-parse HEAD)\`" >> "$GITHUB_STEP_SUMMARY"
+
+      # The contract tests read tests/fixtures/firmware/, so the clone replaces it in this checkout only.
+      - name: Replace the firmware fixture with the clone
+        run: uv run python -m tests.upstream_fixture "$RUNNER_TEMP/firmware"
+
+      - name: Contract tests
+        run: uv run pytest -q -k "contract or registry"
