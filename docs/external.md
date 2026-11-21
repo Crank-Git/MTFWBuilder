@@ -16,7 +16,6 @@ Settings read `config.yaml` first, then `MTFW_<FIELD>` environment variables
 | `MTFW_FIRMWARE_DIR` | Firmware source directory. Default `firmware/` in the data directory. | built |
 | `MTFW_TEMP_DIR` | Build directories. Default `artifacts/` in the data directory. | built |
 | `MTFW_DATABASE_PATH` | SQLite file. Default `mtfwbuilder.db` in the data directory. | built |
-| `MTFW_DEVICES_FILE` | Registry YAML | built; removed by feature 10 |
 | `MTFW_MAX_QUEUE_SIZE` | Build queue limit | built; used by the build queue |
 | `MTFW_BUILD_WORKERS` | Number of build workers | built; each build worker after the first builds in its own copy `<firmware_dir>/.worker-<n>/` of the firmware source |
 | `MTFW_BUILD_TIMEOUT_SECONDS` | Build timeout | built |

@@ -25,7 +25,7 @@ In this README, "planned" marks a part that the code does not do yet. The spec i
 
 - **Configuration Generator** — Web UI for building `userPrefs.jsonc` files with channel setup, LoRa settings, GPS, WiFi/MQTT, and more
 - **Firmware Builder** — Compiles custom firmware via PlatformIO with your config pre-loaded
-- **Device registry** — `devices/variants.yaml` lists the variants. The count of entries in that file is the variant count, and the startup log states it. ESP32 variants give `.bin` files. nRF52 and RP2040 variants give `.uf2` files.
+- **Device registry** — Each firmware version has its own registry. The install reads it from the firmware source with `pio project config --json-output`. ESP32 variants give `.bin` files. nRF52840 and RP2040 variants give `.uf2` files.
 - **Factory Binary Support** — ESP32 devices get both `firmware.bin` and `firmware.factory.bin`
 - **Build progress (planned)** — The progress stream `GET /api/v1/build-progress/{id}` exists. The build page does not open it yet.
 - **Admin Dashboard** — Sign-in, firmware sources (install and remove firmware versions), build cleanup and recent builds.
@@ -121,11 +121,10 @@ MTFWBuilder/
 │   └── services/
 │       ├── jsonc_generator.py      # userPrefs.jsonc generation
 │       ├── build_service.py        # Async PlatformIO build pipeline
-│       ├── device_registry.py      # YAML device variant registry
+│       ├── registry_generator.py   # Registry of a firmware source, from its PlatformIO config
 │       ├── firmware_updater.py     # GitHub firmware source downloads
 │       ├── firmware_catalog.py     # Upstream stable and alpha firmware versions
 │       └── cleanup_service.py      # Build artifact and PSK cleanup
-├── devices/variants.yaml           # Registry (the variant list)
 ├── templates/                      # Jinja2 templates (htmx planned)
 ├── static/                         # CSS, JS
 ├── tests/                          # pytest suite
@@ -211,8 +210,8 @@ The optional form field `firmware_version` names an installed firmware version, 
 `v2.8.2.d5f1619`. Without it, the build uses the newest installed stable firmware version.
 A firmware version that is not installed gives 422 with a field error for `firmware_version`.
 A `variant` that is not in the registry of the firmware version gives 422 with a field error for
-`variant`, for example "Variant not in v2.8.2.d5f1619". A firmware version without a registry uses
-`devices/variants.yaml`.
+`variant`, for example "Variant not in v2.8.2.d5f1619". A firmware version without registry rows holds
+no variant, so each build of it gives that error.
 
 An htmx request to `/api/v1/build-firmware` or `/api/v1/builds/{id}` gets the progress
 panel as an HTML fragment. The page `/?build=<id>` shows the progress panel of that build.

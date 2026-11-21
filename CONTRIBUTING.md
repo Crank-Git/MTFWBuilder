@@ -30,7 +30,6 @@ mtfwbuilder/           # Python package (FastAPI backend)
   database.py          # SQLite schema. No route reads or writes it yet.
   routers/             # API route handlers
   services/            # Business logic (build, config gen, device registry)
-devices/variants.yaml  # Device registry (single source of truth)
 templates/             # Jinja2 templates (htmx planned)
 static/                # CSS, JS
 tests/                 # pytest suite
@@ -39,15 +38,12 @@ data/                  # Data directory (MTFW_DATA_DIR). Not in git.
 
 ## Adding a New Device Variant
 
-1. Edit `devices/variants.yaml`
-2. Add an entry with:
-   - `id`: Must match a PlatformIO environment name exactly. Many existing ids do not match yet.
-     FR-build-pipeline-repair-20 corrects them.
-   - `name`: Human-readable display name
-   - `manufacturer`: Brand/manufacturer
-   - `architecture`: `esp32`, `nrf52`, `rp2040`, or `stm32`
-3. Run `uv run pytest tests/test_device_registry.py` to validate
-4. Submit a PR
+The variants come from the firmware source, so this project holds no variant list. When an
+admin installs a firmware version, the project reads each env and its `custom_meshtastic_*`
+metadata from `pio project config --json-output` (feature 10).
+
+To add a variant, add it to upstream [meshtastic/firmware](https://github.com/meshtastic/firmware).
+The next firmware version that holds it shows it in the device picker.
 
 ## Running Tests
 
@@ -69,7 +65,7 @@ run the same check locally:
 1. Clone upstream outside the repository:
    `git clone --depth 1 --branch develop https://github.com/meshtastic/firmware.git <scratch>/firmware`.
 2. Replace the fixture with the clone: `uv run python -m tests.upstream_fixture <scratch>/firmware`.
-3. Run the contract tests: `uv run pytest -k "contract or registry"`.
+3. Run the contract tests: `uv run pytest -k contract`.
 4. Restore the fixture: `git checkout -- tests/fixtures/firmware/ && git clean -fd tests/fixtures/firmware/`.
 
 If the check fails, refresh the fixture with `.claude/skills/refresh-fixtures/SKILL.md`.
