@@ -2,7 +2,7 @@
 id: platform-modernization
 feature: Platform modernization
 epic: "Epic 4: Platform modernization"
-status: issued
+status: built
 issues: [28, 29, 30, 31, 32]
 mockups: []
 ---
