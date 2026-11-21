@@ -79,17 +79,12 @@ async def _config_from_upload(upload) -> str:
     return raw.decode("utf-8")
 
 
-def _get_build(request: Request, build_id: str) -> build_service.BuildContext:
-    ctx = request.app.state.build_queue.get(build_id)
-    if ctx is None:
-        raise HTTPException(status_code=404, detail="Build not found")
-    return ctx
-
-
 @router.get("/build-progress/{build_id}")
 async def build_progress(build_id: str, request: Request):
     """Return the progress stream of the build: the current build status, its changes, and new log lines."""
-    ctx = _get_build(request, build_id)
+    ctx = request.app.state.build_queue.get(build_id)
+    if ctx is None:
+        raise HTTPException(status_code=404, detail="Build not found")
     return EventSourceResponse(build_service.progress_events(ctx))
 
 

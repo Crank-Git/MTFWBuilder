@@ -9,6 +9,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from mtfwbuilder.rate_limit import limiter
+from mtfwbuilder.services import build_service
 from mtfwbuilder.services.build_service import (
     FIRMWARE_SOURCE_MISSING,
     BuildQueue,
@@ -268,3 +269,17 @@ async def test_invalid_config_json_returns_400(client, config_json):
 
     assert resp.status_code == 400
     assert resp.json()["detail"].startswith("Invalid configuration")
+
+
+@pytest.mark.usefixtures("fake_pio", "firmware_source", "workers")
+async def test_unexpected_build_error_gives_failed(app, client, monkeypatch):
+    def broken_extract(ctx):
+        raise RuntimeError("unexpected")
+
+    monkeypatch.setattr(build_service, "_extract_firmware", broken_extract)
+    ctx = app.state.build_queue.get((await _post_build(client)).json()["build_id"])
+
+    await _wait_for(ctx, {"complete", "failed", "cancelled"})
+
+    assert ctx.status == "failed"
+    assert ctx.error == "The build stopped because of an internal error."

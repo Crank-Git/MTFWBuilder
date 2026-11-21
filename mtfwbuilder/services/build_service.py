@@ -161,6 +161,10 @@ class BuildQueue:
                 ctx.task = asyncio.create_task(run_build(ctx))
                 # `wait` does not raise when the build task is cancelled, so the build worker continues.
                 await asyncio.wait({ctx.task})
+                if not ctx.task.cancelled() and ctx.task.exception() is not None:
+                    # Without an ended build status, the progress stream of the build never ends.
+                    logger.error(f"Build {ctx.build_id} raised an error", exc_info=ctx.task.exception())
+                    ctx.set_status("failed", error="The build stopped because of an internal error.")
             self._queue.task_done()
 
     def _forget_old_builds(self) -> None:
