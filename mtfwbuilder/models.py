@@ -181,7 +181,9 @@ class _UserPrefsFields(BaseModel):
     @classmethod
     def _reject_double_slash(cls, value: Any, info: ValidationInfo) -> Any:
         # The upstream parser removes all text after // on a line, so the device gets a cut value.
-        if isinstance(value, str) and "//" in value and info.field_name not in _BYTE_ARRAY_FIELDS:
+        # No build writes a module field, so a // in it reaches the device unchanged through push config.
+        skip = info.field_name in _BYTE_ARRAY_FIELDS or info.field_name in MODULE_FIELDS
+        if isinstance(value, str) and "//" in value and not skip:
             raise ValueError("the value contains //, which the firmware build reads as a comment")
         return value
 

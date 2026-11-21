@@ -196,6 +196,10 @@ async def test_detection_sensor_name_rejects_20_bytes(client, value):
     await assert_rejected(client, "detection_sensor_name", value)
 
 
+async def test_module_field_accepts_a_double_slash_because_no_module_field_goes_into_a_build(client):
+    await assert_accepted(client, "detection_sensor_name", "Gate//2")
+
+
 def test_module_enums_hold_the_enum_values_of_the_vendored_core():
     encoded = MODULE_CONFIG_DESCRIPTOR.search(CORE_FILE.read_text())[1]
     descriptor = descriptor_pb2.FileDescriptorProto.FromString(base64.b64decode(encoded + "=" * (-len(encoded) % 4)))

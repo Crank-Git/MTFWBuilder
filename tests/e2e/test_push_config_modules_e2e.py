@@ -73,7 +73,7 @@ TYPE_NAMES = {
     "paxcounter": "PaxcounterConfig",
 }
 
-WARNINGS_JS ="""() => [...document.querySelectorAll('#push-diff-sections tr[data-warning]')]
+WARNINGS_JS = """() => [...document.querySelectorAll('#push-diff-sections tr[data-warning]')]
   .map(row => [row.closest('[data-section]').dataset.section, row.dataset.warning, row.textContent])"""
 
 
