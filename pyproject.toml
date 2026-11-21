@@ -37,6 +37,7 @@ dependencies = [
     "slowapi>=0.1.9",
     "platformio>=6.2.0",
     "meshtastic>=2.7.11",
+    "segno>=1.6.6",
 ]
 
 # uv installs the dev group by default, so `uv sync` gives a full test environment.
@@ -48,6 +49,7 @@ dev = [
     "httpx>=0.25.0",
     "pytest-playwright>=0.7.0",
     "ruff>=0.1.0",
+    "zxing-cpp>=3.1.1",
 ]
 
 [project.urls]
