@@ -28,6 +28,7 @@ In this README, "planned" marks a part that the code does not do yet. The spec i
 - **Device registry** — Each firmware version has its own registry. The install reads it from the firmware source with `pio project config --json-output`. ESP32 variants give `.bin` files. nRF52840 and RP2040 variants give `.uf2` files.
 - **Factory Binary Support** — ESP32 devices get both `firmware.bin` and `firmware.factory.bin`
 - **Build progress (planned)** — The progress stream `GET /api/v1/build-progress/{id}` exists. The build page does not open it yet.
+- **Profiles** — Save the config form as a profile, and load it again later. A profile stores no secret unless the profile stores secrets, so the build page marks each secret field to re-enter. The `/profiles` page loads, renames, exports as JSON and deletes a profile.
 - **Admin Dashboard** — Sign-in, firmware sources (install and remove firmware versions), build cleanup and recent builds.
 - **Dark Mode** — Default dark theme with light mode toggle
 
@@ -100,6 +101,10 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
 
 The `/admin` page shows the sign-in form. Sign in with the admin password from `config.yaml`. The Firmware sources section then lists the installed firmware versions and the upstream firmware versions. It installs stable, alpha or an exact tag, shows the install progress, and removes a firmware version. When no firmware version is installed, Install stable is the first action.
 
+### 5. Profiles
+
+On the build page, type a profile name and select **Save as profile**. To use a profile again, select it in **Saved profile** and select **Load**. Load fills the config form and opens the tab of the first secret field to re-enter. The `/profiles` page lists each profile with Load, Export JSON, Rename and Delete.
+
 ## Architecture
 
 ```
@@ -108,7 +113,7 @@ MTFWBuilder/
 │   ├── main.py                     # App factory, lifespan, middleware
 │   ├── config.py                   # Settings (config.yaml, then MTFW_* env vars)
 │   ├── auth.py                     # Bcrypt + signed cookie sessions
-│   ├── database.py                 # SQLite (build history, config profiles, firmware sources)
+│   ├── database.py                 # SQLite (build history, profiles, firmware sources)
 │   ├── models.py                   # Pydantic request/response validation
 │   ├── rate_limit.py               # slowapi rate limiting
 │   ├── routers/
@@ -116,6 +121,7 @@ MTFWBuilder/
 │   │   ├── firmware_builder.py     # /api/v1/build-firmware, SSE progress
 │   │   ├── firmware.py             # /api/v1/firmware, installed and upstream firmware versions
 │   │   ├── variants.py             # /api/v1/variants, registry of a firmware version, device images
+│   │   ├── profiles.py             # /api/v1/profiles, saved configs, with encrypted secrets on opt-in
 │   │   ├── admin.py                # Login, firmware updates, cleanup
 │   │   ├── channel_share.py        # /api/v1/import/channel-url, import/cli-yaml, export/channel-url
 │   │   └── pages.py                # HTML page routes
@@ -126,6 +132,7 @@ MTFWBuilder/
 │       ├── firmware_updater.py     # GitHub firmware source downloads
 │       ├── firmware_catalog.py     # Upstream stable and alpha firmware versions
 │       ├── channel_share.py        # Channel URL decoder and encoder, CLI export YAML reader
+│       ├── profiles.py             # Profile records, secret removal on save
 │       └── cleanup_service.py      # Build artifact and PSK cleanup
 ├── templates/                      # Jinja2 templates (htmx planned)
 ├── static/                         # CSS, JS
@@ -141,7 +148,7 @@ MTFWBuilder/
 | Backend | FastAPI + uvicorn | Async builds, WebSocket-ready, auto OpenAPI docs |
 | Frontend | Jinja2 + Bootstrap 5 (htmx planned) | Dynamic UI without a JS build pipeline |
 | Build Progress | Server-Sent Events (SSE) | One-way progress, proxy-friendly. The build page does not open it yet. |
-| Database | SQLite (aiosqlite) | Zero-config. Build history and profiles are planned. |
+| Database | SQLite (aiosqlite) | Zero-config. Holds build records, firmware sources, the registry and profiles. |
 | Auth | bcrypt + itsdangerous | Hashed passwords, signed cookie sessions |
 | Device Registry | YAML | Human-readable, git-diffable, easy to contribute |
 | Build System | PlatformIO | Industry standard for embedded firmware |
@@ -207,6 +214,33 @@ Key endpoints:
   list of the build page as HTML, grouped by manufacturer.
 - `GET /api/v1/variants/{env}/image?version=` — The SVG or PNG device image from the firmware source.
   Returns 404 when the firmware source does not hold the image file named in `custom_meshtastic_images`.
+- `GET /api/v1/profiles` — Every profile in name order, without secrets. A profile has `id`, `name`, `config`,
+  `must_reenter`, `stores_secrets`, `warning`, `created_at` and `updated_at`.
+- `POST /api/v1/profiles` — Save `{"name": "<name>", "config": {...}, "stores_secrets": false}` as a
+  profile. Returns 201 with the profile, and 409 when another profile has the name. Without
+  `stores_secrets`, the save removes each secret: the channel PSKs, the WiFi PSK, the MQTT password, the
+  admin keys and the mesh beacon offer PSK. `must_reenter` names each removed field.
+- With `"stores_secrets": true`, the profile keeps the secrets encrypted with Fernet. The key comes from
+  `secret_key` through HKDF-SHA256. This save needs an admin session and the CSRF token, else it returns
+  403. No response holds the encrypted secrets. The responses of `POST`, `GET` one and `PUT` send
+  `Cache-Control: no-store`, because they can hold the stored secrets.
+- `GET /api/v1/profiles/{id}` — The profile. Returns 404 for an unknown profile. Only an admin session
+  gets the stored secrets in `config`. Without one, `must_reenter` names them, and `warning` is
+  "Sign in as admin to load the stored secrets."
+- If `secret_key` changes, the stored secrets do not decrypt. The response then names them in
+  `must_reenter` and sets `warning`.
+- `PUT /api/v1/profiles/{id}` — Rename with `{"name": ...}`, replace the config with `{"config": {...}}`,
+  set the option with `{"stores_secrets": ...}`, or more of them. A false `stores_secrets` deletes the
+  stored secrets. A change that stores or removes secrets needs an admin session and the CSRF token, else it
+  returns 403. A false `stores_secrets` and a new config of a profile that stores secrets are such changes.
+  Returns 409 when another profile has the new name. Returns 422 for `{"stores_secrets": true}` without a
+  config, when the profile stores no secrets.
+- `DELETE /api/v1/profiles/{id}` — Delete the profile. Returns 204.
+- `GET /api/v1/profiles/{id}/export` — The profile as a JSON file with `name`, `config` and
+  `must_reenter`, without secrets.
+
+Each operator of the instance uses each profile. The profile routes need no admin session, except to
+store, load or remove the stored secrets.
 
 Each admin POST and DELETE requires the CSRF token. A form sends it in the field `csrf_token`.
 A JSON request and a DELETE request send it in the header `X-CSRF-Token`. Without a valid token,

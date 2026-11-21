@@ -63,8 +63,10 @@ def _default_form_body(parser) -> list[tuple[str, str]]:
         if attrs.get("form") is not None or attrs.get("name") in PICKER_FIELDS:
             continue
         if tag == "select":
-            select = {"name": attrs["name"], "value": None}
-            body.append(select)
+            # A select without a name, such as the profile select, sends no value.
+            select = {"name": attrs["name"], "value": None} if attrs.get("name") else None
+            if select is not None:
+                body.append(select)
         elif tag == "option" and select is not None:
             if select["value"] is None or "selected" in attrs:
                 select["value"] = attrs.get("value", "")

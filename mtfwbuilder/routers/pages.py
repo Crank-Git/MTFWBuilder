@@ -7,9 +7,19 @@ from fastapi.responses import RedirectResponse
 from markupsafe import Markup
 
 from mtfwbuilder import meshtastic_enums
+from mtfwbuilder.auth import (
+    CSRF_COOKIE,
+    csrf_token,
+    get_session_token,
+    new_csrf_nonce,
+    set_cookie,
+    validate_session_token,
+)
 from mtfwbuilder.database import find_firmware_source, list_firmware_sources
-from mtfwbuilder.models import CHANNEL_SLOTS
+from mtfwbuilder.htmx import is_htmx
+from mtfwbuilder.models import CHANNEL_SLOTS, ProfileRequest
 from mtfwbuilder.routers.firmware_builder import panel_context
+from mtfwbuilder.services import profiles
 from mtfwbuilder.services.userprefs_keys import KeyScan, find_key_scan
 from mtfwbuilder.time_zones import POSIX_TZ_BY_ZONE
 
@@ -27,12 +37,23 @@ async def index(request: Request, build: str | None = None):
     The selector lists the installed firmware sources, and selects the newest installed stable firmware version.
     The form hides each control and enum value that the default firmware version does not read (FR-config-coverage-16).
 
+    The profile controls save the form as a profile and load a profile into the form (FR-fleet-builds-1 and -4).
+
     Args:
         build: The build id of the build that the progress panel shows (FR-frontend-htmx-10).
             An unknown build id shows "Build not found."
     """
     templates = request.app.state.templates
-    database_path = request.app.state.settings.database_path
+    settings = request.app.state.settings
+    database_path = settings.database_path
+    session = get_session_token(request)
+    # Only an admin stores secrets in a profile (FR-fleet-builds-3), and only when the profile route reads the field.
+    offer_stored_secrets = (
+        "stores_secrets" in ProfileRequest.model_fields
+        and session is not None
+        and validate_session_token(session, settings)
+    )
+    nonce = (request.cookies.get(CSRF_COOKIE) or new_csrf_nonce()) if offer_stored_secrets else None
     default_source = await find_firmware_source(database_path)
     context = {
         "title": "Build",
@@ -54,12 +75,28 @@ async def index(request: Request, build: str | None = None):
             s for s in await list_firmware_sources(database_path) if s["status"] in ("ready", "registry failed")
         ],
         "default_firmware_version": default_source["version"] if default_source else None,
+        "profiles": await profiles.list_profiles(database_path),
+        "stored_secrets_csrf_token": csrf_token(nonce, settings) if nonce else None,
         **_version_filters(await find_key_scan(database_path)),
     }
     ctx = request.app.state.build_queue.get(build) if build else None
     if ctx is not None:
         context.update(panel_context(ctx))
-    return templates.TemplateResponse(request, "index.html", context)
+    response = templates.TemplateResponse(request, "index.html", context)
+    if nonce:
+        set_cookie(response, request, CSRF_COOKIE, nonce)
+    return response
+
+
+@router.get("/profiles")
+async def profiles_page(request: Request):
+    """Render the profiles page: each profile with Load, Export, Rename and Delete (FR-fleet-builds-4).
+
+    An htmx request gets the profile list only, so the page shows the list again after a rename or a delete.
+    """
+    context = {"title": "Profiles", "profiles": await profiles.list_profiles(request.app.state.settings.database_path)}
+    template = "partials/profile_list.html" if is_htmx(request) else "profiles.html"
+    return request.app.state.templates.TemplateResponse(request, template, context)
 
 
 @router.get("/firmware-builder")

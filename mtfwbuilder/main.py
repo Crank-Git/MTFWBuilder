@@ -24,6 +24,7 @@ from mtfwbuilder.routers.config_generator import router as config_router
 from mtfwbuilder.routers.firmware import router as firmware_versions_router
 from mtfwbuilder.routers.firmware_builder import router as firmware_router
 from mtfwbuilder.routers.pages import router as pages_router
+from mtfwbuilder.routers.profiles import router as profiles_router
 from mtfwbuilder.routers.variants import router as variants_router
 from mtfwbuilder.services.build_service import BuildQueue
 from mtfwbuilder.services.cleanup_service import cleanup_every_interval, scrub_sources_after_restart
@@ -132,6 +133,7 @@ def create_app() -> FastAPI:
     app.include_router(firmware_router)
     app.include_router(firmware_versions_router)
     app.include_router(variants_router)
+    app.include_router(profiles_router)
     app.include_router(admin_router)
     app.include_router(channel_share_router)
     app.include_router(pages_router)

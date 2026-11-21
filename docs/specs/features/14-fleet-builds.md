@@ -29,20 +29,25 @@ fleet runs).
 
 - FR-fleet-builds-1 — An operator saves the current config as a profile with a unique
   name.
-- FR-fleet-builds-2 — A profile stores no secret. On save, the project removes PSKs,
-  WiFi PSK, MQTT password and admin keys, and marks each removed field "must re-enter".
+- FR-fleet-builds-2 — A profile stores no secret, unless the profile stores secrets
+  (FR 3). On save, the project removes PSKs, WiFi PSK, MQTT password and admin keys, and
+  marks each removed field "must re-enter".
 - FR-fleet-builds-3 — An operator opts in per profile to store secrets. The project then
   encrypts the secrets with a key derived from `secret_key`, and shows "This profile
-  stores secrets on the server."
+  stores secrets on the server." Only an admin stores, loads or removes the stored
+  secrets of a profile (ADR 0007).
 - FR-fleet-builds-4 — An operator loads, renames, exports as JSON and deletes a profile.
-- FR-fleet-builds-5 — The project computes a config hash: SHA-256 of the firmware
-  version, the variant and the userPrefs file with its keys sorted.
+- FR-fleet-builds-5 — The project computes a config hash: HMAC-SHA-256 keyed with
+  `secret_key`, over the app version, the firmware version, the variant and the userPrefs
+  file with its keys sorted.
 - FR-fleet-builds-6 — Before it queues a build, the project looks up the config hash in
   the build cache.
 - FR-fleet-builds-7 — On a hit, the build gets status `complete` at once with the cached
   artifacts.
 - FR-fleet-builds-8 — The build cache stores only artifacts. It removes an entry
-  `MTFW_CACHE_TTL_SECONDS` (default 86400) after its last use.
+  `MTFW_CACHE_TTL_SECONDS` (default 86400) after its last use. Exception: the build cache
+  never stores or serves the artifacts of a config with a secret. A 1-byte channel PSK
+  selects a published default key, so it is not a secret here.
 - FR-fleet-builds-9 — An admin turns the build cache off with `MTFW_CACHE_ENABLED=false`.
 - FR-fleet-builds-10 — An operator creates a fleet from a profile.
 - FR-fleet-builds-11 — A fleet device has: label, variant, long name, short name, role,

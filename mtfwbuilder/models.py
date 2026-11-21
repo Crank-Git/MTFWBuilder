@@ -2,9 +2,9 @@
 
 import re
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
+from pydantic import BaseModel, Field, StringConstraints, ValidationInfo, field_validator, model_validator
 
 from mtfwbuilder import meshtastic_enums
 from mtfwbuilder.key_bytes import ADMIN_KEY_LENGTH, decode_key
@@ -425,6 +425,54 @@ class UserPrefsKeys(BaseModel):
     version: str
     keys: list[str] | None
     enum_values: list[str] | None
+
+
+ProfileName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+
+
+class ProfileRequest(BaseModel):
+    """The body of `POST /api/v1/profiles`: a unique profile name, the config to save, and the store secrets option.
+
+    When `stores_secrets` is true, the project keeps the secrets of the config encrypted (FR-fleet-builds-3).
+    """
+
+    name: ProfileName
+    config: ConfigRequest
+    stores_secrets: bool = False
+
+
+class ProfileUpdate(BaseModel):
+    """The body of `PUT /api/v1/profiles/{id}`: a new name, a new config, a new store secrets option, or more of them.
+
+    A new config replaces the saved config. When `stores_secrets` is false, the project deletes the stored secrets.
+    """
+
+    name: ProfileName | None = None
+    config: ConfigRequest | None = None
+    stores_secrets: bool | None = None
+
+    @model_validator(mode="after")
+    def _check_not_empty(self) -> "ProfileUpdate":
+        if self.name is None and self.config is None and self.stores_secrets is None:
+            raise ValueError("the body holds neither a name, a config nor a stores_secrets value")
+        return self
+
+
+class Profile(BaseModel):
+    """A saved profile.
+
+    `config` holds a secret only when `stores_secrets` is true and the secret decrypts. `must_reenter` names each
+    secret field that `config` does not hold. `warning` is set when the stored secrets do not decrypt.
+    """
+
+    id: int
+    name: str
+    config: dict[str, Any]
+    must_reenter: list[str]
+    stores_secrets: bool
+    warning: str | None = None
+    created_at: str
+    updated_at: str
 
 
 class BuildRequest(BaseModel):
