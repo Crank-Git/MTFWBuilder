@@ -1,7 +1,4 @@
-"""Build artifact cleanup and PSK scrubbing.
-
-Handles post-download cleanup, periodic sweeps, and sensitive file removal.
-"""
+"""Build artifact cleanup, and the scrub of the firmware source after a build."""
 
 import logging
 import os
@@ -59,12 +56,14 @@ def cleanup_old_builds(settings: Settings) -> int:
     return removed
 
 
-def scrub_userprefs_from_firmware(firmware_dir: Path) -> None:
-    """Remove any leftover userPrefs.jsonc files from the firmware tree."""
-    for path in [
-        firmware_dir / "configs" / "userPrefs.jsonc",
-        firmware_dir / "userPrefs.jsonc",
-    ]:
-        if path.exists():
-            path.unlink()
-            logger.debug(f"Scrubbed leftover userPrefs: {path}")
+def scrub_firmware_source(firmware_dir: Path, env_name: str) -> None:
+    """Delete `userPrefs.jsonc` and `.pio/build/<env_name>/` from the firmware source.
+
+    Both hold the secrets of the last build: the file holds the config, and the object files hold the PSK.
+    The build cache in `.pio/build_cache` stays. Raises `OSError` when a delete fails.
+    """
+    (firmware_dir / "userPrefs.jsonc").unlink(missing_ok=True)
+    env_build = firmware_dir / ".pio" / "build" / env_name
+    if env_build.exists():
+        shutil.rmtree(env_build)
+    logger.debug(f"Scrubbed the firmware source for {env_name}")

@@ -14,13 +14,16 @@ import os
 import secrets
 import shutil
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import quote
 
 from mtfwbuilder.config import Settings
 from mtfwbuilder.models import Artifact, BuildStatus
+from mtfwbuilder.services.cleanup_service import scrub_firmware_source
 from mtfwbuilder.services.device_registry import DeviceVariant
+from mtfwbuilder.services.secret_mask import secret_masker
 
 logger = logging.getLogger("mtfwbuilder.build")
 
@@ -57,10 +60,12 @@ class BuildContext:
     created_at: float = field(default_factory=time.monotonic)
     task: asyncio.Task | None = None
     changed: asyncio.Event = field(default_factory=asyncio.Event)
+    mask: Callable[[str], str] = field(init=False, repr=False)
 
     def __post_init__(self):
         self.build_dir = self.settings.temp_dir / self.build_id
         self.build_dir.mkdir(parents=True, exist_ok=True)
+        self.mask = secret_masker(self.config_content)
 
     @property
     def ended(self) -> bool:
@@ -77,9 +82,12 @@ class BuildContext:
         self.progress = 100 if status == "complete" else STEP_PROGRESS.get(status, self.progress)
         self._notify()
 
-    def add_log(self, line: str) -> None:
-        self.build_log.append(line)
+    def add_log(self, line: str) -> str:
+        """Return the line with each secret replaced by `***`, after it is stored and sent."""
+        masked = self.mask(line)
+        self.build_log.append(masked)
         self._notify()
+        return masked
 
     def status_event(self) -> str:
         """Return the JSON of the current build status for the progress stream."""
@@ -202,32 +210,40 @@ async def progress_events(ctx: BuildContext):
 
 
 async def run_build(ctx: BuildContext) -> None:
-    """Run one build to an ended build status."""
+    """Run one build to an ended build status, and scrub the firmware source before the end event."""
     if not ctx.settings.firmware_dir.exists():
         ctx.set_status("failed", error=FIRMWARE_SOURCE_MISSING)
         return
     ctx.set_status("compiling", message=f"Building firmware for {ctx.variant.name}...")
     try:
+        status, fields = await _compile(ctx)
+    finally:
+        # A cancel arrives as `CancelledError`, and an internal error as any exception, so both pass here.
+        scrub_firmware_source(ctx.settings.firmware_dir, ctx.variant.id)
+    ctx.set_status(status, **fields)
+
+
+async def _compile(ctx: BuildContext) -> tuple[str, dict[str, str]]:
+    """Return the ended build status and its `set_status` fields, after pio runs and the artifacts are copied."""
+    try:
         async with asyncio.timeout(ctx.settings.build_timeout_seconds):
             exit_code = await _run_pio_build(ctx)
         if exit_code != 0:
-            ctx.set_status(
-                "failed", message="Build failed. See build log for details.", error=_error_summary(ctx, exit_code)
-            )
-            return
+            return "failed", {
+                "message": "Build failed. See build log for details.",
+                "error": _error_summary(ctx, exit_code),
+            }
         _collect_artifacts(ctx)
     except TimeoutError:
         error_msg = f"Build timed out after {ctx.settings.build_timeout_seconds // 60} minutes"
         logger.error(f"Build {ctx.build_id}: {error_msg}")
-        ctx.set_status("failed", error=error_msg)
-        return
+        return "failed", {"error": error_msg}
     except OSError as e:
         # A missing pio executable, a missing artifact and a full disk all raise OSError.
         logger.error(f"Build {ctx.build_id} failed: {e}")
-        ctx.set_status("failed", error=str(e))
-        return
+        return "failed", {"error": str(e)}
     download_url = artifact_url(ctx.build_id, primary_artifact(ctx.artifacts).name)
-    ctx.set_status("complete", message="Build complete!", download_url=download_url)
+    return "complete", {"message": "Build complete!", "download_url": download_url}
 
 
 def _error_summary(ctx: BuildContext, exit_code: int) -> str:
@@ -251,12 +267,7 @@ async def _run_pio_build(ctx: BuildContext) -> int:
     A cancel of the build kills the pio process.
     """
     firmware_dir = ctx.settings.firmware_dir
-
-    # Write userPrefs.jsonc to build locations
-    configs_dir = firmware_dir / "configs"
-    configs_dir.mkdir(exist_ok=True)
-    prefs_path = configs_dir / "userPrefs.jsonc"
-    prefs_path.write_text(ctx.config_content)
+    # Upstream `bin/platformio-custom.py` reads only `<PROJECT_DIR>/userPrefs.jsonc`.
     (firmware_dir / "userPrefs.jsonc").write_text(ctx.config_content)
 
     logger.info(f"Build {ctx.build_id}: config written, starting PIO for {ctx.variant.id}")
@@ -290,8 +301,7 @@ async def _run_pio_build(ctx: BuildContext) -> int:
 
     try:
         async for raw_line in process.stdout:
-            line = raw_line.decode("utf-8", errors="replace").rstrip()
-            ctx.add_log(line)
+            line = ctx.add_log(raw_line.decode("utf-8", errors="replace").rstrip())
             status = _parse_progress(line)
             # Only the exit code of pio decides `complete` or `failed`, so one build sends one end event.
             if status in STEP_PROGRESS and status != ctx.status:
@@ -374,30 +384,6 @@ def _collect_artifacts(ctx: BuildContext) -> None:
         raise FileNotFoundError(f"Build completed but no firmware-{ctx.variant.id}-* artifact found in {pio_build_dir}")
     ctx.artifacts = artifacts
     logger.info(f"Build {ctx.build_id}: {len(artifacts)} artifacts copied to {ctx.build_dir}")
-
-    # Clean up sensitive files from firmware tree
-    _scrub_firmware_tree(ctx)
-
-
-def _scrub_firmware_tree(ctx: BuildContext) -> None:
-    """Remove userPrefs and firmware files from the shared firmware tree."""
-    firmware_dir = ctx.settings.firmware_dir
-
-    for path in [
-        firmware_dir / "configs" / "userPrefs.jsonc",
-        firmware_dir / "userPrefs.jsonc",
-    ]:
-        if path.exists():
-            path.unlink()
-
-    # Remove firmware files from PIO build dir (contain baked-in PSK)
-    variant_build = firmware_dir / ".pio" / "build" / ctx.variant.id
-    for pattern in ["firmware.bin", "firmware.uf2", "firmware.factory.bin"]:
-        p = variant_build / pattern
-        if p.exists():
-            p.unlink()
-
-    logger.debug(f"Build {ctx.build_id}: sensitive files scrubbed from firmware tree")
 
 
 def generate_build_id() -> str:

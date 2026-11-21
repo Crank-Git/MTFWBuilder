@@ -10,7 +10,6 @@ from mtfwbuilder.config import Settings
 from mtfwbuilder.services.build_service import (
     BuildContext,
     _parse_progress,
-    _scrub_firmware_tree,
 )
 from mtfwbuilder.services.cleanup_service import cleanup_build_directory, cleanup_old_builds
 from mtfwbuilder.services.device_registry import DeviceVariant
@@ -83,37 +82,6 @@ class TestBuildContext:
             settings=settings,
         )
         assert ctx.build_log == []
-
-
-class TestScrubFirmwareTree:
-    """Tests for sensitive file cleanup."""
-
-    def test_removes_userprefs(self, temp_dir):
-        firmware_dir = temp_dir / "firmware"
-        configs_dir = firmware_dir / "configs"
-        configs_dir.mkdir(parents=True)
-        (configs_dir / "userPrefs.jsonc").write_text('{"PSK": "secret"}')
-        (firmware_dir / "userPrefs.jsonc").write_text('{"PSK": "secret"}')
-
-        # Create PIO build dir
-        build_dir = firmware_dir / ".pio" / "build" / "tbeam"
-        build_dir.mkdir(parents=True)
-        (build_dir / "firmware.bin").write_bytes(b"\x00" * 100)
-
-        settings = Settings(firmware_dir=firmware_dir, temp_dir=temp_dir)
-        variant = DeviceVariant(id="tbeam", name="T-Beam", manufacturer="LILYGO", architecture="esp32")
-        ctx = BuildContext(
-            build_id="build_test",
-            variant=variant,
-            config_content="{}",
-            settings=settings,
-        )
-
-        _scrub_firmware_tree(ctx)
-
-        assert not (configs_dir / "userPrefs.jsonc").exists()
-        assert not (firmware_dir / "userPrefs.jsonc").exists()
-        assert not (build_dir / "firmware.bin").exists()
 
 
 class TestCleanupService:
