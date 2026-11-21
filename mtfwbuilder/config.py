@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     cleanup_interval_seconds: int = 1800  # 30 minutes
     build_max_age_seconds: int = 3600  # 1 hour
     install_timeout_seconds: int = 3600  # The time limit of `pio pkg install` for one firmware version
+    cache_enabled: bool = True
+    cache_ttl_seconds: int = 86400  # The build cache removes an entry one day after its last use
 
     # Auth
     admin_password_hash: str = ""

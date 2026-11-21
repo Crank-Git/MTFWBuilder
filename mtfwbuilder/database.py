@@ -67,6 +67,18 @@ CREATE INDEX IF NOT EXISTS idx_builds_status ON builds(status);
 CREATE INDEX IF NOT EXISTS idx_builds_created ON builds(created_at);
 """
 
+# The times are Unix seconds, so the TTL check of the build cache compares numbers.
+CACHE_ENTRIES_SCHEMA = """
+CREATE TABLE IF NOT EXISTS cache_entries (
+    config_hash TEXT PRIMARY KEY,
+    firmware_version TEXT NOT NULL,
+    variant TEXT NOT NULL,
+    artifact_dir TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    last_used_at REAL NOT NULL
+);
+"""
+
 # Migration for feature fleet-builds: `profiles` replaces `config_profiles`, which no code wrote, so it holds no rows.
 DROP_CONFIG_PROFILES = "DROP TABLE IF EXISTS config_profiles"
 
@@ -126,6 +138,7 @@ async def init_db(settings: Settings) -> None:
     """Create the tables, drop the unused `config_profiles` table, and add the columns that an old database lacks."""
     async with aiosqlite.connect(settings.database_path) as db:
         await db.executescript(SCHEMA)
+        await db.executescript(CACHE_ENTRIES_SCHEMA)
         await db.execute(DROP_CONFIG_PROFILES)
         for table, added in ADDED_COLUMNS.items():
             cursor = await db.execute(f"PRAGMA table_info({table})")

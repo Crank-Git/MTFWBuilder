@@ -7,14 +7,13 @@ The build keeps its build status and log lines in memory for the progress stream
 import asyncio
 import fnmatch
 import glob
-import hashlib
-import hmac
 import json
 import logging
 import multiprocessing
 import os
 import secrets
 import shutil
+import sqlite3
 import time
 from collections.abc import Callable
 from contextlib import asynccontextmanager
@@ -27,6 +26,7 @@ import aiosqlite
 from mtfwbuilder.config import Settings
 from mtfwbuilder.database import find_firmware_source, init_db, save_build
 from mtfwbuilder.models import Artifact, BuildStatus
+from mtfwbuilder.services import build_cache
 from mtfwbuilder.services.cleanup_service import scrub_firmware_source
 from mtfwbuilder.services.registry_generator import flash_method
 from mtfwbuilder.services.secret_mask import secret_masker
@@ -35,6 +35,8 @@ logger = logging.getLogger("mtfwbuilder.build")
 
 FIRMWARE_SOURCE_MISSING = "Firmware source not installed. An admin must install a firmware version."
 CANCELLED_MESSAGE = "Build cancelled."
+COMPLETE_MESSAGE = "Build complete!"
+CACHE_HIT_LOG = "The build cache holds the artifacts of this config, so the build did not compile."
 ENDED_STATUSES = frozenset({"complete", "failed", "cancelled"})
 # A copy of the firmware source records the firmware version that it holds in this file.
 COPY_VERSION_FILE = ".worker-version"
@@ -100,11 +102,15 @@ class BuildContext:
     # The build queue sets this to put each build status change in the `builds` table.
     on_change: Callable[["BuildContext"], None] = field(default=lambda _ctx: None, repr=False)
     mask: Callable[[str], str] = field(init=False, repr=False)
+    config_hash: str = field(init=False)
 
     def __post_init__(self):
         self.build_dir = self.settings.temp_dir / self.build_id
         self.build_dir.mkdir(parents=True, exist_ok=True)
         self.mask = secret_masker(self.config_content)
+        self.config_hash = build_cache.config_hash(
+            self.settings.secret_key, self.firmware_version, self.variant.id, self.config_content
+        )
 
     @property
     def ended(self) -> bool:
@@ -140,10 +146,7 @@ class BuildContext:
             "status": self.status,
             "firmware_path": str(self.build_dir / primary.name) if primary else None,
             "error_message": self.error or None,
-            # The config holds the secrets, so a hash without a key lets a reader test a guessed PSK.
-            "config_hash": hmac.new(
-                self.settings.secret_key.encode(), self.config_content.encode(), hashlib.sha256
-            ).hexdigest(),
+            "config_hash": self.config_hash,
             "firmware_version": self.firmware_version,
         }
 
@@ -289,30 +292,65 @@ class BuildQueue:
         - `FirmwareVersionNotInstalled` when `firmware_version` has no ready firmware source.
         - `BuildQueueFull` when the build queue holds `max_queue_size` builds.
 
-        A default build with no firmware source fails at once and does not go in the build queue.
+        A default build with no firmware source fails at once and does not go in the build queue. When the build
+        cache holds the config, the build is `complete` at once and does not go in the build queue.
         """
-        # The read is before the queue check, so no other submit can fill the build queue between the two.
+        # The reads are before the queue check, so no other submit can fill the build queue between the two.
         source = await installed_firmware_source(self.settings, firmware_version)
         if source is None and firmware_version is not None:
             raise FirmwareVersionNotInstalled(firmware_version)
+        self._forget_old_builds()
+        if source is not None and self.settings.cache_enabled:
+            cached = await self._cached_build(variant, config_content, source[0])
+            if cached is not None:
+                return cached
         if self._queue.full():
             raise BuildQueueFull
-        self._forget_old_builds()
         # A removal refuses a firmware version that a queued build uses, so the build holds its version from submit.
-        ctx = BuildContext(
-            generate_build_id(),
-            variant,
-            config_content,
-            self.settings,
-            firmware_version=source[0] if source else None,
-            on_change=self._record,
-        )
+        ctx = self._new_build(variant, config_content, source[0] if source else None)
         self._builds[ctx.build_id] = ctx
         self._record(ctx)
         if source is not None:
             self._queue.put_nowait(ctx)
         else:
             ctx.set_status("failed", error=FIRMWARE_SOURCE_MISSING)
+        return ctx
+
+    def _new_build(self, variant: DeviceVariant, config_content: str, firmware_version: str | None) -> BuildContext:
+        return BuildContext(
+            generate_build_id(),
+            variant,
+            config_content,
+            self.settings,
+            firmware_version=firmware_version,
+            on_change=self._record,
+        )
+
+    async def _cached_build(
+        self, variant: DeviceVariant, config_content: str, firmware_version: str
+    ) -> BuildContext | None:
+        """Return a `complete` build with the artifacts of the cache entry of the config, or None on a cache miss.
+
+        The artifacts are copies in the build directory, so the download and the cleanup of each build stay the same.
+        """
+        key = build_cache.config_hash(self.settings.secret_key, firmware_version, variant.id, config_content)
+        entry_dir = await build_cache.find_entry(self.settings, key)
+        if entry_dir is None:
+            return None
+        ctx = self._new_build(variant, config_content, firmware_version)
+        try:
+            await asyncio.to_thread(_collect_artifacts, ctx, entry_dir)
+        except OSError as e:
+            # The cleanup task can remove the cache entry during the copy, so the build compiles instead.
+            logger.warning(f"Build {ctx.build_id}: the build cache copy failed, so the build compiles: {e}")
+            shutil.rmtree(ctx.build_dir, ignore_errors=True)
+            return None
+        self._builds[ctx.build_id] = ctx
+        self._record(ctx)
+        ctx.add_log(CACHE_HIT_LOG)
+        download_url = artifact_url(ctx.build_id, primary_artifact(ctx.artifacts).name)
+        ctx.set_status("complete", message=COMPLETE_MESSAGE, download_url=download_url)
+        logger.info(f"Build {ctx.build_id}: complete from the build cache")
         return ctx
 
     def cancel(self, build_id: str) -> BuildContext:
@@ -458,7 +496,24 @@ async def run_build(ctx: BuildContext) -> None:
     finally:
         # A cancel arrives as `CancelledError`, and an internal error as any exception, so both pass here.
         scrub_firmware_source(ctx.source_dir, ctx.variant.id)
+    if status == "complete" and ctx.settings.cache_enabled:
+        await _store_in_build_cache(ctx)
     ctx.set_status(status, **fields)
+
+
+async def _store_in_build_cache(ctx: BuildContext) -> None:
+    # The store is before the `complete` event, so a next build of the config after that event is a cache hit.
+    try:
+        await build_cache.store_entry(
+            ctx.settings,
+            ctx.config_hash,
+            ctx.firmware_version,
+            ctx.variant.id,
+            [ctx.build_dir / a.name for a in ctx.artifacts],
+        )
+    except (OSError, sqlite3.Error) as e:
+        # The artifacts are in the build directory, so a full disk in the build cache must not fail the build.
+        logger.warning(f"Build {ctx.build_id}: the build cache store failed: {e}")
 
 
 async def _compile(ctx: BuildContext) -> tuple[str, dict[str, str]]:
@@ -471,7 +526,7 @@ async def _compile(ctx: BuildContext) -> tuple[str, dict[str, str]]:
                 "message": "Build failed. See build log for details.",
                 "error": _error_summary(ctx, exit_code),
             }
-        _collect_artifacts(ctx)
+        _collect_artifacts(ctx, ctx.source_dir / ".pio" / "build" / ctx.variant.id)
     except TimeoutError:
         error_msg = f"Build timed out after {ctx.settings.build_timeout_seconds // 60} minutes"
         logger.error(f"Build {ctx.build_id}: {error_msg}")
@@ -481,7 +536,7 @@ async def _compile(ctx: BuildContext) -> tuple[str, dict[str, str]]:
         logger.error(f"Build {ctx.build_id} failed: {e}")
         return "failed", {"error": str(e)}
     download_url = artifact_url(ctx.build_id, primary_artifact(ctx.artifacts).name)
-    return "complete", {"message": "Build complete!", "download_url": download_url}
+    return "complete", {"message": COMPLETE_MESSAGE, "download_url": download_url}
 
 
 def _error_summary(ctx: BuildContext, exit_code: int) -> str:
@@ -599,21 +654,21 @@ def artifact_url(build_id: str, name: str) -> str:
     return f"/api/v1/builds/{build_id}/artifacts/{quote(name)}"
 
 
-def _collect_artifacts(ctx: BuildContext) -> None:
-    """Copy each upstream artifact of the build to the build directory, and set `ctx.artifacts`.
+def _collect_artifacts(ctx: BuildContext, from_dir: Path) -> None:
+    """Copy each upstream artifact in `from_dir` to the build directory, and set `ctx.artifacts`.
 
-    Raises `FileNotFoundError` when pio wrote no firmware artifact.
+    `from_dir` is `.pio/build/<env>/` of the firmware source, or the directory of a cache entry.
+    Raises `FileNotFoundError` when `from_dir` holds no firmware artifact.
     """
-    pio_build_dir = ctx.source_dir / ".pio" / "build" / ctx.variant.id
     artifacts = []
-    for path in sorted(pio_build_dir.iterdir()):
+    for path in sorted(from_dir.iterdir()):
         kind = artifact_kind(path.name, ctx.variant.id)
         if kind is None or not path.is_file():
             continue
         shutil.copy2(path, ctx.build_dir / path.name)
         artifacts.append(Artifact(name=path.name, size=path.stat().st_size, kind=kind))
     if primary_artifact(artifacts) is None:
-        raise FileNotFoundError(f"Build completed but no firmware-{ctx.variant.id}-* artifact found in {pio_build_dir}")
+        raise FileNotFoundError(f"Build completed but no firmware-{ctx.variant.id}-* artifact found in {from_dir}")
     ctx.artifacts = artifacts
     logger.info(f"Build {ctx.build_id}: {len(artifacts)} artifacts copied to {ctx.build_dir}")
 
