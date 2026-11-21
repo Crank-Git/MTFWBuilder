@@ -6,7 +6,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.conftest import FIRMWARE_VERSION
-from tests.e2e.conftest import ALPHA_VERSION, NO_REGISTRY_VERSION
+from tests.e2e.conftest import ALPHA_VERSION, NO_REGISTRY_VERSION, open_tab
 
 pytestmark = pytest.mark.e2e
 
@@ -17,6 +17,7 @@ def fill_config_form(page: Page) -> None:
     """Fill the fields of the config form that a valid userPrefs file needs."""
     page.fill("#ownerShortName", "E2E")
     page.fill("#ownerLongName", "E2E Node")
+    open_tab(page, "channels")
     page.fill("#channel0Name", "Primary")
     page.fill("#channel0PSK", PSK_HEX)
 
@@ -66,6 +67,19 @@ def test_build_completes_and_downloads_the_factory_artifact(page: Page, live_ser
     download.save_as(saved)
     assert saved.read_bytes().startswith(b"fake firmware-heltec-v3-")
     assert FIRMWARE_VERSION.removeprefix("v") in download.suggested_filename
+
+
+def test_role_control_offers_client_base_and_shows_the_router_role_message(page: Page, live_server: str):
+    page.goto(f"{live_server}/")
+
+    role = page.locator("#deviceRole")
+    expect(role.locator('option[value="meshtastic_Config_DeviceConfig_Role_CLIENT_BASE"]')).to_have_count(1)
+    expect(role.locator('option[value="meshtastic_Config_DeviceConfig_Role_ROUTER"]')).to_have_count(0)
+    expect(page.locator("#deviceRoleHelp")).to_have_text(
+        "Router roles cannot be set as a factory default. Use Push config after flashing."
+    )
+    expect(page.locator("#loraRegion option")).to_have_count(37)
+    expect(page.locator("#loraModemPreset option")).to_have_count(17)
 
 
 def test_build_of_the_chosen_alpha_firmware_version_gives_alpha_artifacts(page: Page, live_server: str):

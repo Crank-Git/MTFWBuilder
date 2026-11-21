@@ -29,6 +29,7 @@ from mtfwbuilder.database import (
 from mtfwbuilder.models import InstallStatus
 from mtfwbuilder.services.build_service import BuildQueue
 from mtfwbuilder.services.registry_generator import RegistryFailed, generate_registry
+from mtfwbuilder.services.userprefs_keys import ensure_key_scan
 
 logger = logging.getLogger("mtfwbuilder.firmware_updater")
 
@@ -254,7 +255,11 @@ class FirmwareInstalls:
             zip_path.unlink()
             install.set_status("installing packages")
             await self._pio_pkg_install(tree)
+            # The registry runs first and keeps its failure as a status, so a failed registry never skips the scan.
+            # A failed scan raises `OSError` and fails the install, after the registry ran.
             registry, registry_error = await asyncio.to_thread(_generate_registry, tree, install.version)
+            # The scan runs before the first build, because a build writes its own userPrefs.jsonc into the source.
+            await asyncio.to_thread(ensure_key_scan, tree)
             # A build reads the firmware source under this lock, so it never sees a half-written record.
             async with self.build_queue.firmware_lock.exclusive():
                 if source_dir.exists():
@@ -417,7 +422,9 @@ def import_old_firmware_source(settings: Settings, resolver: Callable[[str], str
     except ValueError:
         # `get_firmware_version` gives `Unknown` when the version file has no `Updated:` line.
         installed_at = datetime.now(UTC)
+    # The same order as the install: the registry, then the key scan.
     registry, registry_error = _generate_registry(source_dir, version)
+    ensure_key_scan(source_dir)
     status = "ready" if registry_error is None else "registry failed"
     record_firmware_source(settings.database_path, _source_record(source_dir, channel, installed_at, status), registry)
     logger.info(f"Imported the old firmware source as {source_dir}")

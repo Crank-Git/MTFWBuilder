@@ -28,6 +28,11 @@ ALPHA_VERSION = "v2.8.2.d5f1619"
 NO_REGISTRY_VERSION = "v2.7.20.0000000"
 
 
+def open_tab(page, tab_id: str) -> None:
+    """Select the config tab `tab_id`, for example `security`, so its controls show."""
+    page.click(f"#config-tab-{tab_id}")
+
+
 def _free_port() -> int:
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))

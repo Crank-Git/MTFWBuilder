@@ -3,12 +3,32 @@
 {% block content %}
 {# Without JavaScript, the Download control submits the form, so the operator still gets the userPrefs file. #}
 <form id="configForm" method="post" action="/api/v1/download">
-    {% include "includes/basic_info.html" %}
-    {% include "includes/channel_config.html" %}
-    {% include "includes/lora_config.html" %}
-    {% include "includes/gps_config.html" %}
-    {% include "includes/network_config.html" %}
-    {% include "includes/advanced_config.html" %}
+    <div class="config-section" id="configTabs">
+        <div class="alert alert-info" id="factoryDefaultBanner" role="note">These values are factory defaults. The device applies them on first boot and on factory reset only.</div>
+        {% set config_tabs = [
+            ("device", "Device", "basic_info"),
+            ("channels", "Channels", "channel_config"),
+            ("lora", "LoRa", "lora_config"),
+            ("position", "Position", "gps_config"),
+            ("network", "Network", "network_config"),
+            ("telemetry", "Telemetry", "telemetry_config"),
+            ("security", "Security", "security_config"),
+            ("event", "Event", "event_config"),
+            ("mesh-beacon", "Mesh beacon", "mesh_beacon_config"),
+            ("advanced", "Advanced", "advanced_config"),
+        ] %}
+        <div class="nav nav-tabs config-tabs" id="configTabList" role="tablist" aria-label="Config sections">
+            {% for tab_id, label, _ in config_tabs %}
+            <button type="button" class="nav-link{% if loop.first %} active{% endif %}" id="config-tab-{{ tab_id }}" role="tab" aria-controls="config-pane-{{ tab_id }}" aria-selected="{{ 'true' if loop.first else 'false' }}" tabindex="{{ '0' if loop.first else '-1' }}">{{ label }} <span class="tab-count badge rounded-pill text-bg-secondary">0</span><span class="visually-hidden"> fields with a value</span><span class="tab-error-dot" hidden><span class="visually-hidden">, has an error</span></span></button>
+            {% endfor %}
+        </div>
+        {# Without JavaScript, every tab pane shows, so the operator can still fill in and download the whole form. #}
+        {% for tab_id, label, include in config_tabs %}
+        <div class="config-pane" id="config-pane-{{ tab_id }}" role="tabpanel" aria-labelledby="config-tab-{{ tab_id }}" tabindex="0">
+            {% include "includes/" ~ include ~ ".html" %}
+        </div>
+        {% endfor %}
+    </div>
 
     <div class="config-section">
         <h3 class="section-title"><i class="bi bi-file-earmark-code-fill text-success"></i>Generate Configuration</h3>
@@ -42,9 +62,10 @@
             <label for="device-search" class="form-label">Variant</label>
             <input type="search" class="form-control" id="device-search" name="q" placeholder="Search name, manufacturer or env" autocomplete="off">
         </div>
+        {# The field belongs to the config form, so Preview and Download use the chosen firmware version too. #}
         <div class="col-md-4">
             <label for="firmware_version" class="form-label">Firmware version</label>
-            <select class="form-select" id="firmware_version" name="firmware_version"{% if not firmware_sources %} disabled{% endif %}>
+            <select class="form-select" id="firmware_version" name="firmware_version" form="configForm" data-rendered-version="{{ default_firmware_version or '' }}"{% if not firmware_sources %} disabled{% endif %}>
                 {% for source in firmware_sources %}
                 <option value="{{ source.version }}"{% if source.version == default_firmware_version %} selected{% endif %}>{{ source.version }} ({{ source.channel }})</option>
                 {% else %}

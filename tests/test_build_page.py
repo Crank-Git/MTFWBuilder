@@ -11,6 +11,8 @@ from urllib.parse import quote
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from mtfwbuilder.models import ConfigRequest
+from mtfwbuilder.services.jsonc_generator import VERSION_GATED_KEYS, generate_jsonc
 from tests.conftest import REPO_ROOT
 
 HX = {"HX-Request": "true"}
@@ -238,6 +240,46 @@ async def test_download_of_flat_form_fields_returns_the_userprefs_file(client):
     assert parsed["USERPREFS_CHANNEL_0_NAME"] == "Primary"
 
 
+# Each toggle of these keys has a firmware default, so the form writes its key only after a choice of On or Off.
+FIRMWARE_DEFAULT_TOGGLES = {
+    "security_is_managed": "USERPREFS_CONFIG_SECURITY_IS_MANAGED",
+    "event_block_position": "USERPREFS_BLOCK_POSITION_ON_EVENT_CHANNEL",
+    "telemetry_environment_enabled": "USERPREFS_CONFIG_ENVIRONMENT_MEASUREMENT_ENABLED",
+    "telemetry_environment_screen_enabled": "USERPREFS_CONFIG_ENV_SCREEN_SCREEN_ENABLED",
+    "telemetry_air_quality_enabled": "USERPREFS_CONFIG_AQ_MEASUREMENT_ENABLED",
+    "telemetry_air_quality_screen_enabled": "USERPREFS_CONFIG_AQ_SCREEN_ENABLED",
+}
+
+
+@pytest.mark.asyncio
+async def test_default_form_writes_no_key_of_a_toggle_with_a_firmware_default(client):
+    _, parser = await _page(client)
+    config = ConfigRequest.model_validate(dict(_default_form_body(parser)))
+
+    written = json.loads(generate_jsonc(config.generator_input(), firmware_keys=VERSION_GATED_KEYS))
+
+    assert set(FIRMWARE_DEFAULT_TOGGLES.values()) & set(written) == set()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("name", sorted(FIRMWARE_DEFAULT_TOGGLES))
+async def test_toggle_with_a_firmware_default_offers_firmware_default_on_and_off(client, name):
+    _, parser = await _page(client)
+    index = next(i for i, (tag, attrs) in enumerate(parser.elements) if attrs.get("name") == name)
+    options = [attrs.get("value") for _, attrs in parser.elements[index + 1 : index + 4]]
+
+    assert [tag for tag, attrs in parser.elements if attrs.get("name") == name] == ["select"]
+    assert options == ["", "true", "false"]
+
+
+@pytest.mark.asyncio
+async def test_managed_mode_control_names_the_managed_mode_notice_as_its_description(client):
+    _, parser = await _page(client)
+
+    assert parser.by_id("securityIsManaged")["aria-describedby"] == "managedModeNotice"
+    assert parser.by_id("managedModeNotice")["role"] == "status"
+
+
 @pytest.mark.asyncio
 async def test_every_checkbox_of_the_build_page_follows_a_hidden_false_field_of_the_same_name(client):
     _, parser = await _page(client)
@@ -306,17 +348,18 @@ async def test_preview_region_takes_its_name_from_the_preview_heading(client):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("channel", [0, 1, 2])
+@pytest.mark.parametrize("channel", range(8))
 async def test_psk_placeholder_of_each_channel_is_a_32_byte_base64_key(client, channel):
     _, parser = await _page(client)
     placeholder = parser.by_id(f"channel{channel}PSK")["placeholder"]
     assert len(base64.b64decode(placeholder, validate=True)) == 32
 
 
-def test_psk_help_text_names_base64_or_hex_and_the_valid_lengths():
-    text = (REPO_ROOT / "templates" / "includes" / "channel_config.html").read_text()
+@pytest.mark.asyncio
+async def test_psk_help_text_of_each_channel_names_base64_or_hex_and_the_valid_lengths(client):
+    text, _ = await _page(client)
     assert "C-style hex" not in text
-    assert text.count("Base64 or hex. The key is 0, 1, 16 or 32 bytes.") == 3
+    assert text.count("Base64 or hex. The key is 0, 1, 16 or 32 bytes.") == 8
 
 
 # FR-frontend-htmx-5, -6 and -18: main.js runs in Node with a fake browser.

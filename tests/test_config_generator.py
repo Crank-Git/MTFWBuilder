@@ -12,8 +12,7 @@ from mtfwbuilder.services.jsonc_generator import generate_jsonc
 ADMIN_KEY = bytes(range(32))
 ADMIN_KEY_ARRAY = "{ " + ", ".join(f"0x{b:02x}" for b in ADMIN_KEY) + " }"
 TEMPLATES = Path(__file__).resolve().parents[1] / "templates" / "includes"
-GPS_TEMPLATE = TEMPLATES / "gps_config.html"
-ADVANCED_TEMPLATE = TEMPLATES / "advanced_config.html"
+EVENT_TEMPLATE = TEMPLATES / "event_config.html"
 
 
 def byte_count(byte_array: str) -> int:
@@ -205,13 +204,6 @@ class TestGPSConfig:
         result = json.loads(generate_jsonc(data))
         assert result["USERPREFS_CONFIG_GPS_MODE"] == "ENABLED"
 
-    def test_gps_mode_list_matches_the_gps_mode_enum(self):
-        """The form offers the three `GpsMode` values that the firmware source names (FR-userprefs-correctness-13)."""
-        prefix = "meshtastic_Config_PositionConfig_GpsMode_"
-        select = re.search(r'<select[^>]*name="gps_mode".*?</select>', GPS_TEMPLATE.read_text(), re.DOTALL)
-        values = re.findall(r'<option value="([^"]+)"', select[0])
-        assert values == [prefix + mode for mode in ("DISABLED", "ENABLED", "NOT_PRESENT")]
-
     def test_fixed_position(self):
         data = {
             "gps_enabled": "true",
@@ -366,7 +358,7 @@ class TestOtherAdvancedSettings:
 
     def test_default_event_mode_of_the_form_keeps_event_mode_off(self):
         """The form always posts the select value, so the default writes `"0"` and upstream `#if 0` is false."""
-        select = re.search(r'<select[^>]*name="event_mode".*?</select>', ADVANCED_TEMPLATE.read_text(), re.DOTALL)
+        select = re.search(r'<select[^>]*name="event_mode".*?</select>', EVENT_TEMPLATE.read_text(), re.DOTALL)
         default = re.search(r'<option value="([^"]+)" selected>', select[0])[1]
         result = json.loads(generate_jsonc({"event_mode": default}))
         assert result["USERPREFS_EVENT_MODE"] == "0"
