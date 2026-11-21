@@ -12,6 +12,9 @@ from mtfwbuilder.time_zones import to_posix_tz
 
 ADMIN_KEY_SLOTS = 3
 
+# Upstream `src/mesh/Channels.cpp` reads `USERPREFS_CHANNEL_<n>_*` keys for channels 0 to 2 only.
+FIRMWARE_CHANNEL_SLOTS = 3
+
 
 def generate_jsonc(config_data: dict[str, Any]) -> str:
     """Generate a userPrefs.jsonc string from form data."""
@@ -26,7 +29,7 @@ def generate_jsonc(config_data: dict[str, Any]) -> str:
         output["USERPREFS_TZ_STRING"] = to_posix_tz(config_data["tz_string"])
     _set_if_present(config_data, output, "bluetooth_fixed_pin", "USERPREFS_FIXED_BLUETOOTH")
 
-    channel_count = int(channels_to_write)
+    channel_count = min(int(channels_to_write), FIRMWARE_CHANNEL_SLOTS)
     for i in range(channel_count):
         _process_channel_config(config_data, output, i)
 

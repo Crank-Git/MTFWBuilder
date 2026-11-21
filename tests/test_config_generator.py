@@ -96,6 +96,12 @@ class TestChannelConfig:
         assert result["USERPREFS_CHANNEL_0_NAME"] == "Primary"
         assert result["USERPREFS_CHANNEL_1_NAME"] == "Secondary"
 
+    def test_channel_after_slot_2_writes_no_channel_key(self):
+        data = {"channels_to_write": "4", "channel_2[name]": "Third", "channel_3[name]": "Fourth"}
+        result = json.loads(generate_jsonc(data))
+        assert result["USERPREFS_CHANNEL_2_NAME"] == "Third"
+        assert "USERPREFS_CHANNEL_3_NAME" not in result
+
     def test_channel_uplink_downlink(self):
         data = {
             "channels_to_write": "1",
