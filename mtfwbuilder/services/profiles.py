@@ -30,6 +30,9 @@ SECRET_FIELD = re.compile(r"psk|password|admin_key", re.IGNORECASE)
 # The page shows this text for a profile with `stores_secrets` true (FR-fleet-builds-3).
 STORES_SECRETS_NOTICE = "This profile stores secrets on the server."
 
+# A profile route needs no admin session, so the stored secrets reach only an admin session (PM decision on #62).
+SIGN_IN_FOR_SECRETS = "Sign in as admin to load the stored secrets."
+
 UNREADABLE_SECRETS = (
     "The stored secrets of this profile do not decrypt with the current secret_key. Enter the secrets again."
 )
@@ -114,12 +117,12 @@ def _columns(config: ConfigRequest, stores_secrets: bool, secret_key: str) -> di
     }
 
 
-async def list_profiles(database_path: Path, secret_key: str) -> list[dict[str, Any]]:
-    """Return every profile in name order, with the stored secrets that decrypt with `secret_key`."""
+async def list_profiles(database_path: Path) -> list[dict[str, Any]]:
+    """Return every profile in name order, without secrets."""
     async with aiosqlite.connect(database_path) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute("SELECT * FROM profiles ORDER BY name")
-        return [_profile(row, secret_key) for row in await cursor.fetchall()]
+        return [_profile(row, None) for row in await cursor.fetchall()]
 
 
 async def get_profile(database_path: Path, profile_id: int, secret_key: str | None) -> dict[str, Any] | None:
@@ -135,8 +138,8 @@ async def get_profile(database_path: Path, profile_id: int, secret_key: str | No
     return _profile(row, secret_key) if row else None
 
 
-async def create_profile(database_path: Path, secret_key: str, profile: ProfileRequest) -> dict[str, Any]:
-    """Save the config of `profile` under its name, and return the saved profile.
+async def create_profile(database_path: Path, secret_key: str, profile: ProfileRequest) -> int:
+    """Save the config of `profile` under its name, and return the id of the new profile.
 
     When `profile.stores_secrets` is true, the profile keeps the secrets encrypted with a key derived from
     `secret_key`.
@@ -151,18 +154,15 @@ async def create_profile(database_path: Path, secret_key: str, profile: ProfileR
         except sqlite3.IntegrityError as error:
             raise DuplicateProfileName(profile.name) from error
         await db.commit()
-        profile_id = cursor.lastrowid
-    return await get_profile(database_path, profile_id, secret_key)
+        return cursor.lastrowid
 
 
-async def update_profile(
-    database_path: Path, secret_key: str, profile_id: int, update: ProfileUpdate
-) -> dict[str, Any] | None:
-    """Change the name, the config or the store secrets option of the profile, and return the profile.
+async def update_profile(database_path: Path, secret_key: str, profile_id: int, update: ProfileUpdate) -> bool:
+    """Change the name, the config or the store secrets option of the profile.
 
     A None field of `update` keeps the saved value. A false `stores_secrets` deletes the stored secrets. A true
     `stores_secrets` without a config stores no secret, so each secret field stays in `must_reenter`.
-    Returns None when no profile has the id `profile_id`.
+    Returns False when no profile has the id `profile_id`.
 
     Raises:
         DuplicateProfileName: Another profile has the new name.
@@ -172,7 +172,7 @@ async def update_profile(
         cursor = await db.execute("SELECT * FROM profiles WHERE id = ?", (profile_id,))
         row = await cursor.fetchone()
         if row is None:
-            return None
+            return False
         stores = bool(row["stores_secrets"]) if update.stores_secrets is None else update.stores_secrets
         if update.config is None:
             columns = {
@@ -188,7 +188,7 @@ async def update_profile(
         except sqlite3.IntegrityError as error:
             raise DuplicateProfileName(update.name) from error
         await db.commit()
-    return await get_profile(database_path, profile_id, secret_key)
+    return True
 
 
 async def delete_profile(database_path: Path, profile_id: int) -> bool:

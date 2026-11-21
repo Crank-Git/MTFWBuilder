@@ -6,8 +6,10 @@ import aiosqlite
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from mtfwbuilder.auth import CSRF_HEADER
 from mtfwbuilder.database import init_db
 from mtfwbuilder.services import profiles
+from tests.conftest import sign_in_admin
 
 CHANNEL_PSK = "deadbeef" * 8
 OTHER_CHANNEL_PSK = "0123abcd" * 4
@@ -244,11 +246,29 @@ async def test_init_db_drops_the_unused_config_profiles_table(settings):
     assert "profiles" in tables
 
 
+def _sign_in(client, settings):
+    client.headers[CSRF_HEADER] = sign_in_admin(client, settings)
+
+
+def _sign_out(client):
+    client.cookies.clear()
+    client.headers.pop(CSRF_HEADER, None)
+
+
 async def _save_with_secrets(client, config=CONFIG):
     return await client.post("/api/v1/profiles", json={"name": "Event 2026", "config": config, "stores_secrets": True})
 
 
+async def _saved_with_secrets(client, settings):
+    _sign_in(client, settings)
+    saved = (await _save_with_secrets(client)).json()
+    _sign_out(client)
+    return saved
+
+
 async def test_profile_that_stores_secrets_holds_no_psk_as_plain_text(client, settings):
+    _sign_in(client, settings)
+
     response = await _save_with_secrets(client)
 
     assert response.status_code == 201
@@ -260,8 +280,26 @@ async def test_profile_that_stores_secrets_holds_no_psk_as_plain_text(client, se
         assert secret not in stored
 
 
-async def test_load_of_a_profile_that_stores_secrets_returns_the_secrets(client):
-    saved = (await _save_with_secrets(client)).json()
+async def test_save_with_store_secrets_without_an_admin_session_returns_403(client, settings):
+    response = await _save_with_secrets(client)
+
+    assert response.status_code == 403
+    assert await _rows(settings.database_path) == []
+
+
+async def test_save_with_store_secrets_without_a_csrf_token_returns_403(client, settings):
+    _sign_in(client, settings)
+    client.headers.pop(CSRF_HEADER)
+
+    response = await _save_with_secrets(client)
+
+    assert response.status_code == 403
+    assert await _rows(settings.database_path) == []
+
+
+async def test_load_with_an_admin_session_returns_the_stored_secrets(client, settings):
+    saved = await _saved_with_secrets(client, settings)
+    _sign_in(client, settings)
 
     body = (await client.get(f"/api/v1/profiles/{saved['id']}")).json()
 
@@ -274,18 +312,34 @@ async def test_load_of_a_profile_that_stores_secrets_returns_the_secrets(client)
     assert body["config"]["channel_0[name]"] == "Primary"
 
 
-async def test_list_returns_the_secrets_of_a_profile_that_stores_secrets(client):
-    await _save_with_secrets(client)
+async def test_load_without_an_admin_session_marks_the_stored_secrets_must_reenter(client, settings):
+    saved = await _saved_with_secrets(client, settings)
 
-    body = (await client.get("/api/v1/profiles")).json()
+    response = await client.get(f"/api/v1/profiles/{saved['id']}")
 
-    assert body[0]["config"]["wifi_psk"] == WIFI_PSK
-    assert body[0]["must_reenter"] == []
+    assert response.status_code == 200
+    assert response.json()["must_reenter"] == MUST_REENTER
+    assert response.json()["warning"] == profiles.SIGN_IN_FOR_SECRETS
+    for secret in SECRETS:
+        assert secret not in response.text
+
+
+async def test_list_never_returns_the_stored_secrets(client, settings):
+    await _saved_with_secrets(client, settings)
+    _sign_in(client, settings)
+
+    response = await client.get("/api/v1/profiles")
+
+    assert response.json()[0]["must_reenter"] == MUST_REENTER
+    for secret in SECRETS:
+        assert secret not in response.text
 
 
 async def test_changed_secret_key_marks_the_stored_secrets_must_reenter(app, client, settings):
-    saved = (await _save_with_secrets(client)).json()
-    app.state.settings = settings.model_copy(update={"secret_key": "a-different-secret-key"})
+    saved = await _saved_with_secrets(client, settings)
+    changed = settings.model_copy(update={"secret_key": "a-different-secret-key"})
+    app.state.settings = changed
+    _sign_in(client, changed)
 
     response = await client.get(f"/api/v1/profiles/{saved['id']}")
 
@@ -298,8 +352,9 @@ async def test_changed_secret_key_marks_the_stored_secrets_must_reenter(app, cli
 
 
 async def test_export_of_a_profile_that_stores_secrets_holds_no_secret(client, settings):
-    saved = (await _save_with_secrets(client)).json()
+    saved = await _saved_with_secrets(client, settings)
     ciphertext = (await _rows(settings.database_path))[0]["secrets_ciphertext"]
+    _sign_in(client, settings)
 
     response = await client.get(f"/api/v1/profiles/{saved['id']}/export")
 
@@ -309,8 +364,9 @@ async def test_export_of_a_profile_that_stores_secrets_holds_no_secret(client, s
         assert secret not in response.text
 
 
-async def test_put_with_a_config_keeps_the_store_secrets_option(client):
-    saved = (await _save_with_secrets(client)).json()
+async def test_put_with_a_config_keeps_the_store_secrets_option(client, settings):
+    saved = await _saved_with_secrets(client, settings)
+    _sign_in(client, settings)
 
     response = await client.put(f"/api/v1/profiles/{saved['id']}", json={"config": {"wifi_psk": WIFI_PSK}})
 
@@ -320,8 +376,31 @@ async def test_put_with_a_config_keeps_the_store_secrets_option(client):
     assert body["must_reenter"] == []
 
 
+async def test_put_with_a_config_to_a_profile_that_stores_secrets_without_an_admin_session_returns_403(
+    client, settings
+):
+    saved = await _saved_with_secrets(client, settings)
+
+    response = await client.put(f"/api/v1/profiles/{saved['id']}", json={"config": {"wifi_psk": "other-psk"}})
+
+    assert response.status_code == 403
+    assert "other-psk" not in json.dumps(await _rows(settings.database_path))
+
+
+async def test_put_with_a_name_without_an_admin_session_returns_no_stored_secret(client, settings):
+    saved = await _saved_with_secrets(client, settings)
+
+    response = await client.put(f"/api/v1/profiles/{saved['id']}", json={"name": "Event 2027"})
+
+    assert response.status_code == 200
+    assert response.json()["name"] == "Event 2027"
+    assert response.json()["warning"] == profiles.SIGN_IN_FOR_SECRETS
+    for secret in SECRETS:
+        assert secret not in response.text
+
+
 async def test_put_with_store_secrets_off_deletes_the_stored_secrets(client, settings):
-    saved = (await _save_with_secrets(client)).json()
+    saved = await _saved_with_secrets(client, settings)
 
     response = await client.put(f"/api/v1/profiles/{saved['id']}", json={"stores_secrets": False})
 
@@ -331,8 +410,9 @@ async def test_put_with_store_secrets_off_deletes_the_stored_secrets(client, set
     assert (await _rows(settings.database_path))[0]["secrets_ciphertext"] is None
 
 
-async def test_put_with_store_secrets_on_and_no_config_marks_the_secrets_must_reenter(client):
+async def test_put_with_store_secrets_on_and_no_config_marks_the_secrets_must_reenter(client, settings):
     saved = (await _save(client)).json()
+    _sign_in(client, settings)
 
     response = await client.put(f"/api/v1/profiles/{saved['id']}", json={"stores_secrets": True})
 
@@ -340,6 +420,14 @@ async def test_put_with_store_secrets_on_and_no_config_marks_the_secrets_must_re
     assert response.json()["stores_secrets"] is True
     assert response.json()["must_reenter"] == MUST_REENTER
     assert response.json()["warning"] is None
+
+
+async def test_put_with_store_secrets_on_without_an_admin_session_returns_403(client):
+    saved = (await _save(client)).json()
+
+    response = await client.put(f"/api/v1/profiles/{saved['id']}", json={"stores_secrets": True})
+
+    assert response.status_code == 403
 
 
 async def test_init_db_adds_the_secrets_column_to_an_old_profiles_table(settings):
