@@ -144,10 +144,10 @@ UNENDED_STATUSES = ("queued", "compiling", "linking", "packaging")
 SAVE_BUILD = """
 INSERT INTO builds (
     id, variant, architecture, firmware_format, status, firmware_path, error_message,
-    config_hash, firmware_version, completed_at
+    config_hash, firmware_version, fleet_run_id, completed_at
 ) VALUES (
     :id, :variant, :architecture, :firmware_format, :status, :firmware_path, :error_message,
-    :config_hash, :firmware_version,
+    :config_hash, :firmware_version, :fleet_run_id,
     CASE WHEN :status IN ('complete', 'failed', 'cancelled') THEN CURRENT_TIMESTAMP END
 )
 ON CONFLICT(id) DO UPDATE SET

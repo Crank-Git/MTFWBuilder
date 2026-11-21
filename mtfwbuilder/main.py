@@ -35,6 +35,7 @@ from mtfwbuilder.services.firmware_updater import (
     remove_install_staging,
     remove_unrecorded_sources,
 )
+from mtfwbuilder.services.fleet_runs import FleetRuns
 
 
 def setup_logging(log_level: str, log_json: bool) -> None:
@@ -93,6 +94,7 @@ async def lifespan(app: FastAPI):
     build_queue = BuildQueue(settings)
     build_queue.start()
     app.state.build_queue = build_queue
+    app.state.fleet_runs = FleetRuns(settings, build_queue)
     app.state.firmware_catalog = catalog
     app.state.firmware_installs = FirmwareInstalls(settings, build_queue, resolver=catalog.resolve)
     logger.info("Build queue started")
@@ -103,6 +105,8 @@ async def lifespan(app: FastAPI):
 
     cleanup_task.cancel()
     await asyncio.gather(cleanup_task, return_exceptions=True)
+    # A fleet run that waits for a build must stop before the build queue cancels that build.
+    await app.state.fleet_runs.stop()
     await build_queue.stop()
     logger.info("Shutting down MTFWBuilder")
 
