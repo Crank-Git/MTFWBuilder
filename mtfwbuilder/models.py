@@ -172,7 +172,8 @@ class ConfigRequest(_UserPrefsFields):
     @field_validator("channels_to_write")
     @classmethod
     def _check_channels_to_write(cls, value: str) -> str:
-        if not value.isdecimal() or int(value) > CHANNEL_SLOTS:
+        # isdigit() alone accepts other scripts, and upstream quotes a value that is not all ASCII digits.
+        if not (value.isascii() and value.isdigit()) or int(value) > CHANNEL_SLOTS:
             raise ValueError(f"channels_to_write is not an integer from 0 to {CHANNEL_SLOTS}")
         return value
 

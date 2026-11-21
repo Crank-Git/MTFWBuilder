@@ -76,7 +76,16 @@ async def test_channels_to_write_outside_0_to_8_returns_422(client, value):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("value", ["0", "8"])
+@pytest.mark.parametrize("value", ["٣", "١٢"])
+async def test_channels_to_write_with_non_ascii_digits_returns_422(client, value):
+    # The upstream parser quotes a value that is not all ASCII digits.
+    resp = await client.post("/api/v1/preview", json={"channels_to_write": value})
+    assert resp.status_code == 422
+    assert "channels_to_write" in error_fields(resp)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", ["0", "3", "8"])
 async def test_channels_to_write_at_the_range_limits_returns_200(client, value):
     resp = await client.post("/api/v1/preview", json={"channels_to_write": value})
     assert resp.status_code == 200
