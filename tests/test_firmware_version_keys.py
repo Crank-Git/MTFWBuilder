@@ -24,6 +24,7 @@ from mtfwbuilder.services.jsonc_generator import (
     version_errors,
 )
 from mtfwbuilder.services.userprefs_keys import SCAN_FILE, KeyScan, ensure_key_scan, read_keys
+from tests.conftest import FIRMWARE_VERSION
 from tests.test_config_mesh_beacon import UPSTREAM_KEYS as MESH_BEACON_KEYS
 from tests.test_userprefs_contract import full_config
 
@@ -382,3 +383,40 @@ def test_each_key_that_the_generator_writes_has_a_field_location():
     written = json.loads(generate_jsonc(full_config(), firmware_keys=VERSION_GATED_KEYS))
 
     assert set(written) - set(KEY_FIELDS) == set()
+
+
+# The note about the default key set, when no key scan exists
+
+NO_VERSION_NOTE = "No firmware version is installed; keys that v2.7.26 does not read are left out."
+NO_SCAN_NOTE = f"Firmware version {FIRMWARE_VERSION} has no key scan; keys that v2.7.26 does not read are left out."
+
+
+async def test_preview_without_a_firmware_version_shows_the_note_about_the_left_out_keys(client):
+    resp = await client.post("/api/v1/preview", data={"owner_long_name": "Node"}, headers={"HX-Request": "true"})
+
+    assert resp.status_code == 200
+    assert NO_VERSION_NOTE in resp.text
+
+
+@pytest.mark.parametrize("route", ["/api/v1/download", "/api/v1/preview", "/api/v1/generate"])
+async def test_config_route_without_a_firmware_version_names_the_left_out_keys_in_a_header(client, route):
+    resp = await client.post(route, json={"owner_long_name": "Node"})
+
+    assert resp.status_code == 200
+    assert resp.headers["X-Userprefs-Note"] == NO_VERSION_NOTE
+
+
+@pytest.mark.usefixtures("firmware_source")
+async def test_download_for_a_firmware_source_without_a_key_scan_names_the_left_out_keys_in_a_header(client):
+    resp = await client.post("/api/v1/download", json={"owner_long_name": "Node"})
+
+    assert resp.headers["X-Userprefs-Note"] == NO_SCAN_NOTE
+
+
+@pytest.mark.usefixtures("sources")
+async def test_preview_and_download_with_a_key_scan_have_no_note(client):
+    preview = await client.post("/api/v1/preview", data={"owner_long_name": "Node"}, headers={"HX-Request": "true"})
+    download = await client.post("/api/v1/download", json={"owner_long_name": "Node"})
+
+    assert "left out" not in preview.text
+    assert "X-Userprefs-Note" not in download.headers

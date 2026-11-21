@@ -22,6 +22,10 @@ router = APIRouter(prefix="/api/v1", tags=["config"])
 
 MAX_UPLOAD_SIZE = 65536  # 64KB
 
+# Without a key scan, the generator writes the gated keys of `DEFAULT_FIRMWARE_KEYS`, the keys of v2.7.26 only.
+NOTE_HEADER = "X-Userprefs-Note"
+_LEFT_OUT = "keys that v2.7.26 does not read are left out."
+
 
 def field_error(location: tuple[str, ...], message: str) -> dict:
     """Return one 422 error item for the body field at `location`."""
@@ -59,11 +63,34 @@ def _chosen_version(config: ConfigRequest) -> str | None:
     return (config.model_extra or {}).get("firmware_version")
 
 
+async def _userprefs_file(request: Request, config: ConfigRequest) -> tuple[str, dict[str, str]]:
+    """Return the userPrefs file of `config`, and the response headers that name the left-out keys.
+
+    The headers are empty when the chosen firmware version has a key scan.
+
+    Raises:
+        RequestValidationError: The firmware version is not installed, or it rejects a field.
+    """
+    version = _chosen_version(config)
+    scan = await key_scan(request, version)
+    content = generate_for_version(config, scan)
+    if scan is not None:
+        return content, {}
+    record = await find_firmware_source(request.app.state.settings.database_path, version)
+    if record is None:
+        return content, {NOTE_HEADER: f"No firmware version is installed; {_LEFT_OUT}"}
+    return content, {NOTE_HEADER: f"Firmware version {record['version']} has no key scan; {_LEFT_OUT}"}
+
+
 @router.post("/generate")
-async def generate(config: ConfigRequest, request: Request) -> PreviewResponse:
-    """Generate JSONC configuration from form data, for the firmware version in the field `firmware_version`."""
-    scan = await key_scan(request, _chosen_version(config))
-    return PreviewResponse(success=True, content=generate_for_version(config, scan))
+async def generate(config: ConfigRequest, request: Request, response: Response) -> PreviewResponse:
+    """Generate JSONC configuration from form data, for the firmware version in the field `firmware_version`.
+
+    Without a key scan of the firmware version, the header `X-Userprefs-Note` names the left-out keys.
+    """
+    content, headers = await _userprefs_file(request, config)
+    response.headers.update(headers)
+    return PreviewResponse(success=True, content=content)
 
 
 @router.get("/userprefs/keys", responses={404: {"description": "Firmware version not installed"}})
@@ -125,12 +152,16 @@ async def preview(request: Request) -> Response:
     - an invalid body.
     - a firmware version that is not installed.
     - a field that the firmware version does not read.
+
+    Without a key scan of the firmware version, the header `X-Userprefs-Note` names the left-out keys.
     """
-    config = await _read_config(request)
-    content = generate_for_version(config, await key_scan(request, _chosen_version(config)))
-    return fragment_or_json(
-        request, "partials/preview.html", {"content": content}, PreviewResponse(success=True, content=content)
+    content, headers = await _userprefs_file(request, await _read_config(request))
+    context = {"content": content, "note": headers.get(NOTE_HEADER)}
+    response = fragment_or_json(
+        request, "partials/preview.html", context, PreviewResponse(success=True, content=content)
     )
+    response.headers.update(headers)
+    return response
 
 
 @router.post("/download", responses={422: {"description": "Validation Error"}}, openapi_extra=_CONFIG_BODY)
@@ -142,13 +173,14 @@ async def download(request: Request) -> Response:
     - an invalid body.
     - a firmware version that is not installed.
     - a field that the firmware version does not read.
+
+    Without a key scan of the firmware version, the header `X-Userprefs-Note` names the left-out keys.
     """
-    config = await _read_config(request)
-    content = generate_for_version(config, await key_scan(request, _chosen_version(config)))
+    content, headers = await _userprefs_file(request, await _read_config(request))
     return Response(
         content=content,
         media_type="application/json",
-        headers={"Content-Disposition": "attachment; filename=userPrefs.jsonc"},
+        headers={"Content-Disposition": "attachment; filename=userPrefs.jsonc", **headers},
     )
 
 
