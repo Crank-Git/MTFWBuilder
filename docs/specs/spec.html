@@ -953,6 +953,8 @@ body.rv-open .layout { padding-right:21rem; }
 </li>
 <li>2026-11-21 — Epic 13 batch review (#188): <code>ringtone_nag_secs</code> now has a cap of 65535, because the firmware field <code>nag_timeout</code> holds no more. An older profile with a larger value fails validation, and the operator edits that profile.
 </li>
+<li>2026-11-21 — Epic 13 shipped (#198). PM decisions from the batch review: a push keeps the device fields that core 2.6.7 does not know, and build form field errors have no pydantic prefix (#195). The CLI YAML import of the module sections waits for the owner (#196).
+</li>
 </ul><nav class="pager">
 <span></span>
 <a href="html/page-inherit-reconciliation.html">Inherit reconciliation and research &rarr;</a>

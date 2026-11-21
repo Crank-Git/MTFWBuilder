@@ -2,7 +2,7 @@
 id: module-settings
 feature: Module settings
 epic: "Epic 13: Module settings"
-status: issued
+status: built
 issues: [188, 189, 190, 191]
 mockups: [mockups/09-module-settings.html]
 modifies: [push-config, fleet-builds]
