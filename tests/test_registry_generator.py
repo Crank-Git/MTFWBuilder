@@ -215,6 +215,21 @@ def test_generate_registry_raises_registry_failed_for_output_that_is_not_json(tm
         generate_registry(tmp_path)
 
 
+def test_generate_registry_raises_registry_failed_for_a_hw_model_that_is_not_a_number(tmp_path, fake_pio):
+    config = [_env("odd", custom_meshtastic_hw_model="ten")]
+    (tmp_path / ".fake-pio-config.json").write_text(json.dumps(config))
+
+    with pytest.raises(RegistryFailed, match="unexpected value"):
+        generate_registry(tmp_path)
+
+
+def test_generate_registry_raises_registry_failed_for_json_that_is_not_a_section_list(tmp_path, fake_pio):
+    (tmp_path / ".fake-pio-config.json").write_text(json.dumps({"env:odd": {}}))
+
+    with pytest.raises(RegistryFailed, match="unexpected value"):
+        generate_registry(tmp_path)
+
+
 # The registry of a firmware version, in the `variants` table
 
 

@@ -45,9 +45,15 @@ def flash_method(architecture: str) -> str:
 def generate_registry(source_dir: Path) -> list[dict]:
     """Return the registry entries of the firmware source in `source_dir`.
 
-    Raises `RegistryFailed` when `pio project config --json-output` fails, times out or gives no valid JSON.
+    Raises `RegistryFailed` when `pio project config --json-output` fails or times out, or when its output does not
+    have the shape of a project config.
     """
-    return registry_entries(read_project_config(source_dir))
+    config = read_project_config(source_dir)
+    try:
+        return registry_entries(config)
+    except (TypeError, ValueError) as e:
+        # The startup import also calls this, so an upstream value of a wrong type must not stop the process.
+        raise RegistryFailed(f"The output of pio project config has an unexpected value: {e}") from e
 
 
 def read_project_config(source_dir: Path) -> list:
