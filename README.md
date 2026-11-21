@@ -4,6 +4,15 @@ A self-hosted web application for generating Meshtastic device configurations an
 
 ![MTFWBuilder Interface](image/mtfw.png)
 
+## Status
+
+The v2 API under `/api/v1` exists. The pages still call v1 URLs, so the flow from the pages does not work end to end. Two planned features repair it:
+
+- `build-pipeline-repair` (`docs/specs/features/06-build-pipeline-repair.md`)
+- `frontend-htmx` (`docs/specs/features/07-frontend-htmx.md`)
+
+In this README, "planned" marks a part that the code does not do yet. The spec in `docs/specs/` describes the planned project.
+
 ## What It Does
 
 **MTFWBuilder is the only tool in the Meshtastic ecosystem that combines configuration generation with firmware compilation in a self-hosted package.**
@@ -16,10 +25,10 @@ A self-hosted web application for generating Meshtastic device configurations an
 
 - **Configuration Generator** — Web UI for building `userPrefs.jsonc` files with channel setup, LoRa settings, GPS, WiFi/MQTT, and more
 - **Firmware Builder** — Compiles custom firmware via PlatformIO with your config pre-loaded
-- **62 Device Variants** — ESP32 (.bin), nRF52 (.uf2), and RP2040 (.uf2) with automatic format detection
+- **Device registry** — `devices/variants.yaml` lists the variants. The count of entries in that file is the variant count, and the startup log states it. ESP32 variants give `.bin` files. nRF52 and RP2040 variants give `.uf2` files.
 - **Factory Binary Support** — ESP32 devices get both `firmware.bin` and `firmware.factory.bin`
-- **Real-Time Build Progress** — SSE-powered status updates during compilation
-- **Admin Dashboard** — Firmware source management, system status, build cleanup
+- **Build progress (planned)** — The progress stream `GET /api/v1/build-progress/{id}` exists. The build page does not open it yet.
+- **Admin Dashboard** — Firmware source management, system status, build cleanup. The sign-in form is planned.
 - **Dark Mode** — Default dark theme with light mode toggle
 
 ## Quick Start
@@ -46,14 +55,22 @@ uv run uvicorn mtfwbuilder.main:app --host 0.0.0.0 --port 5000
 
 ### Configuration
 
+The data directory holds all state: firmware sources, artifacts, the database and `config.yaml`. `MTFW_DATA_DIR` sets it. The default is `data/` in the project root, and `/data` in Docker.
+
 ```bash
-cp config.yaml.example config.yaml
-# Edit config.yaml — set admin_password and secret_key
+cp config.yaml.example data/config.yaml
+# Edit data/config.yaml — set admin_password and secret_key
 ```
+
+At startup, the project moves a `config.yaml` in the project root to `data/config.yaml`. In Docker, `config.yaml` is `/data/config.yaml` in the `data` volume. The image does not copy a `config.yaml` from the project root.
 
 If no `config.yaml` exists, the app auto-migrates from `config.json` (v1 format) or uses defaults. Plaintext passwords are auto-hashed to bcrypt on first startup.
 
+`docs/external.md` lists every `MTFW_*` environment variable.
+
 ## Usage
+
+The steps below are the flow that the planned repair gives (see [Status](#status)).
 
 ### 1. Generate Configuration
 
@@ -67,7 +84,7 @@ If no `config.yaml` exists, the app auto-migrates from `config.json` (v1 format)
 
 1. Upload your `userPrefs.jsonc` or use the config you just generated
 2. Select your device variant from the dropdown
-3. Click **Build Firmware** — watch real-time progress
+3. Click **Build Firmware**
 4. Download your custom firmware file
 
 ### 3. Flash Your Device
@@ -81,7 +98,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
 
 ### 4. Admin Panel
 
-Access `/admin` to update firmware source from GitHub and manage builds. Requires the admin password set in `config.yaml`.
+The `/admin` page shows the firmware source controls. The firmware update and the cleanup routes require an admin session, which `POST /admin/login` starts with the admin password from `config.yaml`. The page has no sign-in form yet (planned).
 
 ## Architecture
 
@@ -89,9 +106,9 @@ Access `/admin` to update firmware source from GitHub and manage builds. Require
 MTFWBuilder/
 ├── mtfwbuilder/                    # FastAPI application
 │   ├── main.py                     # App factory, lifespan, middleware
-│   ├── config.py                   # Settings (pydantic-settings, env vars)
+│   ├── config.py                   # Settings (config.yaml, then MTFW_* env vars)
 │   ├── auth.py                     # Bcrypt + signed cookie sessions
-│   ├── database.py                 # SQLite (build history, config profiles)
+│   ├── database.py                 # SQLite schema. No route reads or writes it yet.
 │   ├── models.py                   # Pydantic request/response validation
 │   ├── rate_limit.py               # slowapi rate limiting
 │   ├── routers/
@@ -105,10 +122,11 @@ MTFWBuilder/
 │       ├── device_registry.py      # YAML device variant registry
 │       ├── firmware_updater.py     # GitHub firmware source downloads
 │       └── cleanup_service.py      # Build artifact and PSK cleanup
-├── devices/variants.yaml           # 62 device variants (single source of truth)
-├── templates/                      # Jinja2 + htmx templates
+├── devices/variants.yaml           # Registry (the variant list)
+├── templates/                      # Jinja2 templates (htmx planned)
 ├── static/                         # CSS, JS
-├── tests/                          # 106 pytest tests
+├── tests/                          # pytest suite
+├── data/                           # Data directory (MTFW_DATA_DIR). Not in git.
 └── pyproject.toml                  # Modern Python packaging
 ```
 
@@ -117,12 +135,13 @@ MTFWBuilder/
 | Component | Technology | Why |
 |-----------|-----------|-----|
 | Backend | FastAPI + uvicorn | Async builds, WebSocket-ready, auto OpenAPI docs |
-| Frontend | Jinja2 + htmx + Bootstrap 5 | Dynamic UI without a JS build pipeline |
-| Build Progress | Server-Sent Events (SSE) | One-way progress, proxy-friendly, htmx-native |
-| Database | SQLite (aiosqlite) | Zero-config, build history and config profiles |
+| Frontend | Jinja2 + Bootstrap 5 (htmx planned) | Dynamic UI without a JS build pipeline |
+| Build Progress | Server-Sent Events (SSE) | One-way progress, proxy-friendly. The build page does not open it yet. |
+| Database | SQLite (aiosqlite) | Zero-config. Build history and profiles are planned. |
 | Auth | bcrypt + itsdangerous | Hashed passwords, signed cookie sessions |
 | Device Registry | YAML | Human-readable, git-diffable, easy to contribute |
 | Build System | PlatformIO | Industry standard for embedded firmware |
+| Python | 3.13 | `.python-version` and `requires-python` set it |
 | Packaging | pyproject.toml + hatchling + uv | `uv.lock` pins every dependency |
 
 ### API
@@ -149,33 +168,43 @@ docker compose logs -f
 
 ### Production
 
-```bash
-# Copy and edit config
-cp config.yaml.example config.yaml
+The production overlay puts nginx in front of the project and serves HTTPS. You need HTTPS for two reasons:
 
-# Run with nginx reverse proxy
+- The admin session cookie has the `Secure` flag unless `debug` is on. A browser does not send it over plain HTTP to a remote host.
+- Web Serial works only on a secure page, so browser flashing (planned) needs HTTPS.
+
+1. Copy the nginx config: `cp nginx/nginx.conf.example nginx/nginx.conf`.
+2. In `nginx/nginx.conf`, set `server_name` to your domain.
+3. Put the certificate in `nginx/ssl/fullchain.pem` and the key in `nginx/ssl/privkey.pem`.
+4. Start the project with the overlay:
+
+```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+To set the admin password, write your `config.yaml` into the `data` volume, then restart. The command runs as the container user, so the project can rewrite the file when it hashes a plaintext password.
+
+```bash
+docker compose exec -T mtfwbuilder tee /data/config.yaml < config.yaml > /dev/null
+docker compose restart mtfwbuilder
 ```
 
 ### Volumes
 
-| Volume | Purpose |
-|--------|---------|
-| `firmware_data` | Downloaded firmware source |
-| `build_cache` | PlatformIO build cache |
-| `platformio_cache` | PlatformIO toolchains (~200MB per architecture) |
-| `temp_data` | Temporary build directories |
-| `logs` | Application logs |
+| Volume | Mount | Purpose |
+|--------|-------|---------|
+| `data` | `/data` | The data directory: firmware sources, artifacts, the database and `config.yaml` |
+| `platformio` | `/home/app/.platformio` | PlatformIO toolchains (~200MB per architecture), so a new container does not download them again |
 
 ## Security
 
 - Admin passwords stored as **bcrypt hashes** (auto-migrated from plaintext)
-- Session cookies: **httpOnly, SameSite=Lax, Secure** (in production)
-- PSK encryption keys **scrubbed** from build artifacts after compilation
+- Session cookies: **httpOnly, SameSite=Lax, Secure** (unless `debug` is on)
+- After a successful build, the project **scrubs** the userPrefs file and the firmware files from the firmware source. A failed build does not scrub yet, and `.elf` and object files keep the secret values (planned fix: `build-pipeline-repair`).
 - Build directories **isolated** per build, cleaned after download
 - All subprocess calls use **parameterized arguments** (no `shell=True`)
 - **Rate limiting** on login (10/min) and build (5/min) endpoints
-- File uploads **validated** (64KB max, UTF-8, JSON content)
+- File uploads **checked** for size (64KB max) and UTF-8 encoding only
 - **Path traversal protection** on firmware download endpoint
 
 ## Development
@@ -214,11 +243,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed contribution guidelines.
 **Build times out after 15 minutes**
 - First build for each architecture downloads the toolchain (~200MB)
 - Subsequent builds use cached toolchains and are much faster
-- Docker: ensure `platformio_cache` volume is mounted
+- Docker: ensure the `platformio` volume is mounted
 
 **Docker disk space issues**
-- Build files auto-clean after download and after 1 hour
-- Manual cleanup: use the Admin panel or `docker compose exec mtfwbuilder python -c "from mtfwbuilder.services.cleanup_service import *; ..."`
+- A build directory is deleted after its download.
+- The project has no periodic cleanup task yet. With an admin session, `POST /api/v1/cleanup` deletes builds older than `build_max_age_seconds` (default 1 hour).
 
 ## License
 
