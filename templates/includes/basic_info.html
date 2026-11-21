@@ -5,11 +5,13 @@
             <label for="ownerShortName" class="form-label">Owner Short Name</label>
             <input type="text" class="form-control" id="ownerShortName" name="owner_short_name" maxlength="4" placeholder="Short name (max 4 chars)">
             <div id="error-owner_short_name" class="field-error invalid-feedback d-block"></div>
+            <div class="form-text text-muted">The short name that other nodes show for this device. <code class="small">USERPREFS_CONFIG_OWNER_SHORT_NAME</code></div>
         </fieldset>
         <fieldset class="col-md-6" data-userprefs-key="USERPREFS_CONFIG_OWNER_LONG_NAME"{{ key_attrs("USERPREFS_CONFIG_OWNER_LONG_NAME") }}>
             <label for="ownerLongName" class="form-label">Owner Long Name</label>
             <input type="text" class="form-control" id="ownerLongName" name="owner_long_name" placeholder="Full name or description">
             <div id="error-owner_long_name" class="field-error invalid-feedback d-block"></div>
+            <div class="form-text text-muted">The full name that other nodes show for this device. <code class="small">USERPREFS_CONFIG_OWNER_LONG_NAME</code></div>
         </fieldset>
     </div>
     <div class="row mb-3">
@@ -20,12 +22,15 @@
                 <!-- Timezone options will be populated by JavaScript -->
             </select>
             <div id="error-tz_string" class="field-error invalid-feedback d-block"></div>
-            <div class="form-text text-muted">Your local timezone will be auto-detected if possible</div>
+            <div id="tzStringHelp" class="form-text text-muted"><span id="tzPosixNote" hidden>The device gets the POSIX string <code id="tzPosix"></code>.</span> The form selects the time zone of the browser, if it can. <code class="small">USERPREFS_TZ_STRING</code></div>
+            {# The generator writes the POSIX string of the table, so the page shows the same value. #}
+            <script type="application/json" id="tzPosixTable">{{ tz_posix_table | tojson }}</script>
         </fieldset>
         <fieldset class="col-md-6" data-userprefs-key="USERPREFS_FIXED_BLUETOOTH"{{ key_attrs("USERPREFS_FIXED_BLUETOOTH") }}>
             <label for="bluetoothPin" class="form-label">Bluetooth PIN (optional)</label>
             <input type="text" class="form-control" id="bluetoothPin" name="bluetooth_fixed_pin" placeholder="6 digits PIN">
             <div id="error-bluetooth_fixed_pin" class="field-error invalid-feedback d-block"></div>
+            <div class="form-text text-muted">A fixed 6-digit PIN for Bluetooth pairing. Empty keeps the random PIN. <code class="small">USERPREFS_FIXED_BLUETOOTH</code></div>
         </fieldset>
     </div>
     <div class="row mb-3">
@@ -39,6 +44,7 @@
             </select>
             <div id="error-device_role" class="field-error invalid-feedback d-block"></div>
             <div id="deviceRoleHelp" class="form-text text-muted">{{ router_role_message }}</div>
+            <div class="form-text text-muted">The behavior of the device on the mesh. <code class="small">USERPREFS_CONFIG_DEVICE_ROLE</code></div>
         </fieldset>
         <fieldset class="col-md-6" data-userprefs-key="USERPREFS_CONFIG_DEVICE_REBROADCAST_MODE"{{ key_attrs("USERPREFS_CONFIG_DEVICE_REBROADCAST_MODE") }}>
             <label for="deviceRebroadcastMode" class="form-label">Rebroadcast Mode</label>

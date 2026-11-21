@@ -15,6 +15,7 @@
                     {% endfor %}
                 </select>
                 <div id="error-lora_region" class="field-error invalid-feedback d-block"></div>
+                <div class="form-text text-muted">The region sets the frequencies and the power limit that the device uses. <code class="small">USERPREFS_CONFIG_LORA_REGION</code></div>
             </fieldset>
             <fieldset class="col-md-6" data-userprefs-key="USERPREFS_LORACONFIG_MODEM_PRESET"{{ key_attrs("USERPREFS_LORACONFIG_MODEM_PRESET") }}>
                 <label for="loraModemPreset" class="form-label">Modem Preset</label>
@@ -24,6 +25,7 @@
                     {% endfor %}
                 </select>
                 <div id="error-lora_modem_preset" class="field-error invalid-feedback d-block"></div>
+                <div class="form-text text-muted">All devices of one mesh use the same modem preset. <code class="small">USERPREFS_LORACONFIG_MODEM_PRESET</code></div>
             </fieldset>
         </div>
         <div class="row mb-3">
@@ -31,6 +33,7 @@
                 <label for="loraChannelNum" class="form-label">Channel Number</label>
                 <input type="number" class="form-control" id="loraChannelNum" name="lora_channel_num" value="31">
                 <div id="error-lora_channel_num" class="field-error invalid-feedback d-block"></div>
+                <div class="form-text text-muted">The frequency slot in the band of the region. 0 calculates the slot from the primary channel name. <code class="small">USERPREFS_LORACONFIG_CHANNEL_NUM</code></div>
             </fieldset>
             <fieldset class="col-md-6" data-userprefs-key="USERPREFS_CONFIG_LORA_IGNORE_MQTT"{{ key_attrs("USERPREFS_CONFIG_LORA_IGNORE_MQTT") }}>
                 <div class="form-check form-switch mt-4">
@@ -38,6 +41,7 @@
                     <input class="form-check-input" type="checkbox" id="loraIgnoreMqtt" name="lora_ignore_mqtt" value="true" checked>
                     <label class="form-check-label" for="loraIgnoreMqtt">Ignore MQTT (LoRa Only)</label>
                 </div>
+                <div class="form-text text-muted">The device ignores packets that came through MQTT. <code class="small">USERPREFS_CONFIG_LORA_IGNORE_MQTT</code></div>
             </fieldset>
         </div>
         <div class="row mb-3">

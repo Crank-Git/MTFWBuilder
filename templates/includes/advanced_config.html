@@ -15,11 +15,13 @@
                             <label for="oemText" class="form-label">OEM Text</label>
                             <input type="text" class="form-control" id="oemText" name="oem_text" placeholder="Caterham Car Club">
                             <div id="error-oem_text" class="field-error invalid-feedback d-block"></div>
+                            <div class="form-text text-muted">The text of the OEM boot screen. <code class="small">USERPREFS_OEM_TEXT</code></div>
                         </fieldset>
                         <fieldset class="col-md-6" data-userprefs-key="USERPREFS_OEM_FONT_SIZE"{{ key_attrs("USERPREFS_OEM_FONT_SIZE") }}>
                             <label for="oemFontSize" class="form-label">OEM Font Size</label>
                             <input type="number" class="form-control" id="oemFontSize" name="oem_font_size" value="0">
                             <div id="error-oem_font_size" class="field-error invalid-feedback d-block"></div>
+                            <div class="form-text text-muted">The font size of the OEM text: 0 is small. <code class="small">USERPREFS_OEM_FONT_SIZE</code></div>
                         </fieldset>
                     </div>
                     <div class="row mb-3">
@@ -27,17 +29,20 @@
                             <label for="oemImageWidth" class="form-label">OEM Image Width</label>
                             <input type="number" class="form-control" id="oemImageWidth" name="oem_image_width" placeholder="50">
                             <div id="error-oem_image_width" class="field-error invalid-feedback d-block"></div>
+                            <div class="form-text text-muted">The width of the OEM image, in pixels. <code class="small">USERPREFS_OEM_IMAGE_WIDTH</code></div>
                         </fieldset>
                         <fieldset class="col-md-6" data-userprefs-key="USERPREFS_OEM_IMAGE_HEIGHT"{{ key_attrs("USERPREFS_OEM_IMAGE_HEIGHT") }}>
                             <label for="oemImageHeight" class="form-label">OEM Image Height</label>
                             <input type="number" class="form-control" id="oemImageHeight" name="oem_image_height" placeholder="28">
                             <div id="error-oem_image_height" class="field-error invalid-feedback d-block"></div>
+                            <div class="form-text text-muted">The height of the OEM image, in pixels. <code class="small">USERPREFS_OEM_IMAGE_HEIGHT</code></div>
                         </fieldset>
                     </div>
                     <fieldset class="mb-3" data-userprefs-key="USERPREFS_OEM_IMAGE_DATA"{{ key_attrs("USERPREFS_OEM_IMAGE_DATA") }}>
                         <label for="oemImageData" class="form-label">OEM Image Data</label>
                         <textarea class="form-control" id="oemImageData" name="oem_image_data" rows="4" placeholder="{ 0x00, 0x00, 0xF0, ... }"></textarea>
                         <div id="error-oem_image_data" class="field-error invalid-feedback d-block"></div>
+                        <div class="form-text text-muted">The XBM bytes of the OEM image. <code class="small">USERPREFS_OEM_IMAGE_DATA</code></div>
                     </fieldset>
                 </div>
             </div>
@@ -61,6 +66,7 @@
                                 <input class="form-check-input" type="checkbox" id="buttonPinEnabled" name="button_pin_enabled" value="true">
                                 <label class="form-check-label" for="buttonPinEnabled">Enable Button Pin</label>
                             </div>
+                            <div class="form-text text-muted">The GPIO pin of the user button. The form writes it only if Enable Button Pin is on. <code class="small">USERPREFS_BUTTON_PIN</code></div>
                         </fieldset>
                     </div>
                     <div class="row mb-3">

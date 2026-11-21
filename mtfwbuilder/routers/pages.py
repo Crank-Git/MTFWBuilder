@@ -11,6 +11,7 @@ from mtfwbuilder.database import find_firmware_source, list_firmware_sources
 from mtfwbuilder.models import CHANNEL_SLOTS
 from mtfwbuilder.routers.firmware_builder import panel_context
 from mtfwbuilder.services.userprefs_keys import KeyScan, find_key_scan
+from mtfwbuilder.time_zones import POSIX_TZ_BY_ZONE
 
 # A hidden and disabled fieldset or option shows nothing and sends no value with the form.
 _ABSENT = Markup(" hidden disabled")
@@ -48,6 +49,7 @@ async def index(request: Request, build: str | None = None):
         "gps_mode_options": meshtastic_enums.GPS_MODES.options(),
         "packet_signature_policy_options": meshtastic_enums.PACKET_SIGNATURE_POLICIES.options(),
         "router_role_message": meshtastic_enums.ROUTER_ROLE_MESSAGE,
+        "tz_posix_table": POSIX_TZ_BY_ZONE,
         "firmware_sources": [s for s in await list_firmware_sources(database_path) if s["status"] == "ready"],
         "default_firmware_version": default_source["version"] if default_source else None,
         **_version_filters(await find_key_scan(database_path)),

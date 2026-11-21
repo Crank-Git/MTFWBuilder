@@ -6,7 +6,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.conftest import FIRMWARE_VERSION
-from tests.e2e.conftest import ALPHA_VERSION
+from tests.e2e.conftest import ALPHA_VERSION, open_tab
 
 pytestmark = pytest.mark.e2e
 
@@ -17,6 +17,7 @@ def fill_config_form(page: Page) -> None:
     """Fill the fields of the config form that a valid userPrefs file needs."""
     page.fill("#ownerShortName", "E2E")
     page.fill("#ownerLongName", "E2E Node")
+    open_tab(page, "channels")
     page.fill("#channel0Name", "Primary")
     page.fill("#channel0PSK", PSK_HEX)
 

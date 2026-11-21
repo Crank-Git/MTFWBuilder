@@ -3,11 +3,14 @@
 import pytest
 from playwright.sync_api import Page, expect
 
+from tests.e2e.conftest import open_tab
+
 pytestmark = pytest.mark.e2e
 
 
 def test_eight_channels_show_eight_channel_tabs_with_a_muted_control(page: Page, live_server: str):
     page.goto(f"{live_server}/")
+    open_tab(page, "channels")
 
     page.select_option("#channelsToWrite", "8")
 
@@ -19,7 +22,9 @@ def test_eight_channels_show_eight_channel_tabs_with_a_muted_control(page: Page,
 def test_preview_shows_the_role_the_tx_switch_and_the_ipv6_switch(page: Page, live_server: str):
     page.goto(f"{live_server}/")
     page.select_option("#deviceRole", "meshtastic_Config_DeviceConfig_Role_TRACKER")
+    open_tab(page, "lora")
     page.check("#loraTxDisabled")
+    open_tab(page, "network")
     page.check("#networkEnabled")
     page.check("#networkIpv6Enabled")
 
