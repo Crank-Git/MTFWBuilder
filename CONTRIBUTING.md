@@ -22,18 +22,40 @@ uv run uvicorn mtfwbuilder.main:app --reload --port 5000
 ## Project Structure
 
 ```
-mtfwbuilder/           # Python package (FastAPI backend)
-  main.py              # App factory and lifespan
-  config.py            # Settings (pydantic-settings)
-  auth.py              # Session auth (bcrypt + signed cookies)
-  models.py            # Pydantic request/response models
-  database.py          # SQLite schema. No route reads or writes it yet.
-  routers/             # API route handlers
-  services/            # Business logic (build, config gen, device registry)
-templates/             # Jinja2 templates (htmx planned)
-static/                # CSS, JS
-tests/                 # pytest suite
-data/                  # Data directory (MTFW_DATA_DIR). Not in git.
+MTFWBuilder/
+├── mtfwbuilder/                    # FastAPI application
+│   ├── main.py                     # App factory, lifespan, middleware
+│   ├── config.py                   # Settings (config.yaml, then MTFW_* env vars)
+│   ├── auth.py                     # Bcrypt + signed cookie sessions
+│   ├── database.py                 # SQLite (build history, profiles, firmware sources)
+│   ├── models.py                   # Pydantic request/response validation
+│   ├── rate_limit.py               # slowapi rate limiting
+│   ├── routers/
+│   │   ├── config_generator.py     # /api/v1/generate, preview, download
+│   │   ├── firmware_builder.py     # /api/v1/build-firmware, SSE progress
+│   │   ├── firmware.py             # /api/v1/firmware, installed and upstream firmware versions
+│   │   ├── variants.py             # /api/v1/variants, registry of a firmware version, device images
+│   │   ├── profiles.py             # /api/v1/profiles, saved configs, with encrypted secrets on opt-in
+│   │   ├── fleets.py               # /api/v1/fleets and /api/v1/fleet-runs, fleets and fleet runs
+│   │   ├── admin.py                # Login, firmware updates, cleanup
+│   │   ├── channel_share.py        # /api/v1/import/channel-url, import/cli-yaml, export/channel-url
+│   │   └── pages.py                # HTML page routes
+│   └── services/
+│       ├── jsonc_generator.py      # userPrefs.jsonc generation
+│       ├── build_service.py        # Async PlatformIO build pipeline
+│       ├── registry_generator.py   # Registry of a firmware source, from its PlatformIO config
+│       ├── firmware_updater.py     # GitHub firmware source downloads
+│       ├── firmware_catalog.py     # Upstream stable and alpha firmware versions
+│       ├── channel_share.py        # Channel URL decoder and encoder, CLI export YAML reader
+│       ├── profiles.py             # Profile records, secret removal on save
+│       ├── fleets.py               # Fleet records, fleet device rows, CSV import
+│       ├── fleet_runs.py           # One build per fleet device, Retry failed, the zip of a fleet run
+│       └── cleanup_service.py      # Build artifact and PSK cleanup
+├── templates/                      # Jinja2 pages and htmx partials
+├── static/                         # CSS, JS, vendored libraries in static/vendor/
+├── tests/                          # pytest suite
+├── data/                           # Data directory (MTFW_DATA_DIR). Not in git.
+└── pyproject.toml                  # Modern Python packaging
 ```
 
 ## Adding a New Device Variant

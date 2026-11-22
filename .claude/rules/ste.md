@@ -12,7 +12,12 @@ paths:
 # Writing standard (STE)
 
 Every spec file, issue body, comment, manual page and **code comment** in this project
-uses Simplified Technical English. The project's controlled vocabulary is the `## Terms`
+uses Simplified Technical English.
+
+`README.md` is the one exception. It uses the voice of the owner, and US English still
+applies. Every other Markdown file, including each page in `docs/`, keeps this standard.
+
+The project's controlled vocabulary is the `## Terms`
 table in `docs/specs/spec.md`. Read it before you write a domain word. If you need a word
 that is not in the table, add it to the table.
 
