@@ -6,7 +6,7 @@ status: approved
 spec_version: 2
 created: 2026-11-21
 approved: 2026-11-21
-html_generated: 2026-11-21
+html_generated: 2026-11-22
 branch_model: dev-and-live
 visibility: public
 features:
@@ -769,3 +769,4 @@ Written by `/spec-to-issues` on 2026-11-21.
 - 2026-11-21 — `/spec-update` change: new planned feature `module-settings` (16) and Epic 13. It restores FR-push-config-10 (owner ruling on #182). Owner rulings: the 7 module sections go in profiles and in a new Modules tab, the pin fields are optional, and `nag_timeout` comes from `ringtone_nag_secs`. The owner approved this round on 2026-11-21.
 - 2026-11-21 — Epic 13 batch review (#188): `ringtone_nag_secs` now has a cap of 65535, because the firmware field `nag_timeout` holds no more. An older profile with a larger value fails validation, and the operator edits that profile.
 - 2026-11-21 — Epic 13 shipped (#198). PM decisions from the batch review: a push keeps the device fields that core 2.6.7 does not know, and build form field errors have no pydantic prefix (#195). The CLI YAML import of the module sections waits for the owner (#196).
+- 2026-11-22 — Owner decision: `README.md` uses the voice of the owner and is exempt from Simplified Technical English. US English still applies. Every other Markdown file keeps the standard, and `.claude/rules/ste.md` states the exception. The API reference moves to `docs/api.md`, and the Docker reference moves to `docs/deploy.md`.
