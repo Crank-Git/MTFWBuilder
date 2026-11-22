@@ -57,6 +57,16 @@ network. Only nginx and the app use that network. The app then reads two headers
 The app ignores both headers from an address outside `MTFW_TRUSTED_PROXIES`. If you change the
 subnet in `docker-compose.prod.yml`, change both values.
 
+The project signs sessions and CSRF tokens with `secret_key`, and it derives the profile secret
+key from it (ADR 0007). The project gets `secret_key` from the first source in this list:
+1. `secret_key` in `/data/config.yaml`.
+2. The `MTFW_SECRET_KEY` environment variable.
+3. A new random key. The project writes the new key to `/data/config.yaml`.
+
+On first start without `MTFW_SECRET_KEY`, the project writes a key to `config.yaml`. After that
+start, `MTFW_SECRET_KEY` has no effect until you remove `secret_key` from `config.yaml`. A
+change of `secret_key` ends every session, and the stored profile secrets do not decrypt.
+
 ## Upgrade from a release before the `data` volume
 
 Older releases used the named volumes `firmware_data`, `build_cache`, `temp_data`, `logs` and
