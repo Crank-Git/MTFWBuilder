@@ -72,6 +72,8 @@ The project has no real PlatformIO in tests. Tests use a fake `pio` (feature 06)
 - No `shell=True` in a subprocess call.
 - No secret in a log line, a database row, a cache entry or browser storage. Secrets are
   PSKs, WiFi passwords, MQTT passwords and admin keys.
+- No admin password in a log line, with one exception. At a start with no admin password, the
+  project logs the generated password once. A later start never logs it (FR-platform-modernization-17).
 - Every route validates its body with a pydantic model.
 - Every userPrefs key the generator writes must be a key the firmware source reads. The
   contract test checks this.
