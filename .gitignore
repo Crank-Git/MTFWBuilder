@@ -241,6 +241,8 @@ site/
 *.jpg
 *.jpeg
 *.png
+# The README screenshots are tracked.
+!docs/images/*.png
 *.gif
 *.bmp
 *.tiff
