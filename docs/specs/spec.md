@@ -368,12 +368,12 @@ valid token returns 403:
 `models.py`. Every enum (region, modem preset, role, GPS mode) comes from
 `mtfwbuilder/meshtastic_enums.py`, which matches the upstream protobufs.
 
-**Errors.** A validation error returns 422 with field errors. An unhandled exception
-returns 500 with the generic text `Internal Server Error`, and the server logs the detail.
-Two routes still return HTTP 200 with `success: false`:
-- `POST /api/v1/preview-userprefs`, for a missing file, a file over 64 KB, a file that is
-  not UTF-8, or an exception. For an exception, the response holds the exception text.
-- `POST /api/v1/update-firmware`, when the install fails.
+**Errors.** A validation error returns 422 with field errors. A file over 64 KB returns
+413. An upstream that gives no answer returns 502. An unhandled exception returns 500 with
+the generic text `Internal Server Error`, and the server logs the detail. No route returns
+HTTP 200 with `success: false`. One exception text still reaches the client: the `error`
+of a failed install (`GET /api/v1/firmware/install/{install_id}` and its panel) is the
+text of the exception, and only an admin sees it.
 
 **Secrets.** A secret is never logged, never stored in the database, never kept in a
 cache entry, and never kept in browser storage after the page closes. The project

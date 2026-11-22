@@ -927,7 +927,6 @@ class FilePreviewResponse(BaseModel):
     line_count: int | None = None
     checks: dict | None = None
     filename: str | None = None
-    error: str | None = None
 
 
 class FirmwareSource(BaseModel):

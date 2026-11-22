@@ -475,16 +475,12 @@ body.rv-open .layout { padding-right:21rem; }
 </ul>
 <p><strong>Build ids (built, Epic 2).</strong> A build id is a random 128-bit value (<code>secrets.token_hex(16)</code>), so one operator cannot guess another operator's build.</p>
 <p><strong>Validation (built).</strong> Every route validates its body with a pydantic model in <code>models.py</code>. Every enum (region, modem preset, role, GPS mode) comes from <code>mtfwbuilder/meshtastic_enums.py</code>, which matches the upstream protobufs.</p>
-<p><strong>Errors.</strong> A validation error returns 422 with field errors. An unhandled exception returns 500 with the generic text <code>Internal Server Error</code>, and the server logs the detail. Two routes still return HTTP 200 with <code>success: false</code>:</p>
-<ul>
-<li><code>POST /api/v1/preview-userprefs</code>, for a missing file, a file over 64 KB, a file that is
+<p><strong>Errors.</strong> A validation error returns 422 with field errors. A file over 64 KB returns</p>
+<ol>
+<li>An upstream that gives no answer returns 502. An unhandled exception returns 500 with
 </li>
-</ul>
-<p>not UTF-8, or an exception. For an exception, the response holds the exception text.</p>
-<ul>
-<li><code>POST /api/v1/update-firmware</code>, when the install fails.
-</li>
-</ul>
+</ol>
+<p>the generic text <code>Internal Server Error</code>, and the server logs the detail. No route returns HTTP 200 with <code>success: false</code>. One exception text still reaches the client: the <code>error</code> of a failed install (<code>GET /api/v1/firmware/install/{install_id}</code> and its panel) is the text of the exception, and only an admin sees it.</p>
 <p><strong>Secrets.</strong> A secret is never logged, never stored in the database, never kept in a cache entry, and never kept in browser storage after the page closes. The project scrubs the firmware source after every build. The build log sent to the page has every secret value replaced with <code>***</code>.</p>
 <p><strong>Logging.</strong> Standard <code>logging</code>, optional JSON format (<code>MTFW_LOG_JSON</code>). No <code>print()</code>.</p>
 <p><strong>Accessibility.</strong> Every input has a label. The progress stream region has <code>aria-live="polite"</code>. Every icon-only button has an <code>aria-label</code>. Colors meet WCAG AA contrast in light and dark themes.</p>

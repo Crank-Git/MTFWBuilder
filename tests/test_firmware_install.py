@@ -887,12 +887,27 @@ async def test_update_route_succeeds_without_an_install_when_stable_is_installed
 
 
 @pytest.mark.usefixtures("installs")
-async def test_update_route_gives_the_install_error_when_the_install_fails(admin, monkeypatch):
+async def test_update_route_returns_500_and_logs_the_reason_when_the_install_fails(admin, monkeypatch, caplog):
     monkeypatch.setenv("FAKE_PIO_PKG_FAIL", "1")
 
     resp = await admin.post("/api/v1/update-firmware")
 
-    assert resp.json() == {"success": False, "error": "pio pkg install exited with code 1"}
+    assert resp.status_code == 500
+    assert resp.json() == {"detail": f"The install of {STABLE} failed. The server log has the reason."}
+    assert "pio pkg install exited with code 1" in caplog.text
+
+
+async def test_update_route_returns_502_without_the_upstream_error_text(app, admin):
+    def unreachable(channel):
+        raise requests.ConnectionError("internal-proxy.lan:3128 refused the connection")
+
+    app.state.firmware_installs.resolver = unreachable
+
+    resp = await admin.post("/api/v1/update-firmware")
+
+    assert resp.status_code == 502
+    assert resp.json() == {"detail": "Cannot get the firmware version from the upstream firmware list."}
+    assert "internal-proxy" not in resp.text
 
 
 @pytest.mark.usefixtures("installs")

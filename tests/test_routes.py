@@ -89,10 +89,35 @@ class TestConfigGeneratorRoutes:
             "/api/v1/preview-userprefs",
             files={"userPrefs": ("big.jsonc", big_content.encode(), "text/plain")},
         )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["success"] is False
-        assert "too large" in data["error"].lower()
+        assert resp.status_code == 413
+        assert resp.json() == {"detail": "The file is larger than 64 KB."}
+
+    @pytest.mark.asyncio
+    async def test_preview_userprefs_of_a_file_that_is_not_utf8_returns_422_without_the_decode_error(self, client):
+        resp = await client.post(
+            "/api/v1/preview-userprefs",
+            files={"userPrefs": ("bad.jsonc", b"\xff\xfe\xfa", "text/plain")},
+        )
+        assert resp.status_code == 422
+        assert resp.json()["detail"][0]["msg"] == "File is not valid UTF-8 text"
+        assert "codec" not in resp.text
+        assert "0xff" not in resp.text
+
+    @pytest.mark.asyncio
+    async def test_preview_userprefs_of_a_file_without_a_name_returns_422(self, client):
+        resp = await client.post("/api/v1/preview-userprefs", files={"userPrefs": ("", b"{}", "text/plain")})
+        assert resp.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_htmx_preview_userprefs_error_returns_the_field_error_fragment(self, client):
+        resp = await client.post(
+            "/api/v1/preview-userprefs",
+            files={"userPrefs": ("bad.jsonc", b"\xff", "text/plain")},
+            headers={"HX-Request": "true"},
+        )
+        assert resp.status_code == 422
+        assert resp.headers["content-type"].startswith("text/html")
+        assert "File is not valid UTF-8 text" in resp.text
 
     @pytest.mark.asyncio
     async def test_preview_userprefs_no_file(self, client):
