@@ -12,6 +12,9 @@ cd MTFWBuilder
 # uv installs Python 3.13 and the dependencies: https://docs.astral.sh/uv/getting-started/installation/
 uv sync
 
+# Install the browser for the E2E tests in tests/e2e/
+uv run python -m playwright install chromium
+
 # Run the tests
 uv run pytest
 
@@ -26,10 +29,15 @@ MTFWBuilder/
 ├── mtfwbuilder/                    # FastAPI application
 │   ├── main.py                     # App factory, lifespan, middleware
 │   ├── config.py                   # Settings (config.yaml, then MTFW_* env vars)
-│   ├── auth.py                     # Bcrypt + signed cookie sessions
-│   ├── database.py                 # SQLite (build history, profiles, firmware sources)
+│   ├── auth.py                     # Bcrypt, signed cookie sessions, CSRF tokens
+│   ├── database.py                 # SQLite: builds, firmware sources, registry, build cache, profiles, fleets
 │   ├── models.py                   # Pydantic request/response validation
-│   ├── rate_limit.py               # slowapi rate limiting
+│   ├── rate_limit.py               # slowapi rate limiting, trusted proxies
+│   ├── htmx.py                     # HTML fragment for an htmx request, JSON for other requests
+│   ├── meshtastic_enums.py         # Region, modem preset and role values from the protobufs
+│   ├── key_bytes.py                # PSK and admin key decoding to the userPrefs byte array
+│   ├── time_zones.py               # IANA time zone to POSIX TZ string
+│   ├── data/                       # tz_posix.json, the POSIX TZ string table
 │   ├── routers/
 │   │   ├── config_generator.py     # /api/v1/generate, preview, download
 │   │   ├── firmware_builder.py     # /api/v1/build-firmware, SSE progress
@@ -42,6 +50,9 @@ MTFWBuilder/
 │   │   └── pages.py                # HTML page routes
 │   └── services/
 │       ├── jsonc_generator.py      # userPrefs.jsonc generation
+│       ├── userprefs_keys.py       # The userPrefs keys that a firmware source reads
+│       ├── secret_mask.py          # Secret mask for the build log
+│       ├── build_cache.py          # Build cache, keyed by the config hash
 │       ├── build_service.py        # Async PlatformIO build pipeline
 │       ├── registry_generator.py   # Registry of a firmware source, from its PlatformIO config
 │       ├── firmware_updater.py     # GitHub firmware source downloads

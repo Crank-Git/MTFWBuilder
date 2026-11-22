@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from slowapi.errors import RateLimitExceeded
 
+from mtfwbuilder import __version__
 from mtfwbuilder.config import load_settings
 from mtfwbuilder.database import fail_unended_builds, init_db
 from mtfwbuilder.htmx import validation_error_response
@@ -72,7 +73,7 @@ async def lifespan(app: FastAPI):
     # Logging
     setup_logging(settings.log_level, settings.log_json)
     logger = logging.getLogger("mtfwbuilder")
-    logger.info("Starting MTFWBuilder v2.0.0")
+    logger.info(f"Starting MTFWBuilder v{__version__}")
 
     # Ensure temp directory exists
     os.makedirs(settings.temp_dir, exist_ok=True)
@@ -117,7 +118,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="MTFWBuilder",
         description="Meshtastic firmware configuration generator and builder",
-        version="2.0.0",
+        version=__version__,
         lifespan=lifespan,
     )
 

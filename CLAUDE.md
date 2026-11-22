@@ -5,9 +5,10 @@ project writes a `userPrefs.jsonc` file and compiles Meshtastic firmware with Pl
 The operator downloads the artifact and flashes the device. Every userPrefs key is a
 factory default: the device applies it on first boot and on factory reset only.
 
-**Current state (2026-11-21).** Epics 0–12 are on `dev`. The end-to-end flow works: build,
-download, browser flashing, channel share, profiles, the build cache, fleet runs and push config.
-The manual hardware checks are open in #177.
+**Current state (2026-11-22).** Epics 0–13 and Batch #200 are on `dev` and `main`. The end-to-end
+flow works: build, download, browser flashing, channel share, profiles, the build cache, fleet runs,
+push config and module settings. The CLI YAML import also fills the module settings (#196). The
+manual hardware checks are open in #177.
 
 ## Spec
 
@@ -71,6 +72,8 @@ The project has no real PlatformIO in tests. Tests use a fake `pio` (feature 06)
 - No `shell=True` in a subprocess call.
 - No secret in a log line, a database row, a cache entry or browser storage. Secrets are
   PSKs, WiFi passwords, MQTT passwords and admin keys.
+- No admin password in a log line, with one exception. At a start with no admin password, the
+  project logs the generated password once. A later start never logs it (FR-platform-modernization-17).
 - Every route validates its body with a pydantic model.
 - Every userPrefs key the generator writes must be a key the firmware source reads. The
   contract test checks this.

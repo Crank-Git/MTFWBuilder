@@ -1,8 +1,12 @@
 """Tests for authentication, sessions, and admin routes."""
 
+import json
+import logging
+import re
 import time
 
 import pytest
+import yaml
 from httpx import ASGITransport, AsyncClient
 from itsdangerous import TimestampSigner
 
@@ -12,7 +16,7 @@ from mtfwbuilder.auth import (
     validate_session_token,
     verify_password,
 )
-from mtfwbuilder.config import Settings, _hash_password
+from mtfwbuilder.config import Settings, _hash_password, load_settings
 from tests.conftest import sign_in_admin
 
 
@@ -35,6 +39,73 @@ class TestPasswordHashing:
     def test_hash_is_bcrypt_format(self):
         hashed = _hash_password("test")
         assert hashed.startswith("$2b$")
+
+
+GENERATED = re.compile(r"Generated admin password: (\S+) ")
+
+
+class TestGeneratedAdminPassword:
+    """Tests for the admin password that the first start generates (FR-platform-modernization-17)."""
+
+    @pytest.fixture
+    def data_dir(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("MTFW_BASE_DIR", str(tmp_path))
+        monkeypatch.setenv("MTFW_DATA_DIR", str(tmp_path))
+        monkeypatch.delenv("MTFW_ADMIN_PASSWORD_HASH", raising=False)
+        return tmp_path
+
+    @staticmethod
+    def _generated(caplog) -> list[str]:
+        return [m.group(1) for r in caplog.records if (m := GENERATED.search(r.getMessage()))]
+
+    def test_first_start_logs_a_generated_password_once_and_stores_only_its_hash(self, data_dir, caplog):
+        with caplog.at_level(logging.WARNING, logger="mtfwbuilder"):
+            settings = load_settings()
+
+        [password] = self._generated(caplog)
+        stored = yaml.safe_load((data_dir / "config.yaml").read_text())
+        assert verify_password(password, stored["admin_password_hash"])
+        assert stored["admin_password_hash"] == settings.admin_password_hash
+        assert password not in (data_dir / "config.yaml").read_text()
+        assert not verify_password("meshtastic", settings.admin_password_hash)
+
+    def test_second_start_keeps_the_hash_and_logs_no_password(self, data_dir, caplog):
+        first = load_settings()
+        caplog.clear()
+
+        with caplog.at_level(logging.WARNING, logger="mtfwbuilder"):
+            second = load_settings()
+
+        assert self._generated(caplog) == []
+        assert second.admin_password_hash == first.admin_password_hash
+
+    def test_a_password_in_config_yaml_is_used_and_no_password_is_generated(self, data_dir, caplog):
+        (data_dir / "config.yaml").write_text(yaml.safe_dump({"admin_password": "chosen-password"}))
+
+        with caplog.at_level(logging.WARNING, logger="mtfwbuilder"):
+            settings = load_settings()
+
+        assert self._generated(caplog) == []
+        assert verify_password("chosen-password", settings.admin_password_hash)
+
+    def test_a_hash_in_the_environment_is_used_and_no_password_is_generated(self, data_dir, monkeypatch, caplog):
+        hashed = _hash_password("env-password")
+        monkeypatch.setenv("MTFW_ADMIN_PASSWORD_HASH", hashed)
+
+        with caplog.at_level(logging.WARNING, logger="mtfwbuilder"):
+            settings = load_settings()
+
+        assert self._generated(caplog) == []
+        assert settings.admin_password_hash == hashed
+
+    def test_a_config_json_without_a_password_gets_a_generated_password(self, data_dir, caplog):
+        (data_dir / "config.json").write_text(json.dumps({}))
+
+        with caplog.at_level(logging.WARNING, logger="mtfwbuilder"):
+            settings = load_settings()
+
+        [password] = self._generated(caplog)
+        assert verify_password(password, settings.admin_password_hash)
 
 
 class TestSessionTokens:

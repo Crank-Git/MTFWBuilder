@@ -30,8 +30,18 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 The overlay removes the published port 5000. Only nginx publishes ports: 80 and 443.
 
-To set the admin password, write your `config.yaml` into the `data` volume, then restart. The
-command runs as the container user, so the project can rewrite the file when it hashes a
+The project has no default admin password. On first start, the project generates a random
+password and logs it once. Read the generated password from the first-start log:
+
+```bash
+docker compose logs mtfwbuilder | grep "Generated admin password"
+```
+
+The project keeps only the hash of the password in `/data/config.yaml`. A later start does not
+log the password again.
+
+To set your own admin password, write your `config.yaml` into the `data` volume, then restart.
+The command runs as the container user, so the project can rewrite the file when it hashes a
 plaintext password.
 
 ```bash
@@ -40,9 +50,22 @@ docker compose restart mtfwbuilder
 ```
 
 The overlay sets `MTFW_TRUSTED_PROXIES` to `172.30.80.0/24`, the fixed subnet of its `backend`
-network. Only nginx and the app use that network. The rate limiter then reads
-`X-Forwarded-For` from nginx. If you change the subnet in `docker-compose.prod.yml`, change
-both values.
+network. Only nginx and the app use that network. The app then reads two headers from nginx:
+- The rate limiter reads `X-Forwarded-For`.
+- The session cookie reads `X-Forwarded-Proto`. When the value is `https`, the cookie is `Secure`.
+
+The app ignores both headers from an address outside `MTFW_TRUSTED_PROXIES`. If you change the
+subnet in `docker-compose.prod.yml`, change both values.
+
+The project signs sessions and CSRF tokens with `secret_key`, and it derives the profile secret
+key from it (ADR 0007). The project gets `secret_key` from the first source in this list:
+1. `secret_key` in `/data/config.yaml`.
+2. The `MTFW_SECRET_KEY` environment variable.
+3. A new random key. The project writes the new key to `/data/config.yaml`.
+
+On first start without `MTFW_SECRET_KEY`, the project writes a key to `config.yaml`. After that
+start, `MTFW_SECRET_KEY` has no effect until you remove `secret_key` from `config.yaml`. A
+change of `secret_key` ends every session, and the stored profile secrets do not decrypt.
 
 ## Upgrade from a release before the `data` volume
 
@@ -67,7 +90,8 @@ root is scrubbed and kept, and a warning names it. In Docker, `config.yaml` is
 project root.
 
 If no `config.yaml` exists, the app migrates from `config.json` (v1 format) or uses the
-defaults. At startup, the app hashes a plaintext password with bcrypt.
+defaults. At startup, the app hashes a plaintext password with bcrypt. If no admin password is
+set, the app generates one and logs it once.
 
 ## Volumes
 

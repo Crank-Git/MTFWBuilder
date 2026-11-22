@@ -69,18 +69,22 @@ configures a device after it is flashed. No other public tool gives a web interf
 firmware that carries custom defaults. Research on 2026-11-21 found only small
 command-line forks (see `pages/inherit-reconciliation.md`).
 
-**Current state (2026-11-21).** The v2 rewrite (FastAPI, March 2026) changed the
-backend. It did not change the frontend. Research found that the end-to-end flow does
-not work today, for these reasons:
-- The pages call v1 URLs that the v2 backend does not serve.
-- 71 of the 150 registry ids are not PlatformIO environment names.
+**State at the inherit (2026-11-21).** The v2 rewrite (FastAPI, March 2026) changed the
+backend. It did not change the frontend. Research found that the end-to-end flow did
+not work, for these reasons:
+- The pages called v1 URLs that the v2 backend did not serve.
+- 71 of the 150 registry ids were not PlatformIO environment names.
 - Upstream firmware changed its output file names in December 2025.
-- The generator writes many keys that the firmware does not read.
+- The generator wrote many keys that the firmware did not read.
 
-This spec documents the code as it is (`status: built` features 01–04). It then plans the
-repair, the update to current upstream firmware, and new capabilities (`status:
-planned` features 00 and 05–15). The full reconciliation of documents against code is
-in `pages/inherit-reconciliation.md`.
+Features 01–04 record the code at the inherit. Features 00 and 05–16 planned the repair,
+the update to current upstream firmware, and new capabilities. The full reconciliation of
+documents against code is in `pages/inherit-reconciliation.md`.
+
+**Current state (2026-11-22).** Epics 0–13 are built, and every feature except the retired
+feature 03 has the status `built`. The end-to-end flow works: build, download, browser
+flashing, channel share, profiles, the build cache, fleet runs, push config and module
+settings.
 
 **An important upstream fact.** A `userPrefs.jsonc` value is a factory default. The
 firmware applies it on first boot and on factory reset only. After that, the saved
@@ -212,7 +216,7 @@ changes what firmware versions the instance holds. The project has no other role
 | Browser flashing | [features/13-browser-flashing.md](features/13-browser-flashing.md) | built | Epic 9: Browser flashing | [06-flash](mockups/06-flash.html) |
 | Fleet builds | [features/14-fleet-builds.md](features/14-fleet-builds.md) | built | Epic 10: Profiles and build cache, Epic 11: Fleet runs | [07-fleet](mockups/07-fleet.html) |
 | Push config | [features/15-push-config.md](features/15-push-config.md) | built | Epic 12: Push config | [08-push-config](mockups/08-push-config.html) |
-| Module settings | [features/16-module-settings.md](features/16-module-settings.md) | issued | Epic 13: Module settings | [09-module-settings](mockups/09-module-settings.html) |
+| Module settings | [features/16-module-settings.md](features/16-module-settings.md) | built | Epic 13: Module settings | [09-module-settings](mockups/09-module-settings.html) |
 
 ## Architecture & stack
 
@@ -249,17 +253,17 @@ flowchart LR
   P -- artifact --> WS -- flash / push config --> D[Device]
 ```
 
-The diagram shows the target architecture after the planned epics. Today the build
-worker runs only while a progress stream is open, the cleanup task does not exist, and
-the database is not used (see `features/02-firmware-builder.md`).
+The diagram shows the architecture that Epics 0–13 built. A build worker runs a build
+with no open progress stream. The cleanup task runs at startup and then on a timer. The
+routers read and write the database.
 
 | Component | Choice | Why |
 |---|---|---|
 | Web server | FastAPI + uvicorn, one process (`--workers 1`) | Built. Async builds and SSE. One process keeps the build queue in memory without a broker. |
-| Pages | Jinja2 templates + htmx 2 + htmx SSE extension, Bootstrap 5.3 | Chosen in the interview: no JavaScript build step. htmx is loaded today but not used. ADR 0002. |
+| Pages | Jinja2 templates + htmx 2 + htmx SSE extension, Bootstrap 5.3 | Chosen in the interview: no JavaScript build step. Built in Epic 3. ADR 0002. |
 | Browser flashing | ESP Web Tools 10.x / esptool-js 0.7 (Apache-2.0), vendored | Apache-2.0 is compatible with GPL-3.0. The official Web Flasher uses esptool-js. |
 | Push config | `@meshtastic/core` 2.6.7 + `@meshtastic/transport-web-serial` 0.2.5 + `@meshtastic/transport-web-bluetooth` 0.1.5 (GPL-3.0-only, npm), vendored as esm.sh builds | `meshtastic-sdk` has no JS release. ADR 0008. |
-| Data store | SQLite through aiosqlite | Built (schema only). Zero setup for a self-hoster. ADR 0003. |
+| Data store | SQLite through aiosqlite | Built. Zero setup for a self-hoster. ADR 0003. |
 | Firmware build | PlatformIO Core 6.2 (`pioarduino` core for ESP32 on firmware 2.8) | Upstream build system. Source: `meshtastic/gh-action-firmware`. |
 | Packaging | `pyproject.toml` + hatchling, uv + `uv.lock` (Epic 4) | Interview choice (stack modernization). |
 | Runtime | Python 3.13 (Docker and CI; CI also tests 3.14) | `meshtastic` python requires `<3.15`. |
@@ -283,23 +287,24 @@ erDiagram
   BUILD }o--o| CACHE_ENTRY : "served from"
 ```
 
-**Built today** (`mtfwbuilder/database.py:8-30`). The project creates two tables at
-startup. No code reads or writes them.
+**At the inherit** (`bd15bb1`, `mtfwbuilder/database.py:8-30`). The project created two
+tables at startup. No code read or wrote them. The notes below give the change since the
+inherit.
 
 | Entity | Fields | Notes |
 |---|---|---|
-| `builds` | `id` TEXT PK, `variant`, `architecture`, `firmware_format` TEXT NOT NULL, `status` TEXT NOT NULL default `queued`, `firmware_path`, `build_log`, `error_message` TEXT, `created_at` default now, `completed_at` | Unused. Builds live in memory (`app.state.active_builds`). |
-| `config_profiles` | `id` INTEGER PK, `name` TEXT NOT NULL, `config_json` TEXT NOT NULL, `created_at`, `updated_at` | Unused. `name` is not unique. Since Epic 10 (#61), `init_db` drops it, and the `profiles` table replaces it. |
+| `builds` | `id` TEXT PK, `variant`, `architecture`, `firmware_format` TEXT NOT NULL, `status` TEXT NOT NULL default `queued`, `firmware_path`, `build_log`, `error_message` TEXT, `created_at` default now, `completed_at` | Unused at the inherit. Since Epic 2 (#102), the build queue writes a row for each build, with `config_hash`, `firmware_version` and `fleet_run_id`. The project writes no `build_log`. |
+| `config_profiles` | `id` INTEGER PK, `name` TEXT NOT NULL, `config_json` TEXT NOT NULL, `created_at`, `updated_at` | Unused at the inherit. `name` was not unique. Since Epic 10 (#61), `init_db` drops it, and the `profiles` table replaces it. |
 
 The registry was a YAML file at the inherit (`devices/variants.yaml`, 150 entries). Since Epic 6 (#145) it is the `variants` table, generated per firmware version.
 
-**Planned.** Each planned feature file states its own fields and migration.
+**Built.** The epics built these entities. Each feature file states its own fields and migration.
 
 | Entity | Owner feature | Key fields | Lifecycle |
 |---|---|---|---|
 | FIRMWARE_SOURCE | firmware-versions | `version` PK, `channel` (stable/alpha/pinned), `path`, `installed_at`, `status` | installing → ready → removed |
 | VARIANT | generated-registry | `env` + `version` PK, `display_name`, `manufacturer`, `architecture`, `support_level`, `hw_model`, `image`, `requires_dfu` | regenerated when a firmware source becomes ready |
-| BUILD | build-pipeline-repair | `id` (random, 128-bit), `version`, `variant`, `status`, `config_hash`, `created_at`, `completed_at`, `error_message`, `fleet_run_id` | queued → compiling → linking → packaging → complete / failed / cancelled → expired |
+| BUILD | build-pipeline-repair | `id` (random, 128-bit), `version`, `variant`, `status`, `config_hash`, `created_at`, `completed_at`, `error_message`, `fleet_run_id` | queued → compiling → linking → packaging → complete / failed / cancelled. The periodic cleanup deletes the build directory later. |
 | CACHE_ENTRY | fleet-builds | `config_hash` PK, `firmware_version`, `variant`, `artifact_dir`, `artifact_names` (JSON list), `created_at`, `last_used_at` (Unix seconds) | created on complete without a secret, removed by TTL or when an artifact is missing |
 | PROFILE | fleet-builds | `id`, `name` UNIQUE, `config_json` without secrets, `must_reenter_json`, `stores_secrets`, `secrets_ciphertext` (Fernet token, nullable), `created_at`, `updated_at` | created → updated → deleted |
 | FLEET | fleet-builds | `id`, `name`, `profile_id`, `firmware_version` (nullable: the default firmware source), `created_at`, `updated_at` | created → updated → deleted |
@@ -328,17 +333,20 @@ stateDiagram-v2
   expired --> [*]
 ```
 
-This is the planned build lifecycle. The `scrub` step runs on every transition into
-`complete`, `failed` and `cancelled`.
+This is the build lifecycle. The project stores no `expired` status: the periodic cleanup
+deletes the build directory of an ended build after `build_max_age_seconds`. The `scrub`
+step runs on every transition into `complete`, `failed` and `cancelled`.
 
 ## Cross-cutting concerns
 
 **Authentication and authorization (built).** The admin password is a bcrypt hash in
 `config.yaml`. `POST /admin/login` sets the cookie `mtfw_session`: an itsdangerous
 signature of the string `admin`, HttpOnly, SameSite=Lax, max age 3600 s. The cookie sets
-`Secure` only when the request scheme is `https`. These routes require the session:
+`Secure` when the request scheme is `https`. The cookie also sets `Secure` when a peer in
+`MTFW_TRUSTED_PROXIES` sends `X-Forwarded-Proto: https`. These routes require the session:
 `/api/v1/update-firmware`, `/api/v1/cleanup`, `GET /api/v1/firmware/available`,
-`POST /api/v1/firmware/install` and `DELETE /api/v1/firmware/{version}`. The `/admin` page shows a sign-in form when no
+`POST /api/v1/firmware/install`, `GET /api/v1/firmware/install/{install_id}`,
+`GET /api/v1/firmware/install/{install_id}/progress` and `DELETE /api/v1/firmware/{version}`. The `/admin` page shows a sign-in form when no
 session exists.
 
 **CSRF (built, Epic 3).** Each admin form carries the hidden field `csrf_token`. The token
@@ -353,17 +361,19 @@ valid token returns 403:
 - `POST /api/v1/firmware/install`
 - `DELETE /api/v1/firmware/{version}`
 
-**Planned auth changes** (feature `build-pipeline-repair`):
-- Build ids are random, so one operator cannot guess another operator's build.
+**Build ids (built, Epic 2).** A build id is a random 128-bit value
+(`secrets.token_hex(16)`), so one operator cannot guess another operator's build.
 
-**Validation.** Today the routes read raw JSON. The pydantic models in `models.py` are
-not used. Planned: every route validates its body with a pydantic model, and every
-enum (region, modem preset, role, GPS mode) comes from one module that matches the
-upstream protobufs.
+**Validation (built).** Every route validates its body with a pydantic model in
+`models.py`. Every enum (region, modem preset, role, GPS mode) comes from
+`mtfwbuilder/meshtastic_enums.py`, which matches the upstream protobufs.
 
-**Errors.** Today the config routes return HTTP 200 with `success: false` and the raw
-exception text. Planned: a validation error returns 422 with field errors. An internal
-error returns 500 with a generic message and logs the detail.
+**Errors.** A validation error returns 422 with field errors. An unhandled exception
+returns 500 with the generic text `Internal Server Error`, and the server logs the detail.
+Two routes still return HTTP 200 with `success: false`:
+- `POST /api/v1/preview-userprefs`, for a missing file, a file over 64 KB, a file that is
+  not UTF-8, or an exception. For an exception, the response holds the exception text.
+- `POST /api/v1/update-firmware`, when the install fails.
 
 **Secrets.** A secret is never logged, never stored in the database, never kept in a
 cache entry, and never kept in browser storage after the page closes. The project
@@ -383,9 +393,13 @@ PlatformIO build of one ESP32 variant takes several minutes on first build and u
 several GB of disk for toolchains. The build cache returns a repeated build in under
 one second.
 
-**Security headers.** nginx sets them in production (`nginx/nginx.conf.example`). The
-app sets none. Planned: the app sets `X-Content-Type-Options`, `Referrer-Policy` and a
-Content-Security-Policy that allows only vendored scripts.
+**Security headers.** In production, nginx sets `Strict-Transport-Security`,
+`X-Frame-Options`, `X-Content-Type-Options` and `Referrer-Policy`
+(`nginx/nginx.conf.example`). The app sets `Content-Security-Policy` and
+`X-Content-Type-Options` only on a device image response (`routers/variants.py`). Not
+built: the app sets `X-Content-Type-Options`, `Referrer-Policy` and a
+Content-Security-Policy that allows only vendored scripts on every response. No epic
+holds this work.
 
 ## Environments & config
 
@@ -405,22 +419,23 @@ device from the test (feature push-config). Only the E2E test config turns it on
 production server leaves it off.
 
 Seed data: none. The registry and the firmware source come from upstream at runtime.
-Planned: a test fixture holds a small firmware source subset (a few variant
-`platformio.ini` files and `userPrefs.jsonc`) so tests run without a download.
+The test fixture `tests/fixtures/firmware/` holds a small firmware source subset (a few
+variant `platformio.ini` files and `userPrefs.jsonc`), so tests run without a download.
 
 ## Testing strategy
 
 - **Unit:** pytest, `asyncio_mode = "auto"`. 106 tests at the inherit (2026-11-21, `bd15bb1`);
   the suite grows with each epic.
-- **Contract tests (planned):** the userPrefs keys the generator writes are a subset of
+- **Contract tests (built):** the userPrefs keys the generator writes are a subset of
   the keys the fixture firmware source reads. The registry fixture matches
   `pio project config --json-output` output.
-- **Integration (planned):** route tests through httpx for every `/api/v1` route,
+- **Integration (built):** route tests through httpx for every `/api/v1` route,
   including the progress stream. A fake `pio` executable stands in for PlatformIO.
-- **E2E smoke (planned):** Playwright loads each page, fills the config form, starts a
+- **E2E smoke (built):** Playwright loads each page, fills the config form, starts a
   build against the fake `pio`, and downloads the artifact.
-- **Real build (planned, manual or scheduled CI):** one real `pio run` of one ESP32 and
-  one nRF52 variant.
+- **Real build (not built, manual or scheduled CI):** one real `pio run` of one ESP32 and
+  one nRF52 variant. The weekly workflow `upstream-check.yml` runs only the contract
+  tests against upstream `develop`.
 - A change is done when `uv run pytest`, `uv run ruff check`, and `uv run ruff format
   --check` pass, and the E2E smoke passes for any change under `templates/` or `static/`.
 
@@ -474,27 +489,40 @@ Planned: a test fixture holds a small firmware source subset (a few variant
 
 ## Risks & open questions
 
-**Contradictions between documents and code** (the code is the fact):
+**Contradictions between documents and code** (the code is the fact). The inherit found
+these 13 contradictions. All 13 are resolved, and each item names its resolution.
 1. README says 62 variants. The registry holds 150. The README is stale since commit
-   `e575ce7`.
+   `e575ce7`. Resolved in Epic 4 (#112): the README states no fixed variant count.
 2. README links a LICENSE file. No LICENSE file exists. `pyproject.toml` says MIT.
    Resolved in the interview: relicense to GPL-3.0 (ADR 0004).
 3. README says the database stores build history and profiles. No code reads or writes
-   the database.
-4. README says the frontend uses htmx. No template uses an `hx-` attribute.
+   the database. Resolved: the database holds builds (Epic 2), firmware sources (Epic 5),
+   the registry (Epic 6), profiles and the build cache (Epic 10), and fleets (Epic 11).
+4. README says the frontend uses htmx. No template uses an `hx-` attribute. Resolved in
+   Epic 3 (#124): the pages use `hx-` attributes.
 5. README describes real-time build progress. The build page never opens the progress
-   stream, and it calls v1 URLs.
+   stream, and it calls v1 URLs. Resolved in Epic 3 (#124): the build panel opens the
+   progress stream, and the pages call `/api/v1`.
 6. README says the admin panel needs the admin password. The page has no sign-in form.
-7. README says builds clean up after 1 hour. No periodic task exists.
+   Resolved in Epic 3 (#124): `/admin` shows a sign-in form.
+7. README says builds clean up after 1 hour. No periodic task exists. Resolved in Epic 2
+   (#102): a periodic cleanup task runs.
 8. README says secrets are scrubbed from artifacts. Scrub runs on success only, and
-   `.elf` and object files keep the values.
-9. README says uploads are validated as JSON. Only size and UTF-8 are checked.
+   `.elf` and object files keep the values. Resolved in Epic 2 (#102): the scrub runs on
+   every path and deletes `.pio/build/<env>/`.
+9. README says uploads are validated as JSON. Only size and UTF-8 are checked. Resolved
+   in the README rewrite (#203): the README states only the 64 KB upload limit.
 10. CONTRIBUTING says the `id` must match a PlatformIO environment. 71 ids do not.
+    Resolved in Epic 6 (#145): the registry comes from the firmware source, and
+    CONTRIBUTING states that.
 11. `pyproject.toml` and CONTRIBUTING say Python 3.10+. The code needs 3.11
-    (`asyncio.timeout`, `build_service.py:80`).
+    (`asyncio.timeout`, `build_service.py:80`). Resolved in Epic 4 (#112):
+    `requires-python` is `>=3.13,<3.15`.
 12. The README volume table names paths the app does not write to
-    (`docker-compose.yml`; see `features/02-firmware-builder.md`).
-13. `docker.env.example` and `docker-deploy.sh cleanup` use v1 names and routes.
+    (`docker-compose.yml`; see `features/02-firmware-builder.md`). Resolved in Epic 4
+    (#112): the compose file mounts `data` and `platformio`, and the docs name them.
+13. `docker.env.example` and `docker-deploy.sh cleanup` use v1 names and routes. Resolved
+    in Epic 0 (#82): both files are deleted.
 
 **Risks:**
 - **Router roles are not factory defaults.** Upstream replaces a userPrefs role of
@@ -770,3 +798,4 @@ Written by `/spec-to-issues` on 2026-11-21.
 - 2026-11-21 — Epic 13 batch review (#188): `ringtone_nag_secs` now has a cap of 65535, because the firmware field `nag_timeout` holds no more. An older profile with a larger value fails validation, and the operator edits that profile.
 - 2026-11-21 — Epic 13 shipped (#198). PM decisions from the batch review: a push keeps the device fields that core 2.6.7 does not know, and build form field errors have no pydantic prefix (#195). The CLI YAML import of the module sections waits for the owner (#196).
 - 2026-11-22 — Owner decision: `README.md` uses the voice of the owner and is exempt from Simplified Technical English. US English still applies. Every other Markdown file keeps the standard, and `.claude/rules/ste.md` states the exception. The API reference moves to `docs/api.md`, and the Docker reference moves to `docs/deploy.md`.
+- 2026-11-22 — Owner decisions on approved tech debt. The project has no default admin password: a start with no password generates one, stores only its hash and logs it once (FR-platform-modernization-17). The session cookie also sets `Secure` for `X-Forwarded-Proto: https` from a peer in `MTFW_TRUSTED_PROXIES` (FR-platform-modernization-16). The 13 inherit contradictions are marked resolved.

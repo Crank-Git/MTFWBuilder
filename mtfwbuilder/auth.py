@@ -7,9 +7,11 @@ import bcrypt
 from fastapi import HTTPException, Request, status
 from fastapi.responses import Response
 from itsdangerous import BadSignature, SignatureExpired, Signer, TimestampSigner
+from slowapi.util import get_remote_address
 
 from mtfwbuilder.config import Settings
 from mtfwbuilder.htmx import is_htmx
+from mtfwbuilder.rate_limit import is_trusted_proxy
 
 SESSION_COOKIE = "mtfw_session"
 CSRF_COOKIE = "mtfw_csrf"
@@ -46,12 +48,24 @@ def get_session_token(request: Request) -> str | None:
     return request.cookies.get(SESSION_COOKIE)
 
 
+def _is_https(request: Request) -> bool:
+    """Return True when the request scheme is `https`, or a trusted proxy sends `X-Forwarded-Proto: https`.
+
+    By default, uvicorn reads `X-Forwarded-Proto` only from a loopback peer, so behind the nginx overlay
+    the scheme is `http`. Only a peer in `trusted_proxies` can change the result.
+    """
+    if request.url.scheme == "https":
+        return True
+    settings: Settings = request.app.state.settings
+    forwarded_proto = request.headers.get("x-forwarded-proto", "").strip().lower()
+    return forwarded_proto == "https" and is_trusted_proxy(get_remote_address(request), settings)
+
+
 def set_cookie(response: Response, request: Request, key: str, value: str, max_age: int | None = None) -> None:
-    """Set an HttpOnly, SameSite=Lax cookie that is `Secure` only when the request scheme is `https`.
+    """Set an HttpOnly, SameSite=Lax cookie that is `Secure` only when the request came over HTTPS.
 
     A browser does not store a `Secure` cookie from a plain HTTP response, so a fixed `Secure` flag
-    stops sign-in on a default install. uvicorn sets the scheme from `X-Forwarded-Proto` only for a
-    trusted proxy (`--forwarded-allow-ips`).
+    stops sign-in on a default install.
     """
     response.set_cookie(
         key=key,
@@ -59,7 +73,7 @@ def set_cookie(response: Response, request: Request, key: str, value: str, max_a
         max_age=max_age,
         httponly=True,
         samesite="lax",
-        secure=request.url.scheme == "https",
+        secure=_is_https(request),
     )
 
 

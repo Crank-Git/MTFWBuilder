@@ -248,11 +248,21 @@ body.rv-open .layout { padding-right:21rem; }
 </li>
 </ul>
 <p>source, license, commands, volumes, Python version.</p>
+<ul>
+<li>FR-platform-modernization-16 — The session cookie sets <code>Secure</code> when a peer in
+</li>
+</ul>
+<p><code>MTFW_TRUSTED_PROXIES</code> sends <code>X-Forwarded-Proto: https</code>. The project ignores the header from any other peer.</p>
+<ul>
+<li>FR-platform-modernization-17 — At a start with no admin password, the project generates a
+</li>
+</ul>
+<p>random password. It writes only the bcrypt hash to <code>config.yaml</code> and logs the password once.</p>
 <h3 id="platform-modernization-user-flows">User flows</h3>
 <div class="diagram"><pre class="mermaid">flowchart LR
   A[docker compose up] --&gt; B[Container starts]
   B --&gt; C{/data/config.yaml exists?}
-  C --&gt;|no| D[Write secret key + warn about default password]
+  C --&gt;|no| D[Write secret key + hash of generated password, log the password once]
   C --&gt;|yes| E[Load]
   D --&gt; F[healthz 200]
   E --&gt; F
@@ -261,10 +271,10 @@ body.rv-open .layout { padding-right:21rem; }
 <ol>
 <li>The self-hoster runs <code>docker compose up -d</code>.
 </li>
-<li>On first start, the app writes <code>config.yaml</code> to <code>/data</code> and logs a warning about the
+<li>On first start, the app writes <code>config.yaml</code> to <code>/data</code>. It logs the generated admin
 </li>
 </ol>
-<p>default password.</p>
+<p>password once.</p>
 <ol>
 <li>On a later start, the app reads the same <code>config.yaml</code>. Sessions and firmware sources
 </li>
@@ -281,10 +291,10 @@ body.rv-open .layout { padding-right:21rem; }
 </ul>
 <p>https://docs.platformio.org/en/stable/projectconf/sections/platformio/options/directory/core_dir.html</p>
 <ul>
-<li>The default password warning shows on every start while the hash matches the default
+<li>The project has no default password. Only the first start without a password logs the
 </li>
 </ul>
-<p>password <code>meshtastic</code>.</p>
+<p>generated password. A later start reads the hash from <code>config.yaml</code> and logs no password.</p>
 <h3 id="platform-modernization-data-touched">Data touched</h3>
 <p>All files move under <code>MTFW_DATA_DIR</code>. A startup step moves files from the old paths (<code>base_dir/mtfwbuilder.db</code>, <code>base_dir/firmware</code>, <code>base_dir/config.yaml</code>) when they exist and the new paths do not.</p>
 <h3 id="platform-modernization-interfaces">Interfaces</h3>

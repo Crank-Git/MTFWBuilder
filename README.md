@@ -84,8 +84,11 @@ machine.
 
 ## Quick start
 
-1. **Set the admin password first.** Without one, it's `meshtastic`. Copy
-   `config.yaml.example`, set `admin_password`, and restart:
+1. **Get the admin password.** There's no default. On first start the app generates a
+   random password and logs it once, as `Generated admin password: ...`. Read it with
+   `docker compose logs mtfwbuilder`, or from the terminal for a manual install. Only its
+   hash is saved, so it never shows again. To choose your own, copy `config.yaml.example`,
+   set `admin_password`, and restart:
 
    ```bash
    # Manual install
@@ -169,13 +172,16 @@ Branch from `dev` and open the pull request to `dev`. See [CONTRIBUTING.md](CONT
 
 ## Security
 
-- **Change the default admin password.** With no `admin_password` in `config.yaml`, the
-  password is `meshtastic` and the log warns about it.
+- **No default admin password.** With no `admin_password` in `config.yaml` (and no
+  `MTFW_ADMIN_PASSWORD_HASH`), the first start generates a random password, saves only its
+  bcrypt hash, and logs the password once. Read it from that first log, or set your own.
 - **The app listens on every interface.** The manual command above uses `--host 0.0.0.0`,
   and Docker publishes port 5000 on every host interface. Put it behind the nginx overlay
   ([docs/deploy.md](docs/deploy.md)) before you expose it.
 - Admin passwords are stored as bcrypt hashes. Session cookies are HttpOnly and
-  SameSite=Lax, and Secure when the request scheme is `https`.
+  SameSite=Lax. They're Secure when the request is `https`, or when a proxy listed in
+  `MTFW_TRUSTED_PROXIES` sends `X-Forwarded-Proto: https`. The app ignores that header
+  from any other address, so plain `http://localhost` sign-in still works.
 - When a build ends, the project scrubs the firmware source: it deletes `userPrefs.jsonc`,
   `.pio/build_cache` and the `.pio/build/<env>/` directory of the build. A failed or
   cancelled build also scrubs. A config that holds a secret is never cached.

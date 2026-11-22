@@ -11,7 +11,8 @@ allowed-tools: Bash, Read
 3. Open `http://localhost:5000/`. The page loads when the server is up.
 4. For a real build, an admin must install a firmware source:
    1. Open `http://localhost:5000/admin`.
-   2. Sign in. The default password is `meshtastic` when `config.yaml` sets none.
+   2. Sign in. If `config.yaml` sets no password, read the password from the server log
+      line `Generated admin password`. The first start writes that line once.
    3. Install the stable firmware version. The first install downloads toolchains
       (several GB) and takes many minutes.
 5. For a fast check without PlatformIO, use the fake `pio` from the test fixtures

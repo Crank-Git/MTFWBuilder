@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from mtfwbuilder.config import DataDirError, Settings, load_settings
+from mtfwbuilder.config import PLACEHOLDER_SECRET_KEY, DataDirError, Settings, load_settings
 from mtfwbuilder.database import find_firmware_source
 from mtfwbuilder.main import create_app, lifespan
 from mtfwbuilder.services.firmware_catalog import CatalogUnavailable, FirmwareCatalog
@@ -20,7 +20,7 @@ def dirs(tmp_path, monkeypatch):
     base_dir = tmp_path / "base"
     data_dir = tmp_path / "data"
     base_dir.mkdir()
-    for name in ("MTFW_TEMP_DIR", "MTFW_DATABASE_PATH", "MTFW_FIRMWARE_DIR"):
+    for name in ("MTFW_TEMP_DIR", "MTFW_DATABASE_PATH", "MTFW_FIRMWARE_DIR", "MTFW_SECRET_KEY"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("MTFW_BASE_DIR", str(base_dir))
     monkeypatch.setenv("MTFW_DATA_DIR", str(data_dir))
@@ -52,6 +52,45 @@ def test_load_settings_reads_same_secret_key_on_second_start(dirs):
     first = load_settings()
     second = load_settings()
     assert second.secret_key == first.secret_key
+
+
+def test_secret_key_variable_is_used_and_not_written_when_config_yaml_has_no_key(dirs, monkeypatch):
+    _, data_dir = dirs
+    monkeypatch.setenv("MTFW_SECRET_KEY", "env-secret-key")
+
+    first = load_settings()
+    second = load_settings()
+
+    assert first.secret_key == second.secret_key == "env-secret-key"
+    assert "secret_key" not in yaml.safe_load((data_dir / "config.yaml").read_text())
+
+
+def test_secret_key_variable_replaces_the_placeholder_in_config_yaml(dirs, monkeypatch):
+    _, data_dir = dirs
+    data_dir.mkdir()
+    (data_dir / "config.yaml").write_text(yaml.safe_dump({"secret_key": PLACEHOLDER_SECRET_KEY}))
+    monkeypatch.setenv("MTFW_SECRET_KEY", "env-secret-key")
+
+    assert load_settings().secret_key == "env-secret-key"
+
+
+def test_secret_key_variable_with_the_placeholder_value_gets_a_generated_key(dirs, monkeypatch):
+    _, data_dir = dirs
+    monkeypatch.setenv("MTFW_SECRET_KEY", PLACEHOLDER_SECRET_KEY)
+
+    settings = load_settings()
+
+    assert settings.secret_key != PLACEHOLDER_SECRET_KEY
+    assert yaml.safe_load((data_dir / "config.yaml").read_text())["secret_key"] == settings.secret_key
+
+
+def test_secret_key_in_config_yaml_wins_over_the_variable(dirs, monkeypatch):
+    _, data_dir = dirs
+    data_dir.mkdir()
+    (data_dir / "config.yaml").write_text(yaml.safe_dump({"secret_key": SECRET_KEY}))
+    monkeypatch.setenv("MTFW_SECRET_KEY", "env-secret-key")
+
+    assert load_settings().secret_key == SECRET_KEY
 
 
 def test_startup_moves_old_files_into_data_dir(dirs):
