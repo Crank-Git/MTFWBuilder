@@ -212,7 +212,7 @@ changes what firmware versions the instance holds. The project has no other role
 | Browser flashing | [features/13-browser-flashing.md](features/13-browser-flashing.md) | built | Epic 9: Browser flashing | [06-flash](mockups/06-flash.html) |
 | Fleet builds | [features/14-fleet-builds.md](features/14-fleet-builds.md) | built | Epic 10: Profiles and build cache, Epic 11: Fleet runs | [07-fleet](mockups/07-fleet.html) |
 | Push config | [features/15-push-config.md](features/15-push-config.md) | built | Epic 12: Push config | [08-push-config](mockups/08-push-config.html) |
-| Module settings | [features/16-module-settings.md](features/16-module-settings.md) | issued | Epic 13: Module settings | [09-module-settings](mockups/09-module-settings.html) |
+| Module settings | [features/16-module-settings.md](features/16-module-settings.md) | built | Epic 13: Module settings | [09-module-settings](mockups/09-module-settings.html) |
 
 ## Architecture & stack
 
@@ -475,27 +475,40 @@ Planned: a test fixture holds a small firmware source subset (a few variant
 
 ## Risks & open questions
 
-**Contradictions between documents and code** (the code is the fact):
+**Contradictions between documents and code** (the code is the fact). The inherit found
+these 13 contradictions. All 13 are resolved, and each item names its resolution.
 1. README says 62 variants. The registry holds 150. The README is stale since commit
-   `e575ce7`.
+   `e575ce7`. Resolved in Epic 4 (#112): the README states no fixed variant count.
 2. README links a LICENSE file. No LICENSE file exists. `pyproject.toml` says MIT.
    Resolved in the interview: relicense to GPL-3.0 (ADR 0004).
 3. README says the database stores build history and profiles. No code reads or writes
-   the database.
-4. README says the frontend uses htmx. No template uses an `hx-` attribute.
+   the database. Resolved: the database holds builds (Epic 2), firmware sources (Epic 5),
+   the registry (Epic 6), profiles and the build cache (Epic 10), and fleets (Epic 11).
+4. README says the frontend uses htmx. No template uses an `hx-` attribute. Resolved in
+   Epic 3 (#124): the pages use `hx-` attributes.
 5. README describes real-time build progress. The build page never opens the progress
-   stream, and it calls v1 URLs.
+   stream, and it calls v1 URLs. Resolved in Epic 3 (#124): the build panel opens the
+   progress stream, and the pages call `/api/v1`.
 6. README says the admin panel needs the admin password. The page has no sign-in form.
-7. README says builds clean up after 1 hour. No periodic task exists.
+   Resolved in Epic 3 (#124): `/admin` shows a sign-in form.
+7. README says builds clean up after 1 hour. No periodic task exists. Resolved in Epic 2
+   (#102): a periodic cleanup task runs.
 8. README says secrets are scrubbed from artifacts. Scrub runs on success only, and
-   `.elf` and object files keep the values.
-9. README says uploads are validated as JSON. Only size and UTF-8 are checked.
+   `.elf` and object files keep the values. Resolved in Epic 2 (#102): the scrub runs on
+   every path and deletes `.pio/build/<env>/`.
+9. README says uploads are validated as JSON. Only size and UTF-8 are checked. Resolved
+   in the README rewrite (#203): the README states only the 64 KB upload limit.
 10. CONTRIBUTING says the `id` must match a PlatformIO environment. 71 ids do not.
+    Resolved in Epic 6 (#145): the registry comes from the firmware source, and
+    CONTRIBUTING states that.
 11. `pyproject.toml` and CONTRIBUTING say Python 3.10+. The code needs 3.11
-    (`asyncio.timeout`, `build_service.py:80`).
+    (`asyncio.timeout`, `build_service.py:80`). Resolved in Epic 4 (#112):
+    `requires-python` is `>=3.13,<3.15`.
 12. The README volume table names paths the app does not write to
-    (`docker-compose.yml`; see `features/02-firmware-builder.md`).
-13. `docker.env.example` and `docker-deploy.sh cleanup` use v1 names and routes.
+    (`docker-compose.yml`; see `features/02-firmware-builder.md`). Resolved in Epic 4
+    (#112): the compose file mounts `data` and `platformio`, and the docs name them.
+13. `docker.env.example` and `docker-deploy.sh cleanup` use v1 names and routes. Resolved
+    in Epic 0 (#82): both files are deleted.
 
 **Risks:**
 - **Router roles are not factory defaults.** Upstream replaces a userPrefs role of
@@ -771,3 +784,4 @@ Written by `/spec-to-issues` on 2026-11-21.
 - 2026-11-21 — Epic 13 batch review (#188): `ringtone_nag_secs` now has a cap of 65535, because the firmware field `nag_timeout` holds no more. An older profile with a larger value fails validation, and the operator edits that profile.
 - 2026-11-21 — Epic 13 shipped (#198). PM decisions from the batch review: a push keeps the device fields that core 2.6.7 does not know, and build form field errors have no pydantic prefix (#195). The CLI YAML import of the module sections waits for the owner (#196).
 - 2026-11-22 — Owner decision: `README.md` uses the voice of the owner and is exempt from Simplified Technical English. US English still applies. Every other Markdown file keeps the standard, and `.claude/rules/ste.md` states the exception. The API reference moves to `docs/api.md`, and the Docker reference moves to `docs/deploy.md`.
+- 2026-11-22 — Owner decisions on approved tech debt. The project has no default admin password: a start with no password generates one, stores only its hash and logs it once (FR-platform-modernization-17). The session cookie also sets `Secure` for `X-Forwarded-Proto: https` from a peer in `MTFW_TRUSTED_PROXIES` (FR-platform-modernization-16). The 13 inherit contradictions are marked resolved.

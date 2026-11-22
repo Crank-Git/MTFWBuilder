@@ -358,7 +358,7 @@ body.rv-open .layout { padding-right:21rem; }
 <tr><td>Browser flashing</td><td><a href="html/feature-browser-flashing.html">features/13-browser-flashing.md</a></td><td>built</td><td>Epic 9: Browser flashing</td><td><a href="mockups/06-flash.html">06-flash</a></td></tr>
 <tr><td>Fleet builds</td><td><a href="html/feature-fleet-builds.html">features/14-fleet-builds.md</a></td><td>built</td><td>Epic 10: Profiles and build cache, Epic 11: Fleet runs</td><td><a href="mockups/07-fleet.html">07-fleet</a></td></tr>
 <tr><td>Push config</td><td><a href="html/feature-push-config.html">features/15-push-config.md</a></td><td>built</td><td>Epic 12: Push config</td><td><a href="mockups/08-push-config.html">08-push-config</a></td></tr>
-<tr><td>Module settings</td><td><a href="html/feature-module-settings.html">features/16-module-settings.md</a></td><td>issued</td><td>Epic 13: Module settings</td><td><a href="mockups/09-module-settings.html">09-module-settings</a></td></tr>
+<tr><td>Module settings</td><td><a href="html/feature-module-settings.html">features/16-module-settings.md</a></td><td>built</td><td>Epic 13: Module settings</td><td><a href="mockups/09-module-settings.html">09-module-settings</a></td></tr>
 </table></div>
 <h2 id="architecture-stack">Architecture &amp; stack</h2>
 <div class="diagram"><pre class="mermaid">flowchart LR
@@ -456,7 +456,7 @@ body.rv-open .layout { padding-right:21rem; }
   expired --&gt; [*]</pre></div>
 <p>This is the planned build lifecycle. The <code>scrub</code> step runs on every transition into <code>complete</code>, <code>failed</code> and <code>cancelled</code>.</p>
 <h2 id="cross-cutting-concerns">Cross-cutting concerns</h2>
-<p><strong>Authentication and authorization (built).</strong> The admin password is a bcrypt hash in <code>config.yaml</code>. <code>POST /admin/login</code> sets the cookie <code>mtfw_session</code>: an itsdangerous signature of the string <code>admin</code>, HttpOnly, SameSite=Lax, max age 3600 s. The cookie sets <code>Secure</code> only when the request scheme is <code>https</code>. These routes require the session: <code>/api/v1/update-firmware</code>, <code>/api/v1/cleanup</code>, <code>GET /api/v1/firmware/available</code>, <code>POST /api/v1/firmware/install</code> and <code>DELETE /api/v1/firmware/{version}</code>. The <code>/admin</code> page shows a sign-in form when no session exists.</p>
+<p><strong>Authentication and authorization (built).</strong> The admin password is a bcrypt hash in <code>config.yaml</code>. <code>POST /admin/login</code> sets the cookie <code>mtfw_session</code>: an itsdangerous signature of the string <code>admin</code>, HttpOnly, SameSite=Lax, max age 3600 s. The cookie sets <code>Secure</code> when the request scheme is <code>https</code>. The cookie also sets <code>Secure</code> when a peer in <code>MTFW_TRUSTED_PROXIES</code> sends <code>X-Forwarded-Proto: https</code>. These routes require the session: <code>/api/v1/update-firmware</code>, <code>/api/v1/cleanup</code>, <code>GET /api/v1/firmware/available</code>, <code>POST /api/v1/firmware/install</code> and <code>DELETE /api/v1/firmware/{version}</code>. The <code>/admin</code> page shows a sign-in form when no session exists.</p>
 <p><strong>CSRF (built, Epic 3).</strong> Each admin form carries the hidden field <code>csrf_token</code>. The token is the value of the cookie <code>mtfw_csrf</code>, signed with the same itsdangerous secret key. Sign-in sets a new <code>mtfw_csrf</code> value, so the token belongs to one session. A JSON request and a DELETE request send the token in the header <code>X-CSRF-Token</code>. Each admin POST or DELETE without a valid token returns 403:</p>
 <ul>
 <li><code>/admin/login</code>
@@ -604,12 +604,12 @@ body.rv-open .layout { padding-right:21rem; }
 </ul>
 <p>reconstructed from the code and commit log, not from records of the time.</p>
 <h2 id="risks-open-questions" class="callout-h">Risks &amp; open questions</h2>
-<p><strong>Contradictions between documents and code</strong> (the code is the fact):</p>
+<p><strong>Contradictions between documents and code</strong> (the code is the fact). The inherit found these 13 contradictions. All 13 are resolved, and each item names its resolution.</p>
 <ol>
 <li>README says 62 variants. The registry holds 150. The README is stale since commit
 </li>
 </ol>
-<p><code>e575ce7</code>.</p>
+<p><code>e575ce7</code>. Resolved in Epic 4 (#112): the README states no fixed variant count.</p>
 <ol>
 <li>README links a LICENSE file. No LICENSE file exists. <code>pyproject.toml</code> says MIT.
 </li>
@@ -619,41 +619,57 @@ body.rv-open .layout { padding-right:21rem; }
 <li>README says the database stores build history and profiles. No code reads or writes
 </li>
 </ol>
-<p>the database.</p>
+<p>the database. Resolved: the database holds builds (Epic 2), firmware sources (Epic 5), the registry (Epic 6), profiles and the build cache (Epic 10), and fleets (Epic 11).</p>
 <ol>
-<li>README says the frontend uses htmx. No template uses an <code>hx-</code> attribute.
+<li>README says the frontend uses htmx. No template uses an <code>hx-</code> attribute. Resolved in
 </li>
+</ol>
+<p>Epic 3 (#124): the pages use <code>hx-</code> attributes.</p>
+<ol>
 <li>README describes real-time build progress. The build page never opens the progress
 </li>
 </ol>
-<p>stream, and it calls v1 URLs.</p>
+<p>stream, and it calls v1 URLs. Resolved in Epic 3 (#124): the build panel opens the progress stream, and the pages call <code>/api/v1</code>.</p>
 <ol>
 <li>README says the admin panel needs the admin password. The page has no sign-in form.
 </li>
-<li>README says builds clean up after 1 hour. No periodic task exists.
+</ol>
+<p>Resolved in Epic 3 (#124): <code>/admin</code> shows a sign-in form.</p>
+<ol>
+<li>README says builds clean up after 1 hour. No periodic task exists. Resolved in Epic 2
 </li>
+</ol>
+<p>(#102): a periodic cleanup task runs.</p>
+<ol>
 <li>README says secrets are scrubbed from artifacts. Scrub runs on success only, and
 </li>
 </ol>
-<p><code>.elf</code> and object files keep the values.</p>
+<p><code>.elf</code> and object files keep the values. Resolved in Epic 2 (#102): the scrub runs on every path and deletes <code>.pio/build/&lt;env&gt;/</code>.</p>
 <ol>
-<li>README says uploads are validated as JSON. Only size and UTF-8 are checked.
+<li>README says uploads are validated as JSON. Only size and UTF-8 are checked. Resolved
 </li>
+</ol>
+<p>in the README rewrite (#203): the README states only the 64 KB upload limit.</p>
+<ol>
 <li>CONTRIBUTING says the <code>id</code> must match a PlatformIO environment. 71 ids do not.
 </li>
+</ol>
+<p>Resolved in Epic 6 (#145): the registry comes from the firmware source, and CONTRIBUTING states that.</p>
+<ol>
 <li><code>pyproject.toml</code> and CONTRIBUTING say Python 3.10+. The code needs 3.11
 </li>
 </ol>
-<p>(<code>asyncio.timeout</code>, <code>build_service.py:80</code>).</p>
+<p>(<code>asyncio.timeout</code>, <code>build_service.py:80</code>). Resolved in Epic 4 (#112): <code>requires-python</code> is <code>&gt;=3.13,&lt;3.15</code>.</p>
 <ol>
 <li>The README volume table names paths the app does not write to
 </li>
 </ol>
-<p>(<code>docker-compose.yml</code>; see <code>features/02-firmware-builder.md</code>).</p>
+<p>(<code>docker-compose.yml</code>; see <code>features/02-firmware-builder.md</code>). Resolved in Epic 4 (#112): the compose file mounts <code>data</code> and <code>platformio</code>, and the docs name them.</p>
 <ol>
-<li><code>docker.env.example</code> and <code>docker-deploy.sh cleanup</code> use v1 names and routes.
+<li><code>docker.env.example</code> and <code>docker-deploy.sh cleanup</code> use v1 names and routes. Resolved
 </li>
 </ol>
+<p>in Epic 0 (#82): both files are deleted.</p>
 <p><strong>Risks:</strong></p>
 <ul>
 <li><strong>Router roles are not factory defaults.</strong> Upstream replaces a userPrefs role of
@@ -956,6 +972,8 @@ body.rv-open .layout { padding-right:21rem; }
 <li>2026-11-21 — Epic 13 shipped (#198). PM decisions from the batch review: a push keeps the device fields that core 2.6.7 does not know, and build form field errors have no pydantic prefix (#195). The CLI YAML import of the module sections waits for the owner (#196).
 </li>
 <li>2026-11-22 — Owner decision: <code>README.md</code> uses the voice of the owner and is exempt from Simplified Technical English. US English still applies. Every other Markdown file keeps the standard, and <code>.claude/rules/ste.md</code> states the exception. The API reference moves to <code>docs/api.md</code>, and the Docker reference moves to <code>docs/deploy.md</code>.
+</li>
+<li>2026-11-22 — Owner decisions on approved tech debt. The project has no default admin password: a start with no password generates one, stores only its hash and logs it once (FR-platform-modernization-17). The session cookie also sets <code>Secure</code> for <code>X-Forwarded-Proto: https</code> from a peer in <code>MTFW_TRUSTED_PROXIES</code> (FR-platform-modernization-16). The 13 inherit contradictions are marked resolved.
 </li>
 </ul><nav class="pager">
 <span></span>
