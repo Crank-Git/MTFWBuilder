@@ -22,7 +22,7 @@ Settings read `config.yaml` first, then `MTFW_<FIELD>` environment variables
 | `MTFW_CLEANUP_INTERVAL_SECONDS` | Cleanup task interval | built |
 | `MTFW_BUILD_MAX_AGE_SECONDS` | Artifact age limit | built |
 | `MTFW_ADMIN_PASSWORD_HASH` | Admin bcrypt hash. When `config.yaml` has no admin password, this value applies and the project generates no password. | built |
-| `MTFW_SECRET_KEY` | Session and CSRF signing key. When `config.yaml` has no `secret_key`, or has the example value `change-me-in-production`, this value applies and the project writes no key to `config.yaml`. When `config.yaml` has a key, that key applies. | built |
+| `MTFW_SECRET_KEY` | Session and CSRF signing key. When `config.yaml` has no `secret_key`, or has the example value `change-me-in-production`, this value applies and the project writes no key to `config.yaml`. When `config.yaml` has a key, that key applies and the project ignores this value. Thus this value only seeds an install whose `config.yaml` has no key. To rotate the key, remove `secret_key` from `config.yaml`. A key change makes the stored profile secrets unreadable (ADR 0007). | built |
 | `MTFW_SESSION_MAX_AGE` | Session length | built |
 | `MTFW_BUILD_RATE_LIMIT`, `MTFW_LOGIN_RATE_LIMIT` | Rate limits of the build route and the login route, in slowapi notation (`5/minute`) | built |
 | `MTFW_DATA_DIR` | Data directory. Holds firmware sources, artifacts, the database and `config.yaml`. Default `data/` in the project root, `/data` in Docker. | built |

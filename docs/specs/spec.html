@@ -981,6 +981,8 @@ body.rv-open .layout { padding-right:21rem; }
 </li>
 <li>2026-11-22 — Owner decisions on approved tech debt. The project has no default admin password: a start with no password generates one, stores only its hash and logs it once (FR-platform-modernization-17). The session cookie also sets <code>Secure</code> for <code>X-Forwarded-Proto: https</code> from a peer in <code>MTFW_TRUSTED_PROXIES</code> (FR-platform-modernization-16). The 13 inherit contradictions are marked resolved.
 </li>
+<li>2026-11-22 — Owner ruling on the secret key: a <code>secret_key</code> in <code>config.yaml</code> wins over <code>MTFW_SECRET_KEY</code>. The variable only seeds an install whose <code>config.yaml</code> has no key, because a key change makes the stored profile secrets unreadable (ADR 0007).
+</li>
 </ul><nav class="pager">
 <span></span>
 <a href="html/page-inherit-reconciliation.html">Inherit reconciliation and research &rarr;</a>
