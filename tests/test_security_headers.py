@@ -73,12 +73,13 @@ async def test_page_has_no_inline_script_or_event_handler_without_the_nonce(clie
     assert not re.search(r"\son[a-z]+=", resp.text)
 
 
-async def test_permissions_policy_allows_serial_and_bluetooth_for_the_server_only(client):
+async def test_permissions_policy_allows_serial_for_the_server_only_and_leaves_out_bluetooth(client):
     resp = await client.get("/")
 
     features = dict(item.split("=") for item in resp.headers["permissions-policy"].split(", "))
     assert features["serial"] == "(self)"
-    assert features["bluetooth"] == "(self)"
+    # Linux Chromium does not know `bluetooth`, and an unknown feature writes an error to the console.
+    assert "bluetooth" not in features
     assert features["usb"] == "()"
     assert features["camera"] == "()"
 

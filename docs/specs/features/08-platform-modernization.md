@@ -69,8 +69,10 @@ stream works through nginx.
   Chromium.
 - FR-platform-modernization-20 — The paths `/docs`, `/docs/oauth2-redirect` and `/redoc` get a
   policy that also allows `https://cdn.jsdelivr.net` and inline scripts and styles.
-- FR-platform-modernization-21 — The `Permissions-Policy` allows `serial` and `bluetooth` for
-  the server only, and denies the other listed features.
+- FR-platform-modernization-21 — The `Permissions-Policy` allows `serial` for the server only,
+  and denies the other listed features. The policy does not list `bluetooth`, because Linux
+  Chromium reports it as an unknown feature. The browser default for `bluetooth` is the server
+  only.
 
 ## User flows
 

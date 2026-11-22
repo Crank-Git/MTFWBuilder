@@ -190,8 +190,10 @@ Branch from `dev` and open the pull request to `dev`. See [CONTRIBUTING.md](CONT
 - Subprocess calls take argument lists, never `shell=True`.
 - The app sends a strict Content-Security-Policy (scripts only from the server, plus a
   per-request nonce for the push config import map), `X-Frame-Options: DENY`, `nosniff`,
-  `Referrer-Policy: same-origin`, and a Permissions-Policy that allows only Web Serial and
-  Web Bluetooth. nginx adds HSTS. If your `nginx/nginx.conf` came from an older example,
+  `Referrer-Policy: same-origin`, and a Permissions-Policy that turns off camera, mic, USB
+  and the rest and keeps Web Serial on this origin. Web Bluetooth isn't listed, because
+  Linux Chromium flags it as unknown; its browser default is already this origin only.
+  nginx adds HSTS. If your `nginx/nginx.conf` came from an older example,
   remove its `X-Frame-Options`, `X-Content-Type-Options` and `Referrer-Policy` lines.
 - Rate limits on sign-in and builds: `10/minute` (`MTFW_LOGIN_RATE_LIMIT`) and `5/minute`
   (`MTFW_BUILD_RATE_LIMIT`). Behind a proxy, set `MTFW_TRUSTED_PROXIES` so the limiter

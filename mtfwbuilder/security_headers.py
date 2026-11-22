@@ -24,9 +24,10 @@ DOCS_POLICY = (
     "worker-src blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 )
 
-# Flashing uses Web Serial and push config uses Web Serial or Web Bluetooth. The pages use no other feature here.
+# Flashing and push config use Web Serial. Linux Chromium 159 reports `bluetooth` as an unknown feature on the
+# console, so the policy leaves it out, and Web Bluetooth keeps its default allowlist of the page origin.
 PERMISSIONS_POLICY = (
-    "accelerometer=(), bluetooth=(self), camera=(), display-capture=(), geolocation=(), gyroscope=(), hid=(), "
+    "accelerometer=(), camera=(), display-capture=(), geolocation=(), gyroscope=(), hid=(), "
     "magnetometer=(), microphone=(), payment=(), serial=(self), usb=()"
 )
 

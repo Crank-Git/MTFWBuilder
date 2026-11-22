@@ -286,10 +286,10 @@ body.rv-open .layout { padding-right:21rem; }
 </ul>
 <p>policy that also allows <code>https://cdn.jsdelivr.net</code> and inline scripts and styles.</p>
 <ul>
-<li>FR-platform-modernization-21 — The <code>Permissions-Policy</code> allows <code>serial</code> and <code>bluetooth</code> for
+<li>FR-platform-modernization-21 — The <code>Permissions-Policy</code> allows <code>serial</code> for the server only,
 </li>
 </ul>
-<p>the server only, and denies the other listed features.</p>
+<p>and denies the other listed features. The policy does not list <code>bluetooth</code>, because Linux Chromium reports it as an unknown feature. The browser default for <code>bluetooth</code> is the server only.</p>
 <h3 id="platform-modernization-user-flows">User flows</h3>
 <div class="diagram"><pre class="mermaid">flowchart LR
   A[docker compose up] --&gt; B[Container starts]
