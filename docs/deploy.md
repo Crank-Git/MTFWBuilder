@@ -40,9 +40,12 @@ docker compose restart mtfwbuilder
 ```
 
 The overlay sets `MTFW_TRUSTED_PROXIES` to `172.30.80.0/24`, the fixed subnet of its `backend`
-network. Only nginx and the app use that network. The rate limiter then reads
-`X-Forwarded-For` from nginx. If you change the subnet in `docker-compose.prod.yml`, change
-both values.
+network. Only nginx and the app use that network. The app then reads two headers from nginx:
+- The rate limiter reads `X-Forwarded-For`.
+- The session cookie reads `X-Forwarded-Proto`. When the value is `https`, the cookie is `Secure`.
+
+The app ignores both headers from an address outside `MTFW_TRUSTED_PROXIES`. If you change the
+subnet in `docker-compose.prod.yml`, change both values.
 
 ## Upgrade from a release before the `data` volume
 

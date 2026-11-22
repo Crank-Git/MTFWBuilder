@@ -175,7 +175,9 @@ Branch from `dev` and open the pull request to `dev`. See [CONTRIBUTING.md](CONT
   and Docker publishes port 5000 on every host interface. Put it behind the nginx overlay
   ([docs/deploy.md](docs/deploy.md)) before you expose it.
 - Admin passwords are stored as bcrypt hashes. Session cookies are HttpOnly and
-  SameSite=Lax, and Secure when the request scheme is `https`.
+  SameSite=Lax. They're Secure when the request is `https`, or when a proxy listed in
+  `MTFW_TRUSTED_PROXIES` sends `X-Forwarded-Proto: https`. The app ignores that header
+  from any other address, so plain `http://localhost` sign-in still works.
 - When a build ends, the project scrubs the firmware source: it deletes `userPrefs.jsonc`,
   `.pio/build_cache` and the `.pio/build/<env>/` directory of the build. A failed or
   cancelled build also scrubs. A config that holds a secret is never cached.

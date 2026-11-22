@@ -26,7 +26,7 @@ Settings read `config.yaml` first, then `MTFW_<FIELD>` environment variables
 | `MTFW_SESSION_MAX_AGE` | Session length | built |
 | `MTFW_BUILD_RATE_LIMIT`, `MTFW_LOGIN_RATE_LIMIT` | Rate limits of the build route and the login route, in slowapi notation (`5/minute`) | built |
 | `MTFW_DATA_DIR` | Data directory. Holds firmware sources, artifacts, the database and `config.yaml`. Default `data/` in the project root, `/data` in Docker. | built |
-| `MTFW_TRUSTED_PROXIES` | Comma-separated addresses or subnets of the proxies whose `X-Forwarded-For` the rate limiter reads. Default empty: the limiter counts the peer address. | built |
+| `MTFW_TRUSTED_PROXIES` | Comma-separated addresses or subnets of the proxies whose `X-Forwarded-For` the rate limiter reads, and whose `X-Forwarded-Proto: https` makes the session cookie `Secure`. Default empty: the limiter counts the peer address, and only an `https` request scheme makes the cookie `Secure`. | built |
 | `MTFW_INSTALL_TIMEOUT_SECONDS` | Time limit of `pio pkg install` in a firmware install, default 3600 | built |
 | `MTFW_CACHE_ENABLED` | Build cache on or off. Default `true`. `false` turns the build cache off. | built |
 | `MTFW_CACHE_TTL_SECONDS` | Time after its last use that the cleanup task removes a cache entry. Default 86400. | built; the build cache is `cache/` in the data directory |

@@ -51,6 +51,9 @@ stream works through nginx.
   firmware `develop` and runs the contract tests against it.
 - FR-platform-modernization-15 — README and CONTRIBUTING match the code: variant count
   source, license, commands, volumes, Python version.
+- FR-platform-modernization-16 — The session cookie sets `Secure` when a peer in
+  `MTFW_TRUSTED_PROXIES` sends `X-Forwarded-Proto: https`. The project ignores the header
+  from any other peer.
 
 ## User flows
 

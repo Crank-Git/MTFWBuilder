@@ -336,7 +336,8 @@ This is the planned build lifecycle. The `scrub` step runs on every transition i
 **Authentication and authorization (built).** The admin password is a bcrypt hash in
 `config.yaml`. `POST /admin/login` sets the cookie `mtfw_session`: an itsdangerous
 signature of the string `admin`, HttpOnly, SameSite=Lax, max age 3600 s. The cookie sets
-`Secure` only when the request scheme is `https`. These routes require the session:
+`Secure` when the request scheme is `https`. The cookie also sets `Secure` when a peer in
+`MTFW_TRUSTED_PROXIES` sends `X-Forwarded-Proto: https`. These routes require the session:
 `/api/v1/update-firmware`, `/api/v1/cleanup`, `GET /api/v1/firmware/available`,
 `POST /api/v1/firmware/install` and `DELETE /api/v1/firmware/{version}`. The `/admin` page shows a sign-in form when no
 session exists.
