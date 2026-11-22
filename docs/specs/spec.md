@@ -69,18 +69,22 @@ configures a device after it is flashed. No other public tool gives a web interf
 firmware that carries custom defaults. Research on 2026-11-21 found only small
 command-line forks (see `pages/inherit-reconciliation.md`).
 
-**Current state (2026-11-21).** The v2 rewrite (FastAPI, March 2026) changed the
-backend. It did not change the frontend. Research found that the end-to-end flow does
-not work today, for these reasons:
-- The pages call v1 URLs that the v2 backend does not serve.
-- 71 of the 150 registry ids are not PlatformIO environment names.
+**State at the inherit (2026-11-21).** The v2 rewrite (FastAPI, March 2026) changed the
+backend. It did not change the frontend. Research found that the end-to-end flow did
+not work, for these reasons:
+- The pages called v1 URLs that the v2 backend did not serve.
+- 71 of the 150 registry ids were not PlatformIO environment names.
 - Upstream firmware changed its output file names in December 2025.
-- The generator writes many keys that the firmware does not read.
+- The generator wrote many keys that the firmware did not read.
 
-This spec documents the code as it is (`status: built` features 01–04). It then plans the
-repair, the update to current upstream firmware, and new capabilities (`status:
-planned` features 00 and 05–15). The full reconciliation of documents against code is
-in `pages/inherit-reconciliation.md`.
+Features 01–04 record the code at the inherit. Features 00 and 05–16 planned the repair,
+the update to current upstream firmware, and new capabilities. The full reconciliation of
+documents against code is in `pages/inherit-reconciliation.md`.
+
+**Current state (2026-11-22).** Epics 0–13 are built, and every feature except the retired
+feature 03 has the status `built`. The end-to-end flow works: build, download, browser
+flashing, channel share, profiles, the build cache, fleet runs, push config and module
+settings.
 
 **An important upstream fact.** A `userPrefs.jsonc` value is a factory default. The
 firmware applies it on first boot and on factory reset only. After that, the saved
@@ -249,17 +253,17 @@ flowchart LR
   P -- artifact --> WS -- flash / push config --> D[Device]
 ```
 
-The diagram shows the target architecture after the planned epics. Today the build
-worker runs only while a progress stream is open, the cleanup task does not exist, and
-the database is not used (see `features/02-firmware-builder.md`).
+The diagram shows the architecture that Epics 0–13 built. A build worker runs a build
+with no open progress stream. The cleanup task runs at startup and then on a timer. The
+routers read and write the database.
 
 | Component | Choice | Why |
 |---|---|---|
 | Web server | FastAPI + uvicorn, one process (`--workers 1`) | Built. Async builds and SSE. One process keeps the build queue in memory without a broker. |
-| Pages | Jinja2 templates + htmx 2 + htmx SSE extension, Bootstrap 5.3 | Chosen in the interview: no JavaScript build step. htmx is loaded today but not used. ADR 0002. |
+| Pages | Jinja2 templates + htmx 2 + htmx SSE extension, Bootstrap 5.3 | Chosen in the interview: no JavaScript build step. Built in Epic 3. ADR 0002. |
 | Browser flashing | ESP Web Tools 10.x / esptool-js 0.7 (Apache-2.0), vendored | Apache-2.0 is compatible with GPL-3.0. The official Web Flasher uses esptool-js. |
 | Push config | `@meshtastic/core` 2.6.7 + `@meshtastic/transport-web-serial` 0.2.5 + `@meshtastic/transport-web-bluetooth` 0.1.5 (GPL-3.0-only, npm), vendored as esm.sh builds | `meshtastic-sdk` has no JS release. ADR 0008. |
-| Data store | SQLite through aiosqlite | Built (schema only). Zero setup for a self-hoster. ADR 0003. |
+| Data store | SQLite through aiosqlite | Built. Zero setup for a self-hoster. ADR 0003. |
 | Firmware build | PlatformIO Core 6.2 (`pioarduino` core for ESP32 on firmware 2.8) | Upstream build system. Source: `meshtastic/gh-action-firmware`. |
 | Packaging | `pyproject.toml` + hatchling, uv + `uv.lock` (Epic 4) | Interview choice (stack modernization). |
 | Runtime | Python 3.13 (Docker and CI; CI also tests 3.14) | `meshtastic` python requires `<3.15`. |
@@ -283,23 +287,24 @@ erDiagram
   BUILD }o--o| CACHE_ENTRY : "served from"
 ```
 
-**Built today** (`mtfwbuilder/database.py:8-30`). The project creates two tables at
-startup. No code reads or writes them.
+**At the inherit** (`bd15bb1`, `mtfwbuilder/database.py:8-30`). The project created two
+tables at startup. No code read or wrote them. The notes below give the change since the
+inherit.
 
 | Entity | Fields | Notes |
 |---|---|---|
-| `builds` | `id` TEXT PK, `variant`, `architecture`, `firmware_format` TEXT NOT NULL, `status` TEXT NOT NULL default `queued`, `firmware_path`, `build_log`, `error_message` TEXT, `created_at` default now, `completed_at` | Unused. Builds live in memory (`app.state.active_builds`). |
-| `config_profiles` | `id` INTEGER PK, `name` TEXT NOT NULL, `config_json` TEXT NOT NULL, `created_at`, `updated_at` | Unused. `name` is not unique. Since Epic 10 (#61), `init_db` drops it, and the `profiles` table replaces it. |
+| `builds` | `id` TEXT PK, `variant`, `architecture`, `firmware_format` TEXT NOT NULL, `status` TEXT NOT NULL default `queued`, `firmware_path`, `build_log`, `error_message` TEXT, `created_at` default now, `completed_at` | Unused at the inherit. Since Epic 2 (#102), the build queue writes a row for each build, with `config_hash`, `firmware_version` and `fleet_run_id`. The project writes no `build_log`. |
+| `config_profiles` | `id` INTEGER PK, `name` TEXT NOT NULL, `config_json` TEXT NOT NULL, `created_at`, `updated_at` | Unused at the inherit. `name` was not unique. Since Epic 10 (#61), `init_db` drops it, and the `profiles` table replaces it. |
 
 The registry was a YAML file at the inherit (`devices/variants.yaml`, 150 entries). Since Epic 6 (#145) it is the `variants` table, generated per firmware version.
 
-**Planned.** Each planned feature file states its own fields and migration.
+**Built.** The epics built these entities. Each feature file states its own fields and migration.
 
 | Entity | Owner feature | Key fields | Lifecycle |
 |---|---|---|---|
 | FIRMWARE_SOURCE | firmware-versions | `version` PK, `channel` (stable/alpha/pinned), `path`, `installed_at`, `status` | installing → ready → removed |
 | VARIANT | generated-registry | `env` + `version` PK, `display_name`, `manufacturer`, `architecture`, `support_level`, `hw_model`, `image`, `requires_dfu` | regenerated when a firmware source becomes ready |
-| BUILD | build-pipeline-repair | `id` (random, 128-bit), `version`, `variant`, `status`, `config_hash`, `created_at`, `completed_at`, `error_message`, `fleet_run_id` | queued → compiling → linking → packaging → complete / failed / cancelled → expired |
+| BUILD | build-pipeline-repair | `id` (random, 128-bit), `version`, `variant`, `status`, `config_hash`, `created_at`, `completed_at`, `error_message`, `fleet_run_id` | queued → compiling → linking → packaging → complete / failed / cancelled. The periodic cleanup deletes the build directory later. |
 | CACHE_ENTRY | fleet-builds | `config_hash` PK, `firmware_version`, `variant`, `artifact_dir`, `artifact_names` (JSON list), `created_at`, `last_used_at` (Unix seconds) | created on complete without a secret, removed by TTL or when an artifact is missing |
 | PROFILE | fleet-builds | `id`, `name` UNIQUE, `config_json` without secrets, `must_reenter_json`, `stores_secrets`, `secrets_ciphertext` (Fernet token, nullable), `created_at`, `updated_at` | created → updated → deleted |
 | FLEET | fleet-builds | `id`, `name`, `profile_id`, `firmware_version` (nullable: the default firmware source), `created_at`, `updated_at` | created → updated → deleted |
@@ -328,8 +333,9 @@ stateDiagram-v2
   expired --> [*]
 ```
 
-This is the planned build lifecycle. The `scrub` step runs on every transition into
-`complete`, `failed` and `cancelled`.
+This is the build lifecycle. The project stores no `expired` status: the periodic cleanup
+deletes the build directory of an ended build after `build_max_age_seconds`. The `scrub`
+step runs on every transition into `complete`, `failed` and `cancelled`.
 
 ## Cross-cutting concerns
 
@@ -339,7 +345,8 @@ signature of the string `admin`, HttpOnly, SameSite=Lax, max age 3600 s. The coo
 `Secure` when the request scheme is `https`. The cookie also sets `Secure` when a peer in
 `MTFW_TRUSTED_PROXIES` sends `X-Forwarded-Proto: https`. These routes require the session:
 `/api/v1/update-firmware`, `/api/v1/cleanup`, `GET /api/v1/firmware/available`,
-`POST /api/v1/firmware/install` and `DELETE /api/v1/firmware/{version}`. The `/admin` page shows a sign-in form when no
+`POST /api/v1/firmware/install`, `GET /api/v1/firmware/install/{install_id}`,
+`GET /api/v1/firmware/install/{install_id}/progress` and `DELETE /api/v1/firmware/{version}`. The `/admin` page shows a sign-in form when no
 session exists.
 
 **CSRF (built, Epic 3).** Each admin form carries the hidden field `csrf_token`. The token
@@ -354,17 +361,19 @@ valid token returns 403:
 - `POST /api/v1/firmware/install`
 - `DELETE /api/v1/firmware/{version}`
 
-**Planned auth changes** (feature `build-pipeline-repair`):
-- Build ids are random, so one operator cannot guess another operator's build.
+**Build ids (built, Epic 2).** A build id is a random 128-bit value
+(`secrets.token_hex(16)`), so one operator cannot guess another operator's build.
 
-**Validation.** Today the routes read raw JSON. The pydantic models in `models.py` are
-not used. Planned: every route validates its body with a pydantic model, and every
-enum (region, modem preset, role, GPS mode) comes from one module that matches the
-upstream protobufs.
+**Validation (built).** Every route validates its body with a pydantic model in
+`models.py`. Every enum (region, modem preset, role, GPS mode) comes from
+`mtfwbuilder/meshtastic_enums.py`, which matches the upstream protobufs.
 
-**Errors.** Today the config routes return HTTP 200 with `success: false` and the raw
-exception text. Planned: a validation error returns 422 with field errors. An internal
-error returns 500 with a generic message and logs the detail.
+**Errors.** A validation error returns 422 with field errors. An unhandled exception
+returns 500 with the generic text `Internal Server Error`, and the server logs the detail.
+Two routes still return HTTP 200 with `success: false`:
+- `POST /api/v1/preview-userprefs`, for a missing file, a file over 64 KB, a file that is
+  not UTF-8, or an exception. For an exception, the response holds the exception text.
+- `POST /api/v1/update-firmware`, when the install fails.
 
 **Secrets.** A secret is never logged, never stored in the database, never kept in a
 cache entry, and never kept in browser storage after the page closes. The project
@@ -384,9 +393,13 @@ PlatformIO build of one ESP32 variant takes several minutes on first build and u
 several GB of disk for toolchains. The build cache returns a repeated build in under
 one second.
 
-**Security headers.** nginx sets them in production (`nginx/nginx.conf.example`). The
-app sets none. Planned: the app sets `X-Content-Type-Options`, `Referrer-Policy` and a
-Content-Security-Policy that allows only vendored scripts.
+**Security headers.** In production, nginx sets `Strict-Transport-Security`,
+`X-Frame-Options`, `X-Content-Type-Options` and `Referrer-Policy`
+(`nginx/nginx.conf.example`). The app sets `Content-Security-Policy` and
+`X-Content-Type-Options` only on a device image response (`routers/variants.py`). Not
+built: the app sets `X-Content-Type-Options`, `Referrer-Policy` and a
+Content-Security-Policy that allows only vendored scripts on every response. No epic
+holds this work.
 
 ## Environments & config
 
@@ -406,22 +419,23 @@ device from the test (feature push-config). Only the E2E test config turns it on
 production server leaves it off.
 
 Seed data: none. The registry and the firmware source come from upstream at runtime.
-Planned: a test fixture holds a small firmware source subset (a few variant
-`platformio.ini` files and `userPrefs.jsonc`) so tests run without a download.
+The test fixture `tests/fixtures/firmware/` holds a small firmware source subset (a few
+variant `platformio.ini` files and `userPrefs.jsonc`), so tests run without a download.
 
 ## Testing strategy
 
 - **Unit:** pytest, `asyncio_mode = "auto"`. 106 tests at the inherit (2026-11-21, `bd15bb1`);
   the suite grows with each epic.
-- **Contract tests (planned):** the userPrefs keys the generator writes are a subset of
+- **Contract tests (built):** the userPrefs keys the generator writes are a subset of
   the keys the fixture firmware source reads. The registry fixture matches
   `pio project config --json-output` output.
-- **Integration (planned):** route tests through httpx for every `/api/v1` route,
+- **Integration (built):** route tests through httpx for every `/api/v1` route,
   including the progress stream. A fake `pio` executable stands in for PlatformIO.
-- **E2E smoke (planned):** Playwright loads each page, fills the config form, starts a
+- **E2E smoke (built):** Playwright loads each page, fills the config form, starts a
   build against the fake `pio`, and downloads the artifact.
-- **Real build (planned, manual or scheduled CI):** one real `pio run` of one ESP32 and
-  one nRF52 variant.
+- **Real build (not built, manual or scheduled CI):** one real `pio run` of one ESP32 and
+  one nRF52 variant. The weekly workflow `upstream-check.yml` runs only the contract
+  tests against upstream `develop`.
 - A change is done when `uv run pytest`, `uv run ruff check`, and `uv run ruff format
   --check` pass, and the E2E smoke passes for any change under `templates/` or `static/`.
 

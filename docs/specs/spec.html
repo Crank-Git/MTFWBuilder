@@ -193,18 +193,19 @@ body.rv-open .layout { padding-right:21rem; }
 </li>
 </ul>
 <p>The official Meshtastic Web Flasher flashes prebuilt firmware only. The Meshtastic CLI configures a device after it is flashed. No other public tool gives a web interface for firmware that carries custom defaults. Research on 2026-11-21 found only small command-line forks (see <code>pages/inherit-reconciliation.md</code>).</p>
-<p><strong>Current state (2026-11-21).</strong> The v2 rewrite (FastAPI, March 2026) changed the backend. It did not change the frontend. Research found that the end-to-end flow does not work today, for these reasons:</p>
+<p><strong>State at the inherit (2026-11-21).</strong> The v2 rewrite (FastAPI, March 2026) changed the backend. It did not change the frontend. Research found that the end-to-end flow did not work, for these reasons:</p>
 <ul>
-<li>The pages call v1 URLs that the v2 backend does not serve.
+<li>The pages called v1 URLs that the v2 backend did not serve.
 </li>
-<li>71 of the 150 registry ids are not PlatformIO environment names.
+<li>71 of the 150 registry ids were not PlatformIO environment names.
 </li>
 <li>Upstream firmware changed its output file names in December 2025.
 </li>
-<li>The generator writes many keys that the firmware does not read.
+<li>The generator wrote many keys that the firmware did not read.
 </li>
 </ul>
-<p>This spec documents the code as it is (<code>status: built</code> features 01–04). It then plans the repair, the update to current upstream firmware, and new capabilities (<code>status: planned</code> features 00 and 05–15). The full reconciliation of documents against code is in <code>pages/inherit-reconciliation.md</code>.</p>
+<p>Features 01–04 record the code at the inherit. Features 00 and 05–16 planned the repair, the update to current upstream firmware, and new capabilities. The full reconciliation of documents against code is in <code>pages/inherit-reconciliation.md</code>.</p>
+<p><strong>Current state (2026-11-22).</strong> Epics 0–13 are built, and every feature except the retired feature 03 has the status <code>built</code>. The end-to-end flow works: build, download, browser flashing, channel share, profiles, the build cache, fleet runs, push config and module settings.</p>
 <p><strong>An important upstream fact.</strong> A <code>userPrefs.jsonc</code> value is a factory default. The firmware applies it on first boot and on factory reset only. After that, the saved device config wins. To stop a user changing settings, the config must set an admin key (<code>USERPREFS_USE_ADMIN_KEY_0</code>) and <code>USERPREFS_CONFIG_SECURITY_IS_MANAGED</code>. Source: the header of <code>userPrefs.jsonc</code> in <code>meshtastic/firmware</code> <code>develop@fe89ac1</code>.</p>
 <h2 id="terms">Terms</h2>
 <div class="table-wrap"><table>
@@ -391,14 +392,14 @@ body.rv-open .layout { padding-right:21rem; }
   R --&gt; DB
   C --&gt; BC
   P -- artifact --&gt; WS -- flash / push config --&gt; D[Device]</pre></div>
-<p>The diagram shows the target architecture after the planned epics. Today the build worker runs only while a progress stream is open, the cleanup task does not exist, and the database is not used (see <code>features/02-firmware-builder.md</code>).</p>
+<p>The diagram shows the architecture that Epics 0–13 built. A build worker runs a build with no open progress stream. The cleanup task runs at startup and then on a timer. The routers read and write the database.</p>
 <div class="table-wrap"><table>
 <tr><th>Component</th><th>Choice</th><th>Why</th></tr>
 <tr><td>Web server</td><td>FastAPI + uvicorn, one process (<code>--workers 1</code>)</td><td>Built. Async builds and SSE. One process keeps the build queue in memory without a broker.</td></tr>
-<tr><td>Pages</td><td>Jinja2 templates + htmx 2 + htmx SSE extension, Bootstrap 5.3</td><td>Chosen in the interview: no JavaScript build step. htmx is loaded today but not used. ADR 0002.</td></tr>
+<tr><td>Pages</td><td>Jinja2 templates + htmx 2 + htmx SSE extension, Bootstrap 5.3</td><td>Chosen in the interview: no JavaScript build step. Built in Epic 3. ADR 0002.</td></tr>
 <tr><td>Browser flashing</td><td>ESP Web Tools 10.x / esptool-js 0.7 (Apache-2.0), vendored</td><td>Apache-2.0 is compatible with GPL-3.0. The official Web Flasher uses esptool-js.</td></tr>
 <tr><td>Push config</td><td><code>@meshtastic/core</code> 2.6.7 + <code>@meshtastic/transport-web-serial</code> 0.2.5 + <code>@meshtastic/transport-web-bluetooth</code> 0.1.5 (GPL-3.0-only, npm), vendored as esm.sh builds</td><td><code>meshtastic-sdk</code> has no JS release. ADR 0008.</td></tr>
-<tr><td>Data store</td><td>SQLite through aiosqlite</td><td>Built (schema only). Zero setup for a self-hoster. ADR 0003.</td></tr>
+<tr><td>Data store</td><td>SQLite through aiosqlite</td><td>Built. Zero setup for a self-hoster. ADR 0003.</td></tr>
 <tr><td>Firmware build</td><td>PlatformIO Core 6.2 (<code>pioarduino</code> core for ESP32 on firmware 2.8)</td><td>Upstream build system. Source: <code>meshtastic/gh-action-firmware</code>.</td></tr>
 <tr><td>Packaging</td><td><code>pyproject.toml</code> + hatchling, uv + <code>uv.lock</code> (Epic 4)</td><td>Interview choice (stack modernization).</td></tr>
 <tr><td>Runtime</td><td>Python 3.13 (Docker and CI; CI also tests 3.14)</td><td><code>meshtastic</code> python requires <code>&lt;3.15</code>.</td></tr>
@@ -418,19 +419,19 @@ body.rv-open .layout { padding-right:21rem; }
   FLEET_RUN ||--o{ BUILD : produces
   FLEET_DEVICE ||--o| BUILD : "one per run"
   BUILD }o--o| CACHE_ENTRY : "served from"</pre></div>
-<p><strong>Built today</strong> (<code>mtfwbuilder/database.py:8-30</code>). The project creates two tables at startup. No code reads or writes them.</p>
+<p><strong>At the inherit</strong> (<code>bd15bb1</code>, <code>mtfwbuilder/database.py:8-30</code>). The project created two tables at startup. No code read or wrote them. The notes below give the change since the inherit.</p>
 <div class="table-wrap"><table>
 <tr><th>Entity</th><th>Fields</th><th>Notes</th></tr>
-<tr><td><code>builds</code></td><td><code>id</code> TEXT PK, <code>variant</code>, <code>architecture</code>, <code>firmware_format</code> TEXT NOT NULL, <code>status</code> TEXT NOT NULL default <code>queued</code>, <code>firmware_path</code>, <code>build_log</code>, <code>error_message</code> TEXT, <code>created_at</code> default now, <code>completed_at</code></td><td>Unused. Builds live in memory (<code>app.state.active_builds</code>).</td></tr>
-<tr><td><code>config_profiles</code></td><td><code>id</code> INTEGER PK, <code>name</code> TEXT NOT NULL, <code>config_json</code> TEXT NOT NULL, <code>created_at</code>, <code>updated_at</code></td><td>Unused. <code>name</code> is not unique. Since Epic 10 (#61), <code>init_db</code> drops it, and the <code>profiles</code> table replaces it.</td></tr>
+<tr><td><code>builds</code></td><td><code>id</code> TEXT PK, <code>variant</code>, <code>architecture</code>, <code>firmware_format</code> TEXT NOT NULL, <code>status</code> TEXT NOT NULL default <code>queued</code>, <code>firmware_path</code>, <code>build_log</code>, <code>error_message</code> TEXT, <code>created_at</code> default now, <code>completed_at</code></td><td>Unused at the inherit. Since Epic 2 (#102), the build queue writes a row for each build, with <code>config_hash</code>, <code>firmware_version</code> and <code>fleet_run_id</code>. The project writes no <code>build_log</code>.</td></tr>
+<tr><td><code>config_profiles</code></td><td><code>id</code> INTEGER PK, <code>name</code> TEXT NOT NULL, <code>config_json</code> TEXT NOT NULL, <code>created_at</code>, <code>updated_at</code></td><td>Unused at the inherit. <code>name</code> was not unique. Since Epic 10 (#61), <code>init_db</code> drops it, and the <code>profiles</code> table replaces it.</td></tr>
 </table></div>
 <p>The registry was a YAML file at the inherit (<code>devices/variants.yaml</code>, 150 entries). Since Epic 6 (#145) it is the <code>variants</code> table, generated per firmware version.</p>
-<p><strong>Planned.</strong> Each planned feature file states its own fields and migration.</p>
+<p><strong>Built.</strong> The epics built these entities. Each feature file states its own fields and migration.</p>
 <div class="table-wrap"><table>
 <tr><th>Entity</th><th>Owner feature</th><th>Key fields</th><th>Lifecycle</th></tr>
 <tr><td>FIRMWARE_SOURCE</td><td>firmware-versions</td><td><code>version</code> PK, <code>channel</code> (stable/alpha/pinned), <code>path</code>, <code>installed_at</code>, <code>status</code></td><td>installing → ready → removed</td></tr>
 <tr><td>VARIANT</td><td>generated-registry</td><td><code>env</code> + <code>version</code> PK, <code>display_name</code>, <code>manufacturer</code>, <code>architecture</code>, <code>support_level</code>, <code>hw_model</code>, <code>image</code>, <code>requires_dfu</code></td><td>regenerated when a firmware source becomes ready</td></tr>
-<tr><td>BUILD</td><td>build-pipeline-repair</td><td><code>id</code> (random, 128-bit), <code>version</code>, <code>variant</code>, <code>status</code>, <code>config_hash</code>, <code>created_at</code>, <code>completed_at</code>, <code>error_message</code>, <code>fleet_run_id</code></td><td>queued → compiling → linking → packaging → complete / failed / cancelled → expired</td></tr>
+<tr><td>BUILD</td><td>build-pipeline-repair</td><td><code>id</code> (random, 128-bit), <code>version</code>, <code>variant</code>, <code>status</code>, <code>config_hash</code>, <code>created_at</code>, <code>completed_at</code>, <code>error_message</code>, <code>fleet_run_id</code></td><td>queued → compiling → linking → packaging → complete / failed / cancelled. The periodic cleanup deletes the build directory later.</td></tr>
 <tr><td>CACHE_ENTRY</td><td>fleet-builds</td><td><code>config_hash</code> PK, <code>firmware_version</code>, <code>variant</code>, <code>artifact_dir</code>, <code>artifact_names</code> (JSON list), <code>created_at</code>, <code>last_used_at</code> (Unix seconds)</td><td>created on complete without a secret, removed by TTL or when an artifact is missing</td></tr>
 <tr><td>PROFILE</td><td>fleet-builds</td><td><code>id</code>, <code>name</code> UNIQUE, <code>config_json</code> without secrets, <code>must_reenter_json</code>, <code>stores_secrets</code>, <code>secrets_ciphertext</code> (Fernet token, nullable), <code>created_at</code>, <code>updated_at</code></td><td>created → updated → deleted</td></tr>
 <tr><td>FLEET</td><td>fleet-builds</td><td><code>id</code>, <code>name</code>, <code>profile_id</code>, <code>firmware_version</code> (nullable: the default firmware source), <code>created_at</code>, <code>updated_at</code></td><td>created → updated → deleted</td></tr>
@@ -454,9 +455,9 @@ body.rv-open .layout { padding-right:21rem; }
   failed --&gt; expired
   cancelled --&gt; expired
   expired --&gt; [*]</pre></div>
-<p>This is the planned build lifecycle. The <code>scrub</code> step runs on every transition into <code>complete</code>, <code>failed</code> and <code>cancelled</code>.</p>
+<p>This is the build lifecycle. The project stores no <code>expired</code> status: the periodic cleanup deletes the build directory of an ended build after <code>build_max_age_seconds</code>. The <code>scrub</code> step runs on every transition into <code>complete</code>, <code>failed</code> and <code>cancelled</code>.</p>
 <h2 id="cross-cutting-concerns">Cross-cutting concerns</h2>
-<p><strong>Authentication and authorization (built).</strong> The admin password is a bcrypt hash in <code>config.yaml</code>. <code>POST /admin/login</code> sets the cookie <code>mtfw_session</code>: an itsdangerous signature of the string <code>admin</code>, HttpOnly, SameSite=Lax, max age 3600 s. The cookie sets <code>Secure</code> when the request scheme is <code>https</code>. The cookie also sets <code>Secure</code> when a peer in <code>MTFW_TRUSTED_PROXIES</code> sends <code>X-Forwarded-Proto: https</code>. These routes require the session: <code>/api/v1/update-firmware</code>, <code>/api/v1/cleanup</code>, <code>GET /api/v1/firmware/available</code>, <code>POST /api/v1/firmware/install</code> and <code>DELETE /api/v1/firmware/{version}</code>. The <code>/admin</code> page shows a sign-in form when no session exists.</p>
+<p><strong>Authentication and authorization (built).</strong> The admin password is a bcrypt hash in <code>config.yaml</code>. <code>POST /admin/login</code> sets the cookie <code>mtfw_session</code>: an itsdangerous signature of the string <code>admin</code>, HttpOnly, SameSite=Lax, max age 3600 s. The cookie sets <code>Secure</code> when the request scheme is <code>https</code>. The cookie also sets <code>Secure</code> when a peer in <code>MTFW_TRUSTED_PROXIES</code> sends <code>X-Forwarded-Proto: https</code>. These routes require the session: <code>/api/v1/update-firmware</code>, <code>/api/v1/cleanup</code>, <code>GET /api/v1/firmware/available</code>, <code>POST /api/v1/firmware/install</code>, <code>GET /api/v1/firmware/install/{install_id}</code>, <code>GET /api/v1/firmware/install/{install_id}/progress</code> and <code>DELETE /api/v1/firmware/{version}</code>. The <code>/admin</code> page shows a sign-in form when no session exists.</p>
 <p><strong>CSRF (built, Epic 3).</strong> Each admin form carries the hidden field <code>csrf_token</code>. The token is the value of the cookie <code>mtfw_csrf</code>, signed with the same itsdangerous secret key. Sign-in sets a new <code>mtfw_csrf</code> value, so the token belongs to one session. A JSON request and a DELETE request send the token in the header <code>X-CSRF-Token</code>. Each admin POST or DELETE without a valid token returns 403:</p>
 <ul>
 <li><code>/admin/login</code>
@@ -472,19 +473,24 @@ body.rv-open .layout { padding-right:21rem; }
 <li><code>DELETE /api/v1/firmware/{version}</code>
 </li>
 </ul>
-<p><strong>Planned auth changes</strong> (feature <code>build-pipeline-repair</code>):</p>
+<p><strong>Build ids (built, Epic 2).</strong> A build id is a random 128-bit value (<code>secrets.token_hex(16)</code>), so one operator cannot guess another operator's build.</p>
+<p><strong>Validation (built).</strong> Every route validates its body with a pydantic model in <code>models.py</code>. Every enum (region, modem preset, role, GPS mode) comes from <code>mtfwbuilder/meshtastic_enums.py</code>, which matches the upstream protobufs.</p>
+<p><strong>Errors.</strong> A validation error returns 422 with field errors. An unhandled exception returns 500 with the generic text <code>Internal Server Error</code>, and the server logs the detail. Two routes still return HTTP 200 with <code>success: false</code>:</p>
 <ul>
-<li>Build ids are random, so one operator cannot guess another operator's build.
+<li><code>POST /api/v1/preview-userprefs</code>, for a missing file, a file over 64 KB, a file that is
 </li>
 </ul>
-<p><strong>Validation.</strong> Today the routes read raw JSON. The pydantic models in <code>models.py</code> are not used. Planned: every route validates its body with a pydantic model, and every enum (region, modem preset, role, GPS mode) comes from one module that matches the upstream protobufs.</p>
-<p><strong>Errors.</strong> Today the config routes return HTTP 200 with <code>success: false</code> and the raw exception text. Planned: a validation error returns 422 with field errors. An internal error returns 500 with a generic message and logs the detail.</p>
+<p>not UTF-8, or an exception. For an exception, the response holds the exception text.</p>
+<ul>
+<li><code>POST /api/v1/update-firmware</code>, when the install fails.
+</li>
+</ul>
 <p><strong>Secrets.</strong> A secret is never logged, never stored in the database, never kept in a cache entry, and never kept in browser storage after the page closes. The project scrubs the firmware source after every build. The build log sent to the page has every secret value replaced with <code>***</code>.</p>
 <p><strong>Logging.</strong> Standard <code>logging</code>, optional JSON format (<code>MTFW_LOG_JSON</code>). No <code>print()</code>.</p>
 <p><strong>Accessibility.</strong> Every input has a label. The progress stream region has <code>aria-live="polite"</code>. Every icon-only button has an <code>aria-label</code>. Colors meet WCAG AA contrast in light and dark themes.</p>
 <p><strong>i18n.</strong> English only. Not planned.</p>
 <p><strong>Performance.</strong> One build worker by default (<code>MTFW_BUILD_WORKERS</code>, default 1). A PlatformIO build of one ESP32 variant takes several minutes on first build and uses several GB of disk for toolchains. The build cache returns a repeated build in under one second.</p>
-<p><strong>Security headers.</strong> nginx sets them in production (<code>nginx/nginx.conf.example</code>). The app sets none. Planned: the app sets <code>X-Content-Type-Options</code>, <code>Referrer-Policy</code> and a Content-Security-Policy that allows only vendored scripts.</p>
+<p><strong>Security headers.</strong> In production, nginx sets <code>Strict-Transport-Security</code>, <code>X-Frame-Options</code>, <code>X-Content-Type-Options</code> and <code>Referrer-Policy</code> (<code>nginx/nginx.conf.example</code>). The app sets <code>Content-Security-Policy</code> and <code>X-Content-Type-Options</code> only on a device image response (<code>routers/variants.py</code>). Not built: the app sets <code>X-Content-Type-Options</code>, <code>Referrer-Policy</code> and a Content-Security-Policy that allows only vendored scripts on every response. No epic holds this work.</p>
 <h2 id="environments-config">Environments &amp; config</h2>
 <div class="table-wrap"><table>
 <tr><th>Environment</th><th>How it runs</th><th>Notes</th></tr>
@@ -494,7 +500,7 @@ body.rv-open .layout { padding-right:21rem; }
 </table></div>
 <p>Settings come from <code>config.yaml</code> and from <code>MTFW_*</code> environment variables. Values in <code>config.yaml</code> win over environment variables (<code>mtfwbuilder/config.py:58-116</code>). The full list of names is in <code>docs/external.md</code>. Names only; no values are in this repository.</p>
 <p>The test hook flag: <code>MTFW_PUSH_TEST_HOOKS</code> (setting <code>push_test_hooks</code>, default <code>false</code>). When it is on, the push config page renders a test flag, and the page then accepts a fake device from the test (feature push-config). Only the E2E test config turns it on. A production server leaves it off.</p>
-<p>Seed data: none. The registry and the firmware source come from upstream at runtime. Planned: a test fixture holds a small firmware source subset (a few variant <code>platformio.ini</code> files and <code>userPrefs.jsonc</code>) so tests run without a download.</p>
+<p>Seed data: none. The registry and the firmware source come from upstream at runtime. The test fixture <code>tests/fixtures/firmware/</code> holds a small firmware source subset (a few variant <code>platformio.ini</code> files and <code>userPrefs.jsonc</code>), so tests run without a download.</p>
 <h2 id="testing-strategy">Testing strategy</h2>
 <ul>
 <li><strong>Unit:</strong> pytest, <code>asyncio_mode = "auto"</code>. 106 tests at the inherit (2026-11-21, <code>bd15bb1</code>);
@@ -502,25 +508,25 @@ body.rv-open .layout { padding-right:21rem; }
 </ul>
 <p>the suite grows with each epic.</p>
 <ul>
-<li><strong>Contract tests (planned):</strong> the userPrefs keys the generator writes are a subset of
+<li><strong>Contract tests (built):</strong> the userPrefs keys the generator writes are a subset of
 </li>
 </ul>
 <p>the keys the fixture firmware source reads. The registry fixture matches <code>pio project config --json-output</code> output.</p>
 <ul>
-<li><strong>Integration (planned):</strong> route tests through httpx for every <code>/api/v1</code> route,
+<li><strong>Integration (built):</strong> route tests through httpx for every <code>/api/v1</code> route,
 </li>
 </ul>
 <p>including the progress stream. A fake <code>pio</code> executable stands in for PlatformIO.</p>
 <ul>
-<li><strong>E2E smoke (planned):</strong> Playwright loads each page, fills the config form, starts a
+<li><strong>E2E smoke (built):</strong> Playwright loads each page, fills the config form, starts a
 </li>
 </ul>
 <p>build against the fake <code>pio</code>, and downloads the artifact.</p>
 <ul>
-<li><strong>Real build (planned, manual or scheduled CI):</strong> one real <code>pio run</code> of one ESP32 and
+<li><strong>Real build (not built, manual or scheduled CI):</strong> one real <code>pio run</code> of one ESP32 and
 </li>
 </ul>
-<p>one nRF52 variant.</p>
+<p>one nRF52 variant. The weekly workflow <code>upstream-check.yml</code> runs only the contract tests against upstream <code>develop</code>.</p>
 <ul>
 <li>A change is done when <code>uv run pytest</code>, <code>uv run ruff check</code>, and `uv run ruff format
 </li>
