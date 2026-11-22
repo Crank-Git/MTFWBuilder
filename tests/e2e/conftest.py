@@ -28,6 +28,25 @@ ALPHA_VERSION = "v2.8.2.d5f1619"
 NO_REGISTRY_VERSION = "v2.7.20.0000000"
 
 
+# Chromium writes each Content-Security-Policy violation and each bad Permissions-Policy entry to the console.
+POLICY_CONSOLE_TEXT = ("Content Security Policy", "Permissions-Policy", "Permissions policy")
+
+
+@pytest.fixture(autouse=True)
+def _no_policy_console_messages(request):
+    """Fail an E2E test when the browser reports a policy problem on the console (FR-platform-modernization-19)."""
+    if "page" not in request.fixturenames:
+        yield
+        return
+    page = request.getfixturevalue("page")
+    messages = []
+    page.on(
+        "console", lambda msg: messages.append(msg.text) if any(t in msg.text for t in POLICY_CONSOLE_TEXT) else None
+    )
+    yield
+    assert messages == []
+
+
 def open_tab(page, tab_id: str) -> None:
     """Select the config tab `tab_id`, for example `security`, so its controls show."""
     page.click(f"#config-tab-{tab_id}")

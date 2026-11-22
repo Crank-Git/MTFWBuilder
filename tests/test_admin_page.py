@@ -300,7 +300,7 @@ async def test_htmx_update_failure_returns_an_html_fragment_with_the_error(app, 
 
     resp = await client.post("/api/v1/update-firmware", data={"csrf_token": token}, headers={"HX-Request": "true"})
 
-    assert resp.status_code == 200
+    assert resp.status_code == 502
     assert resp.headers["content-type"].startswith("text/html")
     assert "Cannot get the firmware version from the upstream firmware list." in resp.text
 

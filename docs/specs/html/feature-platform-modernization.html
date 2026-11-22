@@ -258,6 +258,38 @@ body.rv-open .layout { padding-right:21rem; }
 </li>
 </ul>
 <p>random password. It writes only the bcrypt hash to <code>config.yaml</code> and logs the password once.</p>
+<ul>
+<li>FR-platform-modernization-18 — Every HTTP response of the app has these headers:
+<ul>
+<li><code>Content-Security-Policy</code>;
+</li>
+<li><code>X-Content-Type-Options: nosniff</code>;
+</li>
+<li><code>X-Frame-Options: DENY</code>;
+</li>
+<li><code>Referrer-Policy: same-origin</code>;
+</li>
+<li><code>Permissions-Policy</code>.
+</li>
+</ul>
+</li>
+</ul>
+<p>A response that sets its own <code>Content-Security-Policy</code> keeps it.</p>
+<ul>
+<li>FR-platform-modernization-19 — The page <code>Content-Security-Policy</code> allows a script only from
+</li>
+</ul>
+<p>the server or with the nonce of the response. The main pages cause no policy violation in Chromium.</p>
+<ul>
+<li>FR-platform-modernization-20 — The paths <code>/docs</code>, <code>/docs/oauth2-redirect</code> and <code>/redoc</code> get a
+</li>
+</ul>
+<p>policy that also allows <code>https://cdn.jsdelivr.net</code> and inline scripts and styles.</p>
+<ul>
+<li>FR-platform-modernization-21 — The <code>Permissions-Policy</code> allows <code>serial</code> for the server only,
+</li>
+</ul>
+<p>and denies the other listed features. The policy does not list <code>bluetooth</code>, because Linux Chromium reports it as an unknown feature. The browser default for <code>bluetooth</code> is the server only.</p>
 <h3 id="platform-modernization-user-flows">User flows</h3>
 <div class="diagram"><pre class="mermaid">flowchart LR
   A[docker compose up] --&gt; B[Container starts]

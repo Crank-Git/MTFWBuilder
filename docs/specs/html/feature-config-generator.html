@@ -166,7 +166,7 @@ body.rv-open .layout { padding-right:21rem; }
 <h3 id="config-generator-purpose">Purpose</h3>
 <p>The config generator turns a web form into a userPrefs file. The operator previews the userPrefs file, downloads it, or carries the config to the firmware builder page.</p>
 <p>This file describes the code at commit <code>bd15bb1</code> (2026-11-21).</p>
-<p><strong>Changed since this record.</strong> Epic 1 (#92) changed this behaviour: the routes validate with <code>ConfigRequest</code> and return 422, the generator writes upstream key names, admin keys as <code>USERPREFS_USE_ADMIN_KEY_&lt;n&gt;</code>, the button pin, event mode and POSIX time zones. The current contract is <code>05-userprefs-correctness.md</code>. Defects are stated plainly. The repair is in <code>05-userprefs-correctness.md</code> and <code>07-frontend-htmx.md</code>.</p>
+<p><strong>Changed since this record.</strong> <code>POST /api/v1/preview-userprefs</code> returns 413 for a file over 64 KB, and 422 for a file with no name or with text that is not UTF-8. It never returns 200 with <code>success: false</code>. Epic 1 (#92) changed this behaviour: the routes validate with <code>ConfigRequest</code> and return 422, the generator writes upstream key names, admin keys as <code>USERPREFS_USE_ADMIN_KEY_&lt;n&gt;</code>, the button pin, event mode and POSIX time zones. The current contract is <code>05-userprefs-correctness.md</code>. Defects are stated plainly. The repair is in <code>05-userprefs-correctness.md</code> and <code>07-frontend-htmx.md</code>.</p>
 <h3 id="config-generator-user-stories">User stories</h3>
 <ul>
 <li>As an operator, I want to fill in owner names, channels, LoRa, position and network

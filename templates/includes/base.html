@@ -4,10 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% if title %}{{ title }} — {% endif %}MTFWBuilder</title>
-    <script>
-        // This script runs before the stylesheets load, so the page never paints in the wrong theme.
-        document.documentElement.setAttribute('data-bs-theme', localStorage.getItem('theme') || 'dark');
-    </script>
+    <script src="{{ url_for('static', path='js/theme.js') }}"></script>
+    {# htmx adds an inline style element for its indicator class, which the Content-Security-Policy blocks. No page uses the class. #}
+    <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
     {% block head %}{% endblock %}
     <link rel="stylesheet" href="{{ url_for('static', path='vendor/bootstrap-5.3.9.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', path='vendor/bootstrap-icons-1.13.2/bootstrap-icons.min.css') }}">

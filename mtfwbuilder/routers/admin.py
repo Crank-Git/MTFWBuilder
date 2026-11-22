@@ -3,7 +3,7 @@
 import logging
 
 import requests
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse, Response
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -22,7 +22,7 @@ from mtfwbuilder.auth import (
     verify_password,
 )
 from mtfwbuilder.database import get_db, get_recent_builds, list_firmware_sources
-from mtfwbuilder.htmx import fragment_or_json
+from mtfwbuilder.htmx import fragment_or_json, is_htmx
 from mtfwbuilder.rate_limit import limiter, login_rate_limit
 from mtfwbuilder.routers.firmware import install_context
 from mtfwbuilder.services import firmware_updater
@@ -115,26 +115,37 @@ async def update_firmware_route(request: Request):
 
     This old route stays for API clients (FR-admin-4). It starts the same install as
     `POST /api/v1/firmware/install` with `{"channel": "stable"}`, and waits for it.
+
+    Returns:
+    - 502 when the upstream firmware list gives no stable firmware version.
+    - 500 when the install fails. The server log holds the reason, because it can hold paths and command output.
     """
     installs: firmware_updater.FirmwareInstalls = request.app.state.firmware_installs
-    install = None
     try:
         install = await installs.start(channel="stable")
     except firmware_updater.FirmwareVersionInstalled as e:
         result = {"success": True, "message": f"Firmware version {e} is installed."}
+        return fragment_or_json(request, "partials/admin_result.html", result, result)
     except firmware_updater.InstallActive as e:
         install = e.install
     except (firmware_updater.ReleaseNotFound, requests.RequestException) as e:
         logger.error(f"No stable firmware version: {e}")
-        result = {"success": False, "error": "Cannot get the firmware version from the upstream firmware list."}
-    if install is not None:
-        # The install is a task of its own, so a closed request does not stop it.
-        await install.wait()
-        if install.status == "ready":
-            result = {"success": True, "message": f"Firmware version {install.version} is installed."}
-        else:
-            result = {"success": False, "error": install.error}
+        return _failure(request, 502, "Cannot get the firmware version from the upstream firmware list.", e)
+    # The install is a task of its own, so a closed request does not stop it.
+    await install.wait()
+    if install.status != "ready":
+        return _failure(request, 500, f"The install of {install.version} failed. The server log has the reason.", None)
+    result = {"success": True, "message": f"Firmware version {install.version} is installed."}
     return fragment_or_json(request, "partials/admin_result.html", result, result)
+
+
+def _failure(request: Request, status_code: int, detail: str, cause: Exception | None) -> Response:
+    """Return the message as an alert fragment for htmx, else raise `HTTPException` with the message as `detail`."""
+    if not is_htmx(request):
+        raise HTTPException(status_code=status_code, detail=detail) from cause
+    return request.app.state.templates.TemplateResponse(
+        request, "partials/admin_result.html", {"success": False, "error": detail}, status_code=status_code
+    )
 
 
 @router.post("/api/v1/cleanup", dependencies=[Depends(require_admin), Depends(require_csrf)])

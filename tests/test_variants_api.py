@@ -160,6 +160,8 @@ async def test_image_route_sends_the_svg_from_the_firmware_source(client, stable
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "image/svg+xml"
     assert resp.content == SVG
+    # FR-platform-modernization-18: the image route keeps its own policy, which allows no script.
+    assert resp.headers["content-security-policy"] == "default-src 'none'; style-src 'unsafe-inline'"
 
 
 async def test_image_route_sends_a_png_with_the_png_content_type(app, client, settings):

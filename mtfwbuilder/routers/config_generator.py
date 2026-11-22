@@ -184,44 +184,39 @@ async def download(request: Request) -> Response:
     )
 
 
-@router.post("/preview-userprefs")
+@router.post("/preview-userprefs", responses={413: {"description": "The file is larger than 64 KB"}})
 async def preview_userprefs(userPrefs: Annotated[UploadFile, File()]) -> FilePreviewResponse:
-    """Preview an uploaded userPrefs.jsonc file content."""
+    """Return the content, the line count and the key checks of an uploaded userPrefs.jsonc file.
+
+    Raises:
+        HTTPException: The file is larger than 64 KB (413), as for `POST /api/v1/import/cli-yaml`.
+        RequestValidationError: The file has no name, or is not UTF-8 text (422).
+    """
+    if not userPrefs.filename:
+        raise RequestValidationError([field_error(("userPrefs",), "No file selected")])
+    contents = await userPrefs.read(MAX_UPLOAD_SIZE + 1)
+    if len(contents) > MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=413, detail=f"The file is larger than {MAX_UPLOAD_SIZE // 1024} KB.")
     try:
-        if not userPrefs.filename:
-            return FilePreviewResponse(success=False, error="No file selected")
-
-        # Validate file size
-        contents = await userPrefs.read()
-        if len(contents) > MAX_UPLOAD_SIZE:
-            return FilePreviewResponse(success=False, error=f"File too large (max {MAX_UPLOAD_SIZE // 1024}KB)")
-
-        # Validate content type
         file_content = contents.decode("utf-8")
-
-        # Try to parse as JSON to validate
-        config_lines = [
-            line.strip() for line in file_content.split("\n") if line.strip() and not line.strip().startswith("//")
-        ]
-
-        checks = {
-            "owner_name": "USERPREFS_OWNER_SHORT_NAME" in file_content
-            or "USERPREFS_CONFIG_OWNER_SHORT_NAME" in file_content,
-            "channel_name": "USERPREFS_CHANNEL_0_NAME" in file_content,
-            "channel_psk": "USERPREFS_CHANNEL_0_PSK" in file_content,
-            "region": "USERPREFS_CONFIG_LORA_REGION" in file_content,
-            "device_role": "USERPREFS_CONFIG_DEVICE_ROLE" in file_content,
-        }
-
-        return FilePreviewResponse(
-            success=True,
-            content=file_content,
-            line_count=len(config_lines),
-            checks=checks,
-            filename=userPrefs.filename,
-        )
     except UnicodeDecodeError:
-        return FilePreviewResponse(success=False, error="File is not valid UTF-8 text")
-    except Exception as e:
-        logger.error(f"File preview error: {e}")
-        return FilePreviewResponse(success=False, error=str(e))
+        raise RequestValidationError([field_error(("userPrefs",), "File is not valid UTF-8 text")]) from None
+
+    config_lines = [
+        line.strip() for line in file_content.split("\n") if line.strip() and not line.strip().startswith("//")
+    ]
+    checks = {
+        "owner_name": "USERPREFS_OWNER_SHORT_NAME" in file_content
+        or "USERPREFS_CONFIG_OWNER_SHORT_NAME" in file_content,
+        "channel_name": "USERPREFS_CHANNEL_0_NAME" in file_content,
+        "channel_psk": "USERPREFS_CHANNEL_0_PSK" in file_content,
+        "region": "USERPREFS_CONFIG_LORA_REGION" in file_content,
+        "device_role": "USERPREFS_CONFIG_DEVICE_ROLE" in file_content,
+    }
+    return FilePreviewResponse(
+        success=True,
+        content=file_content,
+        line_count=len(config_lines),
+        checks=checks,
+        filename=userPrefs.filename,
+    )

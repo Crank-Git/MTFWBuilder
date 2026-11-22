@@ -4,7 +4,15 @@ import re
 from pathlib import Path
 
 CONFIG = Path(__file__).resolve().parent.parent / "nginx" / "nginx.conf.example"
-SECURITY_HEADERS = ("Strict-Transport-Security", "X-Frame-Options", "X-Content-Type-Options", "Referrer-Policy")
+SECURITY_HEADERS = ("Strict-Transport-Security",)
+# The app sends these on every response (FR-platform-modernization-18), so nginx must not send a second copy.
+APP_HEADERS = (
+    "Content-Security-Policy",
+    "X-Frame-Options",
+    "X-Content-Type-Options",
+    "Referrer-Policy",
+    "Permissions-Policy",
+)
 
 
 def _blocks(text: str) -> list[str]:
@@ -28,6 +36,12 @@ def test_each_block_with_add_header_sends_all_security_headers():
     for block in blocks:
         for header in SECURITY_HEADERS:
             assert re.search(rf"add_header\s+{header}\s.*\balways;", block), header
+
+
+def test_config_sends_none_of_the_headers_that_the_app_sends():
+    text = re.sub(r"#[^\n]*", "", CONFIG.read_text())
+    for header in APP_HEADERS:
+        assert header not in text, header
 
 
 def test_config_sends_no_x_xss_protection_header():

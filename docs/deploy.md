@@ -19,7 +19,10 @@ The production overlay puts nginx in front of the project and serves HTTPS. Web 
 Web Bluetooth work only on a secure page. Thus browser flashing and push config need HTTPS
 on every host other than `localhost`.
 
-1. Copy the nginx config: `cp nginx/nginx.conf.example nginx/nginx.conf`.
+1. Copy the nginx config: `cp nginx/nginx.conf.example nginx/nginx.conf`. The app sends its
+   own security headers, and nginx adds only `Strict-Transport-Security`. If your
+   `nginx/nginx.conf` comes from an older example, remove its `X-Frame-Options`,
+   `X-Content-Type-Options` and `Referrer-Policy` lines, because two copies can conflict.
 2. In `nginx/nginx.conf`, set `server_name` to your domain.
 3. Put the certificate in `nginx/ssl/fullchain.pem` and the key in `nginx/ssl/privkey.pem`.
 4. Start the project with the overlay:
@@ -63,9 +66,17 @@ key from it (ADR 0007). The project gets `secret_key` from the first source in t
 2. The `MTFW_SECRET_KEY` environment variable.
 3. A new random key. The project writes the new key to `/data/config.yaml`.
 
-On first start without `MTFW_SECRET_KEY`, the project writes a key to `config.yaml`. After that
-start, `MTFW_SECRET_KEY` has no effect until you remove `secret_key` from `config.yaml`. A
-change of `secret_key` ends every session, and the stored profile secrets do not decrypt.
+`MTFW_SECRET_KEY` only seeds an install whose `config.yaml` has no key. When `config.yaml` has a
+key, the project ignores `MTFW_SECRET_KEY`.
+
+Warning: a change of `secret_key` ends every session. The stored profile secrets and fleet
+device admin keys do not decrypt after the change (ADR 0007). The operator must enter them again.
+
+To rotate the key:
+1. Remove the `secret_key` line from `/data/config.yaml`.
+2. Optional: set `MTFW_SECRET_KEY` to the new key.
+3. Restart the container. Without `MTFW_SECRET_KEY`, the project writes a new random key to
+   `config.yaml`.
 
 ## Upgrade from a release before the `data` volume
 
