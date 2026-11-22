@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import secrets
 import shutil
 import tempfile
 from pathlib import Path
@@ -16,6 +17,9 @@ from pydantic_settings import BaseSettings, NoDecode
 from mtfwbuilder.services.cleanup_service import scrub_after_restart
 
 logger = logging.getLogger("mtfwbuilder")
+
+# `config.yaml.example` holds this value, so a copied example file gets a generated key too.
+PLACEHOLDER_SECRET_KEY = "change-me-in-production"
 
 
 class DataDirError(RuntimeError):
@@ -47,9 +51,8 @@ class Settings(BaseSettings):
 
     # Auth
     admin_password_hash: str = ""
-    secret_key: str = (
-        "change-me-in-production"  # Auto-generated on config.json migration; override in config.yaml for fresh installs
-    )
+    # `load_settings` never keeps this placeholder: it uses MTFW_SECRET_KEY, else it generates a key into config.yaml.
+    secret_key: str = PLACEHOLDER_SECRET_KEY
     session_max_age: int = 3600  # 1 hour
 
     # Rate limiting
@@ -146,6 +149,9 @@ def _move_old(old: Path, new: Path) -> bool:
 def load_settings() -> Settings:
     """Load settings from config.yaml, with password auto-migration.
 
+    When no admin password is set, the function generates one, writes only its hash to config.yaml
+    and logs the password once.
+
     The function reads config.yaml from the data directory: `MTFW_DATA_DIR`, else `data/` under
     the base directory. It reads config.json from the base directory: `MTFW_BASE_DIR`, else the
     project root.
@@ -172,12 +178,10 @@ def load_settings() -> Settings:
         with open(old_config_path) as f:
             data = json.load(f)
 
-        raw_password = data.get("admin_password", "meshtastic")
-        hashed = _hash_password(raw_password)
-        overrides["admin_password_hash"] = hashed
-
         # Write migrated config.yaml
-        migrated = {"admin_password_hash": hashed, "secret_key": os.urandom(32).hex()}
+        migrated = {"secret_key": os.urandom(32).hex()}
+        if "admin_password" in data:
+            migrated["admin_password_hash"] = overrides["admin_password_hash"] = _hash_password(data["admin_password"])
         with open(config_path, "w") as f:
             yaml.dump(migrated, f, default_flow_style=False)
 
@@ -191,15 +195,20 @@ def load_settings() -> Settings:
         with open(config_path, "w") as f:
             yaml.dump(overrides_copy, f, default_flow_style=False)
 
-    # Default password if nothing configured
-    if not overrides.get("admin_password_hash"):
-        overrides["admin_password_hash"] = _hash_password("meshtastic")
+    # config.yaml keeps only the hash, so a later start finds it and never shows the password again.
+    if not overrides.get("admin_password_hash") and not os.environ.get("MTFW_ADMIN_PASSWORD_HASH"):
+        password = secrets.token_urlsafe(16)
+        overrides["admin_password_hash"] = _hash_password(password)
+        with open(config_path, "w") as f:
+            yaml.dump(dict(overrides), f, default_flow_style=False)
         logger.warning(
-            "SECURITY: Using default admin password 'meshtastic'. Set admin_password in config.yaml for production use."
+            f"Generated admin password: {password} (shown once; set admin_password in config.yaml to choose your own)"
         )
 
-    # Auto-generate secret key if still default
-    if overrides.get("secret_key", "change-me-in-production") == "change-me-in-production":
+    # A config.yaml key wins over MTFW_SECRET_KEY, so the placeholder must leave overrides for the variable to apply.
+    if overrides.get("secret_key") == PLACEHOLDER_SECRET_KEY:
+        del overrides["secret_key"]
+    if "secret_key" not in overrides and os.environ.get("MTFW_SECRET_KEY", "") in ("", PLACEHOLDER_SECRET_KEY):
         generated_key = os.urandom(32).hex()
         overrides["secret_key"] = generated_key
         # Persist if we have a config path

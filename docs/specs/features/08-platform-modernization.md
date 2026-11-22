@@ -51,6 +51,28 @@ stream works through nginx.
   firmware `develop` and runs the contract tests against it.
 - FR-platform-modernization-15 — README and CONTRIBUTING match the code: variant count
   source, license, commands, volumes, Python version.
+- FR-platform-modernization-16 — The session cookie sets `Secure` when a peer in
+  `MTFW_TRUSTED_PROXIES` sends `X-Forwarded-Proto: https`. The project ignores the header
+  from any other peer.
+- FR-platform-modernization-17 — At a start with no admin password, the project generates a
+  random password. It writes only the bcrypt hash to `config.yaml` and logs the password once.
+- FR-platform-modernization-18 — Every HTTP response of the app has these headers:
+  - `Content-Security-Policy`;
+  - `X-Content-Type-Options: nosniff`;
+  - `X-Frame-Options: DENY`;
+  - `Referrer-Policy: same-origin`;
+  - `Permissions-Policy`.
+
+  A response that sets its own `Content-Security-Policy` keeps it.
+- FR-platform-modernization-19 — The page `Content-Security-Policy` allows a script only from
+  the server or with the nonce of the response. The main pages cause no policy violation in
+  Chromium.
+- FR-platform-modernization-20 — The paths `/docs`, `/docs/oauth2-redirect` and `/redoc` get a
+  policy that also allows `https://cdn.jsdelivr.net` and inline scripts and styles.
+- FR-platform-modernization-21 — The `Permissions-Policy` allows `serial` for the server only,
+  and denies the other listed features. The policy does not list `bluetooth`, because Linux
+  Chromium reports it as an unknown feature. The browser default for `bluetooth` is the server
+  only.
 
 ## User flows
 
@@ -58,7 +80,7 @@ stream works through nginx.
 flowchart LR
   A[docker compose up] --> B[Container starts]
   B --> C{/data/config.yaml exists?}
-  C -->|no| D[Write secret key + warn about default password]
+  C -->|no| D[Write secret key + hash of generated password, log the password once]
   C -->|yes| E[Load]
   D --> F[healthz 200]
   E --> F
@@ -67,8 +89,8 @@ flowchart LR
 ```
 
 1. The self-hoster runs `docker compose up -d`.
-2. On first start, the app writes `config.yaml` to `/data` and logs a warning about the
-   default password.
+2. On first start, the app writes `config.yaml` to `/data`. It logs the generated admin
+   password once.
 3. On a later start, the app reads the same `config.yaml`. Sessions and firmware sources
    stay.
 
@@ -81,8 +103,8 @@ No screens.
 - uv docs: https://docs.astral.sh/uv/ (checked 2026-11-21, uv 0.13.x).
 - PlatformIO toolchain cache: persist `PLATFORMIO_CORE_DIR`. Source:
   https://docs.platformio.org/en/stable/projectconf/sections/platformio/options/directory/core_dir.html
-- The default password warning shows on every start while the hash matches the default
-  password `meshtastic`.
+- The project has no default password. Only the first start without a password logs the
+  generated password. A later start reads the hash from `config.yaml` and logs no password.
 
 ## Data touched
 

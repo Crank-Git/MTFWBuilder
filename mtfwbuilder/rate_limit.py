@@ -27,12 +27,13 @@ def login_rate_limit() -> str:
     return _active["settings"].login_rate_limit
 
 
-def _is_trusted(address: str) -> bool:
+def is_trusted_proxy(address: str, settings: Settings) -> bool:
+    """Return True when `address` is in one of the `trusted_proxies` networks of `settings`."""
     try:
         ip = ip_address(address)
     except ValueError:
         return False
-    return any(ip in network for network in _active["settings"].trusted_proxies)
+    return any(ip in network for network in settings.trusted_proxies)
 
 
 def client_address(request: Request) -> str:
@@ -41,14 +42,15 @@ def client_address(request: Request) -> str:
     The result is the peer address, unless the peer is a trusted proxy. For a trusted proxy,
     the result is the rightmost `X-Forwarded-For` hop that is not a trusted proxy.
     """
+    settings = _active["settings"]
     peer = get_remote_address(request)
-    if not _is_trusted(peer):
+    if not is_trusted_proxy(peer, settings):
         return peer
     hops = [hop.strip() for value in request.headers.getlist("x-forwarded-for") for hop in value.split(",")]
     hops = [hop for hop in hops if hop]
     # Each trusted proxy appends the address it received from, so only the hops to the right are reliable.
     for hop in reversed(hops):
-        if not _is_trusted(hop):
+        if not is_trusted_proxy(hop, settings):
             return hop
     return hops[0] if hops else peer
 

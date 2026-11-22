@@ -2,6 +2,7 @@
 
 import re
 import time
+from ipaddress import ip_network
 
 import aiosqlite
 import pytest
@@ -117,6 +118,31 @@ async def test_correct_password_over_https_gives_a_secure_session_cookie(app, ad
 
     assert resp.status_code == 303
     assert "secure" in _set_cookie_header(resp, SESSION_COOKIE).lower()
+
+
+# FR-platform-modernization-16
+@pytest.mark.parametrize(
+    ("peer", "forwarded_proto", "secure"),
+    [
+        ("172.30.80.5", "https", True),
+        ("203.0.113.9", "https", False),
+        ("172.30.80.5", None, False),
+    ],
+    ids=["trusted-proxy-https", "untrusted-peer-https", "trusted-proxy-plain-http"],
+)
+async def test_session_cookie_is_secure_only_for_https_from_a_trusted_proxy(
+    app, admin_password, peer, forwarded_proto, secure
+):
+    app.state.settings.trusted_proxies = [ip_network("172.30.80.0/24")]
+    headers = {"X-Forwarded-Proto": forwarded_proto} if forwarded_proto else {}
+    transport = ASGITransport(app=app, client=(peer, 40000))
+    async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as c:
+        token = await _page_token(c)
+
+        resp = await c.post("/admin/login", data={"admin_key": admin_password, "csrf_token": token}, headers=headers)
+
+    assert resp.status_code == 303
+    assert ("secure" in _set_cookie_header(resp, SESSION_COOKIE).lower()) is secure
 
 
 @pytest.mark.usefixtures("database")
@@ -274,7 +300,7 @@ async def test_htmx_update_failure_returns_an_html_fragment_with_the_error(app, 
 
     resp = await client.post("/api/v1/update-firmware", data={"csrf_token": token}, headers={"HX-Request": "true"})
 
-    assert resp.status_code == 200
+    assert resp.status_code == 502
     assert resp.headers["content-type"].startswith("text/html")
     assert "Cannot get the firmware version from the upstream firmware list." in resp.text
 

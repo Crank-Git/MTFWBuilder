@@ -9,6 +9,9 @@ OpenAPI schema does not show.
 - `POST /api/v1/generate` — Generate config from JSON
 - `POST /api/v1/preview` — Preview config without downloading
 - `POST /api/v1/download` — Download `userPrefs.jsonc`
+- `POST /api/v1/preview-userprefs` — Read an uploaded `userPrefs.jsonc`, sent as the multipart field `userPrefs`.
+  Returns `content`, `line_count`, `checks` (five key checks) and `filename`. Returns 413 for a file larger than
+  64 KB. Returns 422 when the file has no name or is not UTF-8 text.
 - `GET /api/v1/userprefs/keys?version=<tag>` — The userPrefs keys (`keys`) and the `config.proto` enum values
   (`enum_values`) that a firmware version reads, from a scan of its firmware source. Without `version`, the result
   is for the default firmware version. Returns 404 when the firmware version is not installed.
@@ -49,6 +52,9 @@ OpenAPI schema does not show.
 - `GET /api/v1/firmware/install/{install_id}` (admin) — Install status of an install: `install_id`,
   `version`, `status`, `error`. Returns 404 for an unknown install.
 - `GET /api/v1/firmware/install/{install_id}/progress` (admin) — SSE install progress stream
+- `POST /api/v1/update-firmware` (admin) — Install the newest stable firmware version and wait for the install
+  to end. Returns 200 with `success` and `message`. Returns 502 when the upstream firmware list gives no stable
+  firmware version. Returns 500 when the install fails: the response gives no reason, and the server log has it.
 - `DELETE /api/v1/firmware/{version}` (admin) — Remove an installed firmware version. Returns 204,
   and 409 while a build uses it.
 - `GET /api/v1/variants?version=&q=&arch=&experimental=` — Registry entries of a firmware version, in env

@@ -2,7 +2,7 @@
 
 {% block head %}
     {# A browser ignores an import map that comes after the first module script, so the map goes in the head. #}
-    <script type="importmap">
+    <script type="importmap" nonce="{{ request.state.csp_nonce }}">
         {"imports": {
             "@meshtastic/core": "{{ url_for('static', path='vendor/meshtastic/meshtastic-core-2.6.7.mjs').path }}",
             "@meshtastic/transport-web-serial": "{{ url_for('static', path='vendor/meshtastic/meshtastic-transport-web-serial-0.2.5.mjs').path }}",

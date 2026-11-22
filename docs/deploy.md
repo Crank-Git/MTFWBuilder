@@ -19,7 +19,10 @@ The production overlay puts nginx in front of the project and serves HTTPS. Web 
 Web Bluetooth work only on a secure page. Thus browser flashing and push config need HTTPS
 on every host other than `localhost`.
 
-1. Copy the nginx config: `cp nginx/nginx.conf.example nginx/nginx.conf`.
+1. Copy the nginx config: `cp nginx/nginx.conf.example nginx/nginx.conf`. The app sends its
+   own security headers, and nginx adds only `Strict-Transport-Security`. If your
+   `nginx/nginx.conf` comes from an older example, remove its `X-Frame-Options`,
+   `X-Content-Type-Options` and `Referrer-Policy` lines, because two copies can conflict.
 2. In `nginx/nginx.conf`, set `server_name` to your domain.
 3. Put the certificate in `nginx/ssl/fullchain.pem` and the key in `nginx/ssl/privkey.pem`.
 4. Start the project with the overlay:
@@ -30,8 +33,18 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 The overlay removes the published port 5000. Only nginx publishes ports: 80 and 443.
 
-To set the admin password, write your `config.yaml` into the `data` volume, then restart. The
-command runs as the container user, so the project can rewrite the file when it hashes a
+The project has no default admin password. On first start, the project generates a random
+password and logs it once. Read the generated password from the first-start log:
+
+```bash
+docker compose logs mtfwbuilder | grep "Generated admin password"
+```
+
+The project keeps only the hash of the password in `/data/config.yaml`. A later start does not
+log the password again.
+
+To set your own admin password, write your `config.yaml` into the `data` volume, then restart.
+The command runs as the container user, so the project can rewrite the file when it hashes a
 plaintext password.
 
 ```bash
@@ -40,9 +53,30 @@ docker compose restart mtfwbuilder
 ```
 
 The overlay sets `MTFW_TRUSTED_PROXIES` to `172.30.80.0/24`, the fixed subnet of its `backend`
-network. Only nginx and the app use that network. The rate limiter then reads
-`X-Forwarded-For` from nginx. If you change the subnet in `docker-compose.prod.yml`, change
-both values.
+network. Only nginx and the app use that network. The app then reads two headers from nginx:
+- The rate limiter reads `X-Forwarded-For`.
+- The session cookie reads `X-Forwarded-Proto`. When the value is `https`, the cookie is `Secure`.
+
+The app ignores both headers from an address outside `MTFW_TRUSTED_PROXIES`. If you change the
+subnet in `docker-compose.prod.yml`, change both values.
+
+The project signs sessions and CSRF tokens with `secret_key`, and it derives the profile secret
+key from it (ADR 0007). The project gets `secret_key` from the first source in this list:
+1. `secret_key` in `/data/config.yaml`.
+2. The `MTFW_SECRET_KEY` environment variable.
+3. A new random key. The project writes the new key to `/data/config.yaml`.
+
+`MTFW_SECRET_KEY` only seeds an install whose `config.yaml` has no key. When `config.yaml` has a
+key, the project ignores `MTFW_SECRET_KEY`.
+
+Warning: a change of `secret_key` ends every session. The stored profile secrets and fleet
+device admin keys do not decrypt after the change (ADR 0007). The operator must enter them again.
+
+To rotate the key:
+1. Remove the `secret_key` line from `/data/config.yaml`.
+2. Optional: set `MTFW_SECRET_KEY` to the new key.
+3. Restart the container. Without `MTFW_SECRET_KEY`, the project writes a new random key to
+   `config.yaml`.
 
 ## Upgrade from a release before the `data` volume
 
@@ -67,7 +101,8 @@ root is scrubbed and kept, and a warning names it. In Docker, `config.yaml` is
 project root.
 
 If no `config.yaml` exists, the app migrates from `config.json` (v1 format) or uses the
-defaults. At startup, the app hashes a plaintext password with bcrypt.
+defaults. At startup, the app hashes a plaintext password with bcrypt. If no admin password is
+set, the app generates one and logs it once.
 
 ## Volumes
 

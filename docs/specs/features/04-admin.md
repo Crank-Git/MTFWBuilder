@@ -12,7 +12,7 @@ mockups: []
 The admin area lets an admin download the firmware source from GitHub and remove old
 builds. This file describes the code at commit `bd15bb1`.
 
-**Changed since this record.** Epic 5 (#132) changed `/api/v1/update-firmware`: it installs the newest non-revoked stable firmware version into `<firmware_dir>/<tag>/` through the firmware catalog. Epic 2 (#102) added the periodic cleanup task and a lock between the firmware update and builds. Epic 3 (#22) added the sign-in form and the dashboard. Every admin POST now needs the form field `csrf_token`, or it returns 403. The session cookie sets `Secure` only on `https`.
+**Changed since this record.** `POST /api/v1/update-firmware` returns 502 when upstream gives no stable firmware version, and 500 when the install fails. The 500 response gives no reason, and the server log has it. Epic 5 (#132) changed `/api/v1/update-firmware`: it installs the newest non-revoked stable firmware version into `<firmware_dir>/<tag>/` through the firmware catalog. Epic 2 (#102) added the periodic cleanup task and a lock between the firmware update and builds. Epic 3 (#22) added the sign-in form and the dashboard. Every admin POST now needs the form field `csrf_token`, or it returns 403. The session cookie sets `Secure` on `https`, and on `X-Forwarded-Proto: https` from a trusted proxy (FR-platform-modernization-16). FR-admin-6 is replaced: a start with no password generates a random password (FR-platform-modernization-17).
 
 ## User stories
 
