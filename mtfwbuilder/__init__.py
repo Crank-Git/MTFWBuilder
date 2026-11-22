@@ -1,3 +1,6 @@
 """MTFWBuilder - Meshtastic firmware configuration generator and builder."""
 
-__version__ = "2.0.0"
+from importlib.metadata import version
+
+# uv sync and the Docker image install the project, so the version in `pyproject.toml` is in its metadata.
+__version__ = version("mtfwbuilder")

@@ -6,6 +6,9 @@ from pathlib import Path
 
 import pytest
 
+import mtfwbuilder
+from mtfwbuilder.main import create_app
+
 ROOT = Path(__file__).resolve().parent.parent
 
 FLOORS = {
@@ -42,3 +45,8 @@ def test_dependency_floor_is_at_least_the_spec_version(name, minimum):
 
 def test_uv_lock_is_committed_next_to_pyproject():
     assert (ROOT / "uv.lock").is_file()
+
+
+def test_app_version_is_the_pyproject_version():
+    assert mtfwbuilder.__version__ == _pyproject()["project"]["version"]
+    assert create_app().version == mtfwbuilder.__version__
