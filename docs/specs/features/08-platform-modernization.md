@@ -54,6 +54,8 @@ stream works through nginx.
 - FR-platform-modernization-16 — The session cookie sets `Secure` when a peer in
   `MTFW_TRUSTED_PROXIES` sends `X-Forwarded-Proto: https`. The project ignores the header
   from any other peer.
+- FR-platform-modernization-17 — At a start with no admin password, the project generates a
+  random password. It writes only the bcrypt hash to `config.yaml` and logs the password once.
 
 ## User flows
 
@@ -61,7 +63,7 @@ stream works through nginx.
 flowchart LR
   A[docker compose up] --> B[Container starts]
   B --> C{/data/config.yaml exists?}
-  C -->|no| D[Write secret key + warn about default password]
+  C -->|no| D[Write secret key + hash of generated password, log the password once]
   C -->|yes| E[Load]
   D --> F[healthz 200]
   E --> F
@@ -70,8 +72,8 @@ flowchart LR
 ```
 
 1. The self-hoster runs `docker compose up -d`.
-2. On first start, the app writes `config.yaml` to `/data` and logs a warning about the
-   default password.
+2. On first start, the app writes `config.yaml` to `/data`. It logs the generated admin
+   password once.
 3. On a later start, the app reads the same `config.yaml`. Sessions and firmware sources
    stay.
 
@@ -84,8 +86,8 @@ No screens.
 - uv docs: https://docs.astral.sh/uv/ (checked 2026-11-21, uv 0.13.x).
 - PlatformIO toolchain cache: persist `PLATFORMIO_CORE_DIR`. Source:
   https://docs.platformio.org/en/stable/projectconf/sections/platformio/options/directory/core_dir.html
-- The default password warning shows on every start while the hash matches the default
-  password `meshtastic`.
+- The project has no default password. Only the first start without a password logs the
+  generated password. A later start reads the hash from `config.yaml` and logs no password.
 
 ## Data touched
 

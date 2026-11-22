@@ -30,8 +30,18 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 The overlay removes the published port 5000. Only nginx publishes ports: 80 and 443.
 
-To set the admin password, write your `config.yaml` into the `data` volume, then restart. The
-command runs as the container user, so the project can rewrite the file when it hashes a
+The project has no default admin password. On first start, the project generates a random
+password and logs it once. Read the generated password from the first-start log:
+
+```bash
+docker compose logs mtfwbuilder | grep "Generated admin password"
+```
+
+The project keeps only the hash of the password in `/data/config.yaml`. A later start does not
+log the password again.
+
+To set your own admin password, write your `config.yaml` into the `data` volume, then restart.
+The command runs as the container user, so the project can rewrite the file when it hashes a
 plaintext password.
 
 ```bash
@@ -70,7 +80,8 @@ root is scrubbed and kept, and a warning names it. In Docker, `config.yaml` is
 project root.
 
 If no `config.yaml` exists, the app migrates from `config.json` (v1 format) or uses the
-defaults. At startup, the app hashes a plaintext password with bcrypt.
+defaults. At startup, the app hashes a plaintext password with bcrypt. If no admin password is
+set, the app generates one and logs it once.
 
 ## Volumes
 

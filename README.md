@@ -84,8 +84,11 @@ machine.
 
 ## Quick start
 
-1. **Set the admin password first.** Without one, it's `meshtastic`. Copy
-   `config.yaml.example`, set `admin_password`, and restart:
+1. **Get the admin password.** There's no default. On first start the app generates a
+   random password and logs it once, as `Generated admin password: ...`. Read it with
+   `docker compose logs mtfwbuilder`, or from the terminal for a manual install. Only its
+   hash is saved, so it never shows again. To choose your own, copy `config.yaml.example`,
+   set `admin_password`, and restart:
 
    ```bash
    # Manual install
@@ -169,8 +172,9 @@ Branch from `dev` and open the pull request to `dev`. See [CONTRIBUTING.md](CONT
 
 ## Security
 
-- **Change the default admin password.** With no `admin_password` in `config.yaml`, the
-  password is `meshtastic` and the log warns about it.
+- **No default admin password.** With no `admin_password` in `config.yaml` (and no
+  `MTFW_ADMIN_PASSWORD_HASH`), the first start generates a random password, saves only its
+  bcrypt hash, and logs the password once. Read it from that first log, or set your own.
 - **The app listens on every interface.** The manual command above uses `--host 0.0.0.0`,
   and Docker publishes port 5000 on every host interface. Put it behind the nginx overlay
   ([docs/deploy.md](docs/deploy.md)) before you expose it.

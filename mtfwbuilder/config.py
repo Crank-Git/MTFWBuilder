@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import secrets
 import shutil
 import tempfile
 from pathlib import Path
@@ -146,6 +147,9 @@ def _move_old(old: Path, new: Path) -> bool:
 def load_settings() -> Settings:
     """Load settings from config.yaml, with password auto-migration.
 
+    When no admin password is set, the function generates one, writes only its hash to config.yaml
+    and logs the password once.
+
     The function reads config.yaml from the data directory: `MTFW_DATA_DIR`, else `data/` under
     the base directory. It reads config.json from the base directory: `MTFW_BASE_DIR`, else the
     project root.
@@ -172,12 +176,10 @@ def load_settings() -> Settings:
         with open(old_config_path) as f:
             data = json.load(f)
 
-        raw_password = data.get("admin_password", "meshtastic")
-        hashed = _hash_password(raw_password)
-        overrides["admin_password_hash"] = hashed
-
         # Write migrated config.yaml
-        migrated = {"admin_password_hash": hashed, "secret_key": os.urandom(32).hex()}
+        migrated = {"secret_key": os.urandom(32).hex()}
+        if "admin_password" in data:
+            migrated["admin_password_hash"] = overrides["admin_password_hash"] = _hash_password(data["admin_password"])
         with open(config_path, "w") as f:
             yaml.dump(migrated, f, default_flow_style=False)
 
@@ -191,11 +193,14 @@ def load_settings() -> Settings:
         with open(config_path, "w") as f:
             yaml.dump(overrides_copy, f, default_flow_style=False)
 
-    # Default password if nothing configured
-    if not overrides.get("admin_password_hash"):
-        overrides["admin_password_hash"] = _hash_password("meshtastic")
+    # config.yaml keeps only the hash, so a later start finds it and never shows the password again.
+    if not overrides.get("admin_password_hash") and not os.environ.get("MTFW_ADMIN_PASSWORD_HASH"):
+        password = secrets.token_urlsafe(16)
+        overrides["admin_password_hash"] = _hash_password(password)
+        with open(config_path, "w") as f:
+            yaml.dump(dict(overrides), f, default_flow_style=False)
         logger.warning(
-            "SECURITY: Using default admin password 'meshtastic'. Set admin_password in config.yaml for production use."
+            f"Generated admin password: {password} (shown once; set admin_password in config.yaml to choose your own)"
         )
 
     # Auto-generate secret key if still default
