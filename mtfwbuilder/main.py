@@ -28,6 +28,7 @@ from mtfwbuilder.routers.fleets import router as fleets_router
 from mtfwbuilder.routers.pages import router as pages_router
 from mtfwbuilder.routers.profiles import router as profiles_router
 from mtfwbuilder.routers.variants import router as variants_router
+from mtfwbuilder.security_headers import SecurityHeadersMiddleware
 from mtfwbuilder.services.build_service import BuildQueue
 from mtfwbuilder.services.cleanup_service import cleanup_every_interval, scrub_sources_after_restart
 from mtfwbuilder.services.firmware_catalog import FirmwareCatalog
@@ -128,6 +129,8 @@ def create_app() -> FastAPI:
     template_dir = os.path.join(base_dir, "templates")
 
     app.state.templates = Jinja2Templates(directory=template_dir)
+
+    app.add_middleware(SecurityHeadersMiddleware)
 
     # Rate limiting
     app.state.limiter = limiter

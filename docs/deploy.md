@@ -19,7 +19,10 @@ The production overlay puts nginx in front of the project and serves HTTPS. Web 
 Web Bluetooth work only on a secure page. Thus browser flashing and push config need HTTPS
 on every host other than `localhost`.
 
-1. Copy the nginx config: `cp nginx/nginx.conf.example nginx/nginx.conf`.
+1. Copy the nginx config: `cp nginx/nginx.conf.example nginx/nginx.conf`. The app sends its
+   own security headers, and nginx adds only `Strict-Transport-Security`. If your
+   `nginx/nginx.conf` comes from an older example, remove its `X-Frame-Options`,
+   `X-Content-Type-Options` and `Referrer-Policy` lines, because two copies can conflict.
 2. In `nginx/nginx.conf`, set `server_name` to your domain.
 3. Put the certificate in `nginx/ssl/fullchain.pem` and the key in `nginx/ssl/privkey.pem`.
 4. Start the project with the overlay:

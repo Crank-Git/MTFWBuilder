@@ -46,6 +46,7 @@ class _AssetParser(HTMLParser):
                 self.assets.append(attrs["src"])
             self._in_script = True
             self._script_text = ""
+            self._script_src = attrs.get("src", "")
         elif tag == "link" and attrs.get("href"):
             self.assets.append(attrs["href"])
             if self._in_head:
@@ -58,7 +59,9 @@ class _AssetParser(HTMLParser):
             self._in_title = False
         elif tag == "script":
             if self._in_head:
-                self.head_items.append(("script", self._script_text))
+                # The Content-Security-Policy blocks an inline script, so a script in the head reads its file.
+                text = (REPO_ROOT / urlsplit(self._script_src).path.lstrip("/")).read_text() if self._script_src else ""
+                self.head_items.append(("script", text or self._script_text))
             self._in_script = False
 
     def handle_data(self, data):

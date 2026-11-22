@@ -393,13 +393,13 @@ PlatformIO build of one ESP32 variant takes several minutes on first build and u
 several GB of disk for toolchains. The build cache returns a repeated build in under
 one second.
 
-**Security headers.** In production, nginx sets `Strict-Transport-Security`,
-`X-Frame-Options`, `X-Content-Type-Options` and `Referrer-Policy`
-(`nginx/nginx.conf.example`). The app sets `Content-Security-Policy` and
-`X-Content-Type-Options` only on a device image response (`routers/variants.py`). Not
-built: the app sets `X-Content-Type-Options`, `Referrer-Policy` and a
-Content-Security-Policy that allows only vendored scripts on every response. No epic
-holds this work.
+**Security headers (built).** The middleware `mtfwbuilder/security_headers.py` sets
+`Content-Security-Policy`, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`
+and `Permissions-Policy` on every response (FR-platform-modernization-18 to 21). The page
+policy allows a script only from the server or with the nonce of the response. The import
+map of the push config page carries the nonce. The API docs pages get a policy that also
+allows their CDN. A device image response keeps its own stricter policy. In production,
+nginx adds only `Strict-Transport-Security` (`nginx/nginx.conf.example`).
 
 ## Environments & config
 
@@ -800,3 +800,4 @@ Written by `/spec-to-issues` on 2026-11-21.
 - 2026-11-22 — Owner decision: `README.md` uses the voice of the owner and is exempt from Simplified Technical English. US English still applies. Every other Markdown file keeps the standard, and `.claude/rules/ste.md` states the exception. The API reference moves to `docs/api.md`, and the Docker reference moves to `docs/deploy.md`.
 - 2026-11-22 — Owner decisions on approved tech debt. The project has no default admin password: a start with no password generates one, stores only its hash and logs it once (FR-platform-modernization-17). The session cookie also sets `Secure` for `X-Forwarded-Proto: https` from a peer in `MTFW_TRUSTED_PROXIES` (FR-platform-modernization-16). The 13 inherit contradictions are marked resolved.
 - 2026-11-22 — Owner ruling on the secret key: a `secret_key` in `config.yaml` wins over `MTFW_SECRET_KEY`. The variable only seeds an install whose `config.yaml` has no key, because a key change makes the stored profile secrets unreadable (ADR 0007).
+- 2026-11-22 — Owner rulings: `POST /api/v1/preview-userprefs` and `POST /api/v1/update-firmware` return an error status, never 200 with `success: false`. The app sets the security headers on every response (FR-platform-modernization-18 to 21), and nginx keeps only `Strict-Transport-Security`.

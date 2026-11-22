@@ -35,11 +35,9 @@ http {
         ssl_session_timeout 10m;
 
         # Security headers
-        # A block with its own add_header drops all inherited add_header lines, so each such block repeats these.
+        # The app sends the other security headers on every response, and a second copy here can conflict.
+        # A block with its own add_header drops all inherited add_header lines, so each such block repeats this one.
         add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
-        add_header X-Frame-Options DENY always;
-        add_header X-Content-Type-Options nosniff always;
-        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
         # The app accepts an upload of 64KB or less, so nginx refuses a larger body before the app reads it.
         client_max_body_size 1M;
@@ -95,9 +93,6 @@ http {
             expires 1y;
             add_header Cache-Control "public, no-transform";
             add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
-            add_header X-Frame-Options DENY always;
-            add_header X-Content-Type-Options nosniff always;
-            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
             proxy_pass http://mtfwbuilder;
         }
 

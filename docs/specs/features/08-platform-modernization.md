@@ -56,6 +56,21 @@ stream works through nginx.
   from any other peer.
 - FR-platform-modernization-17 — At a start with no admin password, the project generates a
   random password. It writes only the bcrypt hash to `config.yaml` and logs the password once.
+- FR-platform-modernization-18 — Every HTTP response of the app has these headers:
+  - `Content-Security-Policy`;
+  - `X-Content-Type-Options: nosniff`;
+  - `X-Frame-Options: DENY`;
+  - `Referrer-Policy: same-origin`;
+  - `Permissions-Policy`.
+
+  A response that sets its own `Content-Security-Policy` keeps it.
+- FR-platform-modernization-19 — The page `Content-Security-Policy` allows a script only from
+  the server or with the nonce of the response. The main pages cause no policy violation in
+  Chromium.
+- FR-platform-modernization-20 — The paths `/docs`, `/docs/oauth2-redirect` and `/redoc` get a
+  policy that also allows `https://cdn.jsdelivr.net` and inline scripts and styles.
+- FR-platform-modernization-21 — The `Permissions-Policy` allows `serial` and `bluetooth` for
+  the server only, and denies the other listed features.
 
 ## User flows
 

@@ -486,7 +486,7 @@ body.rv-open .layout { padding-right:21rem; }
 <p><strong>Accessibility.</strong> Every input has a label. The progress stream region has <code>aria-live="polite"</code>. Every icon-only button has an <code>aria-label</code>. Colors meet WCAG AA contrast in light and dark themes.</p>
 <p><strong>i18n.</strong> English only. Not planned.</p>
 <p><strong>Performance.</strong> One build worker by default (<code>MTFW_BUILD_WORKERS</code>, default 1). A PlatformIO build of one ESP32 variant takes several minutes on first build and uses several GB of disk for toolchains. The build cache returns a repeated build in under one second.</p>
-<p><strong>Security headers.</strong> In production, nginx sets <code>Strict-Transport-Security</code>, <code>X-Frame-Options</code>, <code>X-Content-Type-Options</code> and <code>Referrer-Policy</code> (<code>nginx/nginx.conf.example</code>). The app sets <code>Content-Security-Policy</code> and <code>X-Content-Type-Options</code> only on a device image response (<code>routers/variants.py</code>). Not built: the app sets <code>X-Content-Type-Options</code>, <code>Referrer-Policy</code> and a Content-Security-Policy that allows only vendored scripts on every response. No epic holds this work.</p>
+<p><strong>Security headers (built).</strong> The middleware <code>mtfwbuilder/security_headers.py</code> sets <code>Content-Security-Policy</code>, <code>X-Content-Type-Options</code>, <code>X-Frame-Options</code>, <code>Referrer-Policy</code> and <code>Permissions-Policy</code> on every response (FR-platform-modernization-18 to 21). The page policy allows a script only from the server or with the nonce of the response. The import map of the push config page carries the nonce. The API docs pages get a policy that also allows their CDN. A device image response keeps its own stricter policy. In production, nginx adds only <code>Strict-Transport-Security</code> (<code>nginx/nginx.conf.example</code>).</p>
 <h2 id="environments-config">Environments &amp; config</h2>
 <div class="table-wrap"><table>
 <tr><th>Environment</th><th>How it runs</th><th>Notes</th></tr>
@@ -978,6 +978,8 @@ body.rv-open .layout { padding-right:21rem; }
 <li>2026-11-22 — Owner decisions on approved tech debt. The project has no default admin password: a start with no password generates one, stores only its hash and logs it once (FR-platform-modernization-17). The session cookie also sets <code>Secure</code> for <code>X-Forwarded-Proto: https</code> from a peer in <code>MTFW_TRUSTED_PROXIES</code> (FR-platform-modernization-16). The 13 inherit contradictions are marked resolved.
 </li>
 <li>2026-11-22 — Owner ruling on the secret key: a <code>secret_key</code> in <code>config.yaml</code> wins over <code>MTFW_SECRET_KEY</code>. The variable only seeds an install whose <code>config.yaml</code> has no key, because a key change makes the stored profile secrets unreadable (ADR 0007).
+</li>
+<li>2026-11-22 — Owner rulings: <code>POST /api/v1/preview-userprefs</code> and <code>POST /api/v1/update-firmware</code> return an error status, never 200 with <code>success: false</code>. The app sets the security headers on every response (FR-platform-modernization-18 to 21), and nginx keeps only <code>Strict-Transport-Security</code>.
 </li>
 </ul><nav class="pager">
 <span></span>
